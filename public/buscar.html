@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{TITLE}}</title>
+  <meta name="description" content="Buscá empleos en San Carlos, Tunuyán y Tupungato. Filtrá por categoría, modalidad y tipo de contrato.">
+  <meta name="theme-color" content="#14884a">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body data-page="search">
+{{NAV}}
+<main class="container">
+  <div class="search-layout">
+    <aside class="filters" aria-label="Filtros de búsqueda">
+      <h3>Filtros <button class="btn btn-ghost btn-sm" type="button" id="clear-filters">Limpiar</button></h3>
+      <form id="filters-form">
+        <div class="field">
+          <label for="f-q">Palabra clave</label>
+          <input class="input" id="f-q" name="q" type="search" placeholder="Puesto o empresa">
+        </div>
+        <div class="field">
+          <label for="f-locality">Localidad</label>
+          <select class="input" id="f-locality" name="locality"><option value="">Todas</option></select>
+        </div>
+        <div class="field">
+          <label for="f-category">Categoría</label>
+          <select class="input" id="f-category" name="category"><option value="">Todas</option></select>
+        </div>
+        <div class="field">
+          <label for="f-type">Tipo de empleo</label>
+          <select class="input" id="f-type" name="type"><option value="">Todos</option></select>
+        </div>
+        <div class="field">
+          <label for="f-modality">Modalidad</label>
+          <select class="input" id="f-modality" name="modality"><option value="">Todas</option></select>
+        </div>
+        <button class="btn btn-primary btn-block" type="submit">Aplicar filtros</button>
+      </form>
+    </aside>
+
+    <section>
+      <div class="results-head">
+        <div>
+          <h1>Buscar empleo</h1>
+          <p class="results-count" id="results-count">Cargando ofertas…</p>
+        </div>
+        <div class="field" style="min-width:200px">
+          <label for="f-sort" class="sr-only">Ordenar</label>
+          <select class="input" id="f-sort">
+            <option value="recent">Más recientes primero</option>
+            <option value="old">Más antiguas primero</option>
+          </select>
+        </div>
+      </div>
+      <div class="results-list" id="results" aria-live="polite"></div>
+      <div class="load-more" id="load-more-wrap" hidden>
+        <button class="btn btn-outline" id="load-more" type="button">Ver más ofertas</button>
+      </div>
+    </section>
+  </div>
+</main>
+{{FOOTER}}
+<script src="/app.js"></script>
+</body>
+</html>

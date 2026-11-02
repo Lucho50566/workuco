@@ -1,0 +1,14 @@
+{
+  "name": "workuco",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Workuco — Portal de empleo del Valle de Uco (Node 24 + SQLite, sin dependencias)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node tools/test-api.js"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

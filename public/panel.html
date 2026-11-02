@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{TITLE}}</title>
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#14884a">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body data-page="panel">
+{{NAV}}
+<main class="container app-shell">
+  <div id="panel-loading"><div class="skeleton" style="height:36px;width:40%"></div><div class="skeleton" style="height:120px;margin-top:20px"></div></div>
+
+  <div id="panel-gate" hidden>
+    <div class="card" style="text-align:center;padding:44px 26px">
+      <h1 style="font-size:26px;margin-bottom:8px">Panel de empresa</h1>
+      <p style="color:var(--muted);max-width:440px;margin:0 auto 22px">Ingresá con tu cuenta para administrar tus ofertas y ver las postulaciones.</p>
+      <a class="btn btn-primary" href="/acceder?next=/panel">Ingresar</a>
+    </div>
+  </div>
+
+  <div id="panel-app" hidden>
+    <div class="app-head">
+      <div>
+        <h1 id="panel-company">Mi empresa</h1>
+        <p>Gestioná tus búsquedas laborales y las postulaciones recibidas.</p>
+      </div>
+      <a class="btn btn-primary" href="/publicar">Nueva publicación</a>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi"><div class="n" id="kpi-published">0</div><div class="l">Ofertas publicadas</div></div>
+      <div class="kpi"><div class="n" id="kpi-pending">0</div><div class="l">Pendientes de revisión</div></div>
+      <div class="kpi"><div class="n" id="kpi-apps">0</div><div class="l">Postulaciones</div></div>
+      <div class="kpi"><div class="n" id="kpi-views">0</div><div class="l">Visitas a tus ofertas</div></div>
+    </div>
+
+    <div class="tabs" role="tablist">
+      <button class="tab is-active" data-tab="jobs" type="button">Mis ofertas</button>
+      <button class="tab" data-tab="apps" type="button">Postulaciones</button>
+      <button class="tab" data-tab="profile" type="button">Perfil de empresa</button>
+    </div>
+
+    <section data-panel="jobs">
+      <div class="card">
+        <div id="jobs-list"></div>
+      </div>
+    </section>
+
+    <section data-panel="apps" hidden>
+      <div class="card">
+        <h2>Postulaciones recibidas</h2>
+        <p class="sub">Podés marcar cada postulación como contactada o descartada.</p>
+        <div id="apps-list"></div>
+      </div>
+    </section>
+
+    <section data-panel="profile" hidden>
+      <div class="card" style="max-width:620px">
+        <h2>Perfil de empresa</h2>
+        <p class="sub">Estos datos se muestran junto a tus ofertas.</p>
+        <div id="profile-alert" hidden></div>
+        <form id="profile-form">
+          <div class="field">
+            <label for="p-name">Nombre</label>
+            <input class="input" id="p-name" name="name" required maxlength="120">
+          </div>
+          <div class="field" style="margin-top:14px">
+            <label for="p-phone">Teléfono</label>
+            <input class="input" id="p-phone" name="phone" maxlength="60">
+          </div>
+          <div class="field" style="margin-top:14px">
+            <label for="p-website">Sitio web <span class="hint">(opcional)</span></label>
+            <input class="input" id="p-website" name="website" maxlength="200" placeholder="https://">
+          </div>
+          <div class="field" style="margin-top:14px">
+            <label for="p-desc">Descripción</label>
+            <textarea class="input" id="p-desc" name="description" maxlength="1200" placeholder="Contá a qué se dedica tu empresa."></textarea>
+          </div>
+          <button class="btn btn-primary" type="submit" style="margin-top:18px">Guardar cambios</button>
+        </form>
+      </div>
+    </section>
+  </div>
+</main>
+
+<div class="toast-wrap" id="toasts"></div>
+{{FOOTER}}
+<script src="/app.js"></script>
+</body>
+</html>

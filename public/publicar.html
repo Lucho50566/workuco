@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{TITLE}}</title>
+  <meta name="description" content="Publicá una búsqueda laboral en Workuco y llegá a candidatos de todo el Valle de Uco.">
+  <meta name="theme-color" content="#14884a">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body data-page="publish">
+{{NAV}}
+<main class="container" style="max-width:820px;padding-top:40px;padding-bottom:70px">
+  <div id="publish-gate" hidden>
+    <div class="card" style="text-align:center;padding:44px 26px">
+      <h1 style="font-size:26px;margin-bottom:8px">Publicá tu búsqueda laboral</h1>
+      <p style="color:var(--muted);max-width:460px;margin:0 auto 22px">Para publicar necesitás una cuenta de empresa. Es gratis y te permite administrar tus ofertas y ver las postulaciones.</p>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+        <a class="btn btn-primary" href="/acceder?modo=registro&next=/publicar">Crear cuenta de empresa</a>
+        <a class="btn btn-outline" href="/acceder?next=/publicar">Ya tengo cuenta</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="publish-app" hidden>
+    <div class="app-head">
+      <div>
+        <h1>Publicar empleo</h1>
+        <p>Completá los datos de la búsqueda. Se revisa antes de publicarse.</p>
+      </div>
+      <a class="btn btn-outline btn-sm" href="/panel">Mis publicaciones</a>
+    </div>
+
+    <div class="alert alert-info" style="margin-bottom:18px">
+      Las publicaciones quedan <strong>pendientes de aprobación</strong> y suelen revisarse dentro de las 24 horas. Podés seguir el estado desde tu panel.
+    </div>
+
+    <div id="publish-alert" hidden></div>
+
+    <form id="job-form" novalidate>
+      <section class="form-section">
+        <h3>Puesto y ubicación</h3>
+        <p class="section-sub">Lo primero que ve quien busca trabajo.</p>
+        <div class="form-grid">
+          <div class="field span-2">
+            <label for="j-title">Nombre del puesto</label>
+            <input class="input" id="j-title" name="title" required maxlength="120" placeholder="Ej.: Vendedor/a de mostrador">
+            <span class="error-text" data-error="title" hidden></span>
+          </div>
+          <div class="field">
+            <label for="j-locality">Localidad</label>
+            <select class="input" id="j-locality" name="locality" required></select>
+            <span class="error-text" data-error="locality" hidden></span>
+          </div>
+          <div class="field">
+            <label for="j-category">Categoría</label>
+            <select class="input" id="j-category" name="category" required></select>
+            <span class="error-text" data-error="category" hidden></span>
+          </div>
+          <div class="field">
+            <label for="j-type">Tipo de empleo</label>
+            <select class="input" id="j-type" name="type" required></select>
+            <span class="error-text" data-error="type" hidden></span>
+          </div>
+          <div class="field">
+            <label for="j-modality">Modalidad</label>
+            <select class="input" id="j-modality" name="modality" required></select>
+            <span class="error-text" data-error="modality" hidden></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h3>Descripción del trabajo</h3>
+        <p class="section-sub">Contá de qué se trata el puesto y cómo es el día a día.</p>
+        <div class="form-grid">
+          <div class="field span-2">
+            <label for="j-description">Descripción</label>
+            <textarea class="input" id="j-description" name="description" required minlength="60" maxlength="8000" placeholder="Describí la empresa, el puesto y el equipo de trabajo."></textarea>
+            <span class="hint">Mínimo 60 caracteres.</span>
+            <span class="error-text" data-error="description" hidden></span>
+          </div>
+          <div class="field span-2">
+            <label for="j-responsibilities">Responsabilidades <span class="hint">(una por línea)</span></label>
+            <textarea class="input" id="j-responsibilities" name="responsibilities" maxlength="4000" placeholder="Atención al público&#10;Control de stock&#10;Cierre de caja"></textarea>
+          </div>
+          <div class="field span-2">
+            <label for="j-requirements">Requisitos <span class="hint">(uno por línea)</span></label>
+            <textarea class="input" id="j-requirements" name="requirements" maxlength="4000" placeholder="Secundario completo&#10;Disponibilidad los fines de semana"></textarea>
+          </div>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h3>Condiciones</h3>
+        <p class="section-sub">Todo lo que ayuda a decidir si el puesto encaja.</p>
+        <div class="form-grid">
+          <div class="field">
+            <label for="j-experience">Experiencia requerida</label>
+            <input class="input" id="j-experience" name="experience" maxlength="160" placeholder="Ej.: 1 año en atención al público">
+          </div>
+          <div class="field">
+            <label for="j-schedule">Jornada laboral</label>
+            <input class="input" id="j-schedule" name="schedule" maxlength="160" placeholder="Ej.: Lunes a viernes de 8 a 17 h">
+          </div>
+          <div class="field span-2">
+            <label for="j-salary">Remuneración <span class="hint">(opcional)</span></label>
+            <input class="input" id="j-salary" name="salary" maxlength="120" placeholder="Ej.: $ 900.000 brutos · A convenir">
+          </div>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h3>Contacto y cierre</h3>
+        <p class="section-sub">Usamos estos datos para que las personas puedan responder a tu búsqueda.</p>
+        <div class="form-grid">
+          <div class="field">
+            <label for="j-contact-email">Email de contacto</label>
+            <input class="input" id="j-contact-email" name="contactEmail" type="email" required>
+            <span class="error-text" data-error="contactEmail" hidden></span>
+          </div>
+          <div class="field">
+            <label for="j-contact-phone">Teléfono <span class="hint">(opcional)</span></label>
+            <input class="input" id="j-contact-phone" name="contactPhone" type="tel" maxlength="60">
+          </div>
+          <div class="field">
+            <label for="j-closes">Fecha de cierre <span class="hint">(opcional)</span></label>
+            <input class="input" id="j-closes" name="closesAt" type="date">
+          </div>
+        </div>
+      </section>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;flex-wrap:wrap">
+        <a class="btn btn-ghost" href="/panel">Cancelar</a>
+        <button class="btn btn-primary" type="submit" id="job-submit">Enviar para revisión</button>
+      </div>
+    </form>
+  </div>
+</main>
+{{FOOTER}}
+<script src="/app.js"></script>
+</body>
+</html>

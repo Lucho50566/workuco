@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{TITLE}}</title>
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#14884a">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body data-page="auth">
+{{NAV}}
+<main class="auth-wrap">
+  <div class="auth-card">
+    <h1 id="auth-title">Accedé a tu cuenta</h1>
+    <p class="sub" id="auth-sub">Administrá tus publicaciones y postulaciones.</p>
+
+    <div class="auth-tabs" role="tablist">
+      <button type="button" id="tab-login" class="is-active" role="tab" aria-selected="true">Ingresar</button>
+      <button type="button" id="tab-register" role="tab" aria-selected="false">Crear cuenta</button>
+    </div>
+
+    <div id="auth-alert" hidden></div>
+
+    <form class="auth-form" id="login-form" novalidate>
+      <div class="field">
+        <label for="l-email">Email de la empresa</label>
+        <input class="input" id="l-email" name="email" type="email" autocomplete="email" required>
+      </div>
+      <div class="field">
+        <label for="l-pass">Contraseña</label>
+        <input class="input" id="l-pass" name="password" type="password" autocomplete="current-password" required>
+      </div>
+      <button class="btn btn-primary btn-block" type="submit">Ingresar</button>
+    </form>
+
+    <form class="auth-form" id="register-form" hidden novalidate>
+      <div class="field">
+        <label for="r-name">Nombre de la empresa</label>
+        <input class="input" id="r-name" name="name" autocomplete="organization" required maxlength="120">
+        <span class="error-text" data-error="name" hidden></span>
+      </div>
+      <div class="field">
+        <label for="r-email">Email</label>
+        <input class="input" id="r-email" name="email" type="email" autocomplete="email" required>
+        <span class="error-text" data-error="email" hidden></span>
+      </div>
+      <div class="field">
+        <label for="r-phone">Teléfono</label>
+        <input class="input" id="r-phone" name="phone" type="tel" autocomplete="tel" required>
+        <span class="error-text" data-error="phone" hidden></span>
+      </div>
+      <div class="field">
+        <label for="r-pass">Contraseña <span class="hint">(mínimo 8 caracteres)</span></label>
+        <input class="input" id="r-pass" name="password" type="password" autocomplete="new-password" required minlength="8">
+        <span class="error-text" data-error="password" hidden></span>
+      </div>
+      <button class="btn btn-primary btn-block" type="submit">Crear cuenta</button>
+    </form>
+
+    <p class="auth-foot">¿Sos administrador de Workuco? <a href="/admin">Ingresá al panel</a></p>
+  </div>
+</main>
+{{FOOTER}}
+<script src="/app.js"></script>
+</body>
+</html>

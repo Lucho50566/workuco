@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: workuco
+    runtime: node
+    plan: free
+    buildCommand: "echo sin dependencias"
+    startCommand: "node server.js"
+    healthCheckPath: /api/meta
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      # Ofertas y postulaciones de ejemplo si la base está vacía.
+      - key: WORKUCO_DEMO
+        value: "1"
+      - key: WORKUCO_ADMIN_EMAIL
+        value: admin@workuco.com.ar
+      # Render genera la clave y la muestra en Environment.
+      - key: WORKUCO_ADMIN_PASS
+        generateValue: true

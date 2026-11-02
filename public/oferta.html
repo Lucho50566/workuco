@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{TITLE}}</title>
+  <meta name="description" content="Detalle de la oferta laboral y postulación en Workuco.">
+  <meta name="theme-color" content="#14884a">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body data-page="job">
+{{NAV}}
+<main class="container detail-wrap">
+  <nav class="breadcrumb" aria-label="Miga de pan">
+    <a href="/">Inicio</a><span>/</span><a href="/buscar">Buscar empleo</a><span>/</span><span id="crumb-job">Oferta</span>
+  </nav>
+
+  <div id="job-view" aria-live="polite">
+    <div class="detail-grid">
+      <article class="detail-main">
+        <div class="skeleton" style="height:26px;width:55%"></div>
+        <div class="skeleton" style="height:15px;width:35%;margin-top:12px"></div>
+        <div class="skeleton" style="height:15px;width:100%;margin-top:26px"></div>
+        <div class="skeleton" style="height:15px;width:92%;margin-top:8px"></div>
+        <div class="skeleton" style="height:15px;width:80%;margin-top:8px"></div>
+      </article>
+      <aside class="detail-aside">
+        <div class="aside-card"><div class="skeleton" style="height:44px;width:100%"></div></div>
+      </aside>
+    </div>
+  </div>
+</main>
+
+<div class="modal-backdrop" id="apply-modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="apply-title">
+    <div class="modal-head">
+      <div>
+        <h2 id="apply-title">Postularte</h2>
+        <p class="sub" style="color:var(--muted);font-size:13.5px;margin-top:4px" id="apply-job-title"></p>
+      </div>
+      <button class="modal-close" type="button" data-close-modal aria-label="Cerrar">×</button>
+    </div>
+    <div id="apply-alert" hidden></div>
+    <form id="apply-form" novalidate>
+      <div class="form-grid">
+        <div class="field span-2">
+          <label for="a-name">Nombre y apellido</label>
+          <input class="input" id="a-name" name="name" autocomplete="name" required minlength="3">
+          <span class="error-text" data-error="name" hidden></span>
+        </div>
+        <div class="field">
+          <label for="a-email">Correo electrónico</label>
+          <input class="input" id="a-email" name="email" type="email" autocomplete="email" required>
+          <span class="error-text" data-error="email" hidden></span>
+        </div>
+        <div class="field">
+          <label for="a-phone">Teléfono</label>
+          <input class="input" id="a-phone" name="phone" type="tel" autocomplete="tel" required>
+          <span class="error-text" data-error="phone" hidden></span>
+        </div>
+        <div class="field span-2">
+          <label for="a-cv">Currículum PDF <span class="hint">(opcional, hasta 4 MB)</span></label>
+          <input class="input file-input" id="a-cv" name="cv" type="file" accept="application/pdf,.pdf">
+          <span class="error-text" data-error="cv" hidden></span>
+        </div>
+        <div class="field span-2">
+          <label for="a-message">Mensaje de presentación <span class="hint">(opcional)</span></label>
+          <textarea class="input" id="a-message" name="message" maxlength="2000" placeholder="Contale a la empresa por qué te interesa el puesto."></textarea>
+        </div>
+      </div>
+      <p class="aside-note">Al postularte aceptás la <a href="/privacidad" style="text-decoration:underline">política de privacidad</a>. Tus datos se comparten únicamente con la empresa que publicó la oferta.</p>
+      <button class="btn btn-primary btn-block" type="submit" id="apply-submit">Enviar postulación</button>
+    </form>
+  </div>
+</div>
+{{FOOTER}}
+<script src="/app.js"></script>
+</body>
+</html>

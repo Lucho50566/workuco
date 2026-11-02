@@ -1,0 +1,7 @@
+# Datos locales y artefactos
+data/
+shots/
+backups/
+*.log
+.env
+tmp*

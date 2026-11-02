@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{TITLE}}</title>
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#14884a">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body data-page="admin">
+{{NAV}}
+<main class="container app-shell">
+  <div id="admin-gate" hidden>
+    <div class="auth-card" style="margin:20px auto">
+      <h1>Administración</h1>
+      <p class="sub">Acceso exclusivo del equipo de Workuco.</p>
+      <div id="admin-login-alert" hidden></div>
+      <form id="admin-login-form" class="auth-form" novalidate>
+        <div class="field">
+          <label for="ad-email">Email</label>
+          <input class="input" id="ad-email" name="email" type="email" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label for="ad-pass">Contraseña</label>
+          <input class="input" id="ad-pass" name="password" type="password" autocomplete="current-password" required>
+        </div>
+        <button class="btn btn-primary btn-block" type="submit">Ingresar</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="admin-app" hidden>
+    <div class="app-head">
+      <div>
+        <h1>Panel de administración</h1>
+        <p>Ofertas, postulaciones y empresas de Workuco.</p>
+      </div>
+      <button class="btn btn-outline btn-sm" type="button" id="admin-logout">Cerrar sesión</button>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi"><div class="n" id="s-published">0</div><div class="l">Ofertas publicadas</div></div>
+      <div class="kpi"><div class="n" id="s-pending">0</div><div class="l">Pendientes</div></div>
+      <div class="kpi"><div class="n" id="s-apps">0</div><div class="l">Postulaciones</div></div>
+      <div class="kpi"><div class="n" id="s-companies">0</div><div class="l">Empresas registradas</div></div>
+    </div>
+
+    <div class="tabs" role="tablist">
+      <button class="tab is-active" data-tab="jobs" type="button">Ofertas</button>
+      <button class="tab" data-tab="apps" type="button">Postulaciones</button>
+      <button class="tab" data-tab="companies" type="button">Empresas</button>
+    </div>
+
+    <section data-panel="jobs">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+          <div>
+            <h2>Ofertas</h2>
+            <p class="sub" style="margin:0">Aprobá, rechazá o destacá publicaciones.</p>
+          </div>
+          <select class="input" id="jobs-filter" style="max-width:190px">
+            <option value="">Todas</option>
+            <option value="pending">Pendientes</option>
+            <option value="approved">Aprobadas</option>
+            <option value="rejected">Rechazadas</option>
+          </select>
+        </div>
+        <div id="admin-jobs"></div>
+      </div>
+    </section>
+
+    <section data-panel="apps" hidden>
+      <div class="card">
+        <h2>Postulaciones</h2>
+        <p class="sub">Todas las postulaciones recibidas en la plataforma.</p>
+        <div id="admin-apps"></div>
+      </div>
+    </section>
+
+    <section data-panel="companies" hidden>
+      <div class="card">
+        <h2>Empresas</h2>
+        <p class="sub">Verificá empresas y ajustá su plan.</p>
+        <div id="admin-companies"></div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<div class="modal-backdrop" id="edit-modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="edit-title">
+    <div class="modal-head">
+      <h2 id="edit-title">Editar oferta</h2>
+      <button class="modal-close" type="button" data-close-edit aria-label="Cerrar">×</button>
+    </div>
+    <div id="edit-alert" hidden></div>
+    <form id="edit-form">
+      <input type="hidden" id="e-id">
+      <div class="field">
+        <label for="e-title">Puesto</label>
+        <input class="input" id="e-title" required maxlength="120">
+      </div>
+      <div class="form-grid" style="margin-top:12px">
+        <div class="field">
+          <label for="e-locality">Localidad</label>
+          <select class="input" id="e-locality"></select>
+        </div>
+        <div class="field">
+          <label for="e-category">Categoría</label>
+          <select class="input" id="e-category"></select>
+        </div>
+        <div class="field">
+          <label for="e-type">Tipo</label>
+          <select class="input" id="e-type"></select>
+        </div>
+        <div class="field">
+          <label for="e-modality">Modalidad</label>
+          <select class="input" id="e-modality"></select>
+        </div>
+        <div class="field span-2">
+          <label for="e-desc">Descripción</label>
+          <textarea class="input" id="e-desc" minlength="60" required></textarea>
+        </div>
+        <div class="field">
+          <label for="e-salary">Remuneración</label>
+          <input class="input" id="e-salary" maxlength="120">
+        </div>
+        <div class="field">
+          <label for="e-contact">Email de contacto</label>
+          <input class="input" id="e-contact" type="email" required>
+        </div>
+        <div class="field">
+          <label for="e-closes">Cierre</label>
+          <input class="input" id="e-closes" type="date">
+        </div>
+      </div>
+      <button class="btn btn-primary btn-block" type="submit" style="margin-top:18px">Guardar cambios</button>
+    </form>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+{{FOOTER}}
+<script src="/app.js"></script>
+</body>
+</html>

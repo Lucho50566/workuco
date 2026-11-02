@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{TITLE}}</title>
+  <meta name="description" content="Encontrá oportunidades laborales en San Carlos, Tunuyán y Tupungato. Publicá búsquedas y postulate en minutos.">
+  <meta name="theme-color" content="#14884a">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body data-page="home">
+{{NAV}}
+<main>
+  <section class="hero">
+    <div class="container hero-inner">
+      <span class="eyebrow">Valle de Uco · Mendoza</span>
+      <h1>Tu próximo trabajo está más cerca</h1>
+      <p class="hero-sub">Encontrá oportunidades laborales en todo el Valle de Uco. San Carlos, Tunuyán y Tupungato en un solo lugar.</p>
+
+      <form class="search-card" id="home-search" role="search">
+        <div class="field field-q">
+          <label class="sr-only" for="home-q">Puesto o palabra clave</label>
+          <input class="input" id="home-q" name="q" type="search" placeholder="Puesto, empresa o palabra clave" autocomplete="off">
+        </div>
+        <div class="field">
+          <label class="sr-only" for="home-loc">Localidad</label>
+          <select class="input" id="home-loc" name="locality">
+            <option value="">Toda la zona</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="sr-only" for="home-cat">Categoría</label>
+          <select class="input" id="home-cat" name="category">
+            <option value="">Todas las categorías</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" type="submit">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          Buscar empleo
+        </button>
+      </form>
+      <div class="hero-hint">
+        <span>Búsquedas populares:</span>
+        <a class="chip-link" href="/buscar?q=vend">Ventas</a>
+        <a class="chip-link" href="/buscar?q=cocina">Cocina</a>
+        <a class="chip-link" href="/buscar?category=Agricultura">Agricultura</a>
+        <a class="chip-link" href="/buscar?modality=Remoto">Remoto</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <h2>Ofertas destacadas</h2>
+          <p>Las búsquedas que las empresas del Valle quieren que veas primero.</p>
+        </div>
+        <a class="link-arrow" href="/buscar">Ver todas las ofertas →</a>
+      </div>
+      <div class="jobs-grid" id="featured-jobs" aria-live="polite">
+        <div class="job-card"><div class="skeleton" style="height:18px;width:70%"></div><div class="skeleton" style="height:13px;width:45%"></div><div class="skeleton" style="height:13px;width:85%"></div><div class="skeleton" style="height:36px;width:100%"></div></div>
+        <div class="job-card"><div class="skeleton" style="height:18px;width:60%"></div><div class="skeleton" style="height:13px;width:50%"></div><div class="skeleton" style="height:13px;width:80%"></div><div class="skeleton" style="height:36px;width:100%"></div></div>
+        <div class="job-card"><div class="skeleton" style="height:18px;width:75%"></div><div class="skeleton" style="height:13px;width:40%"></div><div class="skeleton" style="height:13px;width:90%"></div><div class="skeleton" style="height:36px;width:100%"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <h2>Explorá por categoría</h2>
+          <p>Encontrá el área en la que querés trabajar.</p>
+        </div>
+      </div>
+      <div class="cats-grid" id="categories-grid"></div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="container">
+      <div class="cta-band">
+        <div>
+          <h2>Encontrá a tu próximo empleado</h2>
+          <p>Publicá tu búsqueda laboral y llegá a personas de todo el Valle de Uco. Las publicaciones se revisan antes de salir, para mantener la calidad de las ofertas.</p>
+        </div>
+        <a class="btn btn-primary" href="/publicar">Publicar una búsqueda</a>
+      </div>
+    </div>
+  </section>
+</main>
+{{FOOTER}}
+<script src="/app.js"></script>
+</body>
+</html>
