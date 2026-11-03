@@ -207,9 +207,7 @@ function navHtml(active) {
   return `<header class="site-header">
   <div class="container header-inner">
     <a class="brand" href="/" aria-label="Workuco, inicio">
-      <span class="brand-mark" aria-hidden="true">
-        <svg viewBox="0 0 32 32" width="26" height="26"><rect width="32" height="32" rx="9" fill="#14884a"/><path d="M9 10.5h4l2 8 2-8h4l-3.2 12h-5.6L9 10.5Z" fill="#fff"/></svg>
-      </span>
+      <img class="brand-logo" src="/logo-icon.png" alt="" width="30" height="30">
       <span class="brand-name">Workuco</span>
     </a>
     <nav class="main-nav" aria-label="Principal">${links}</nav>
@@ -233,9 +231,15 @@ function footerHtml() {
   <div class="container footer-grid">
     <div class="footer-brand">
       <a class="brand" href="/">
-        <span class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 32 32" width="24" height="24"><rect width="32" height="32" rx="9" fill="#14884a"/><path d="M9 10.5h4l2 8 2-8h4l-3.2 12h-5.6L9 10.5Z" fill="#fff"/></svg>
-        </span>
+        <svg class="brand-svg" viewBox="0 0 40 40" width="27" height="27" aria-hidden="true">
+          <mask id="wk-cut">
+            <rect width="40" height="40" fill="#fff"/>
+            <path d="M4 21.5 12 27l5-3 3 2 3-2 5 3 8-5.5" fill="none" stroke="#000" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+            <path d="M19 13h2v9h-2z" fill="#000"/>
+          </mask>
+          <rect x="4" y="11" width="32" height="23" rx="5" fill="#0ba37c" mask="url(#wk-cut)"/>
+          <path d="M15 11V8.5A3.5 3.5 0 0 1 18.5 5h3A3.5 3.5 0 0 1 25 8.5V11" fill="none" stroke="#0ba37c" stroke-width="3"/>
+        </svg>
         <span class="brand-name">Workuco</span>
       </a>
       <p>El portal de empleo del Valle de Uco. Conectamos talento local con empresas de San Carlos, Tunuyán y Tupungato.</p>
