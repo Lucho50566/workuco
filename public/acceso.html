@@ -14,55 +14,95 @@
 <body data-page="auth">
 {{NAV}}
 <main class="auth-wrap">
-  <div class="auth-card">
-    <img class="auth-logo" src="/logo-full.png" alt="Workuco" width="132" height="70">
-    <h1 id="auth-title">Accedé a tu cuenta</h1>
-    <p class="sub" id="auth-sub">Administrá tus publicaciones y postulaciones.</p>
+  <div class="auth-shell">
+    <aside class="auth-aside">
+      <a class="brand brand-light" href="/">
+        <img class="brand-logo" src="/logo-icon.png" alt="" width="30" height="30">
+        <span class="brand-name">Workuco</span>
+      </a>
+      <h2>El Valle trabaja mejor cuando nos conectamos.</h2>
+      <ul class="auth-points">
+        <li>{{ICON_USER}}<span><strong>Tu perfil, una sola vez</strong><small>Foto, CV, habilidades y disponibilidad para postularte en un toque.</small></span></li>
+        <li>{{ICON_BUILDING}}<span><strong>Un panel pensado para PyMEs</strong><small>Postulantes ordenados, notas, etapas y contacto directo.</small></span></li>
+        <li>{{ICON_SPARKLES}}<span><strong>IA opcional</strong><small>Resumí CV y detectá puntos fuertes sin leer todo a mano.</small></span></li>
+      </ul>
+      <p class="auth-aside-foot">San Carlos · Tunuyán · Tupungato</p>
+    </aside>
 
-    <div class="auth-tabs" role="tablist">
-      <button type="button" id="tab-login" class="is-active" role="tab" aria-selected="true">Ingresar</button>
-      <button type="button" id="tab-register" role="tab" aria-selected="false">Crear cuenta</button>
+    <div class="auth-card" id="auth-box">
+      <img class="auth-logo" src="/logo-full.png" alt="Workuco" width="132" height="70">
+      <h1 id="auth-title">¿Cómo querés entrar?</h1>
+      <p class="sub" id="auth-sub">Elegí tu tipo de cuenta para empezar.</p>
+
+      <div class="role-picker" id="role-picker" hidden>
+        <button type="button" class="role-card" data-role="candidate">
+          <span class="role-card-ico">{{ICON_USER}}</span>
+          <strong>Busco trabajo</strong>
+          <small>Crear mi perfil y postularme</small>
+        </button>
+        <button type="button" class="role-card" data-role="company">
+          <span class="role-card-ico">{{ICON_BUILDING}}</span>
+          <strong>Quiero contratar</strong>
+          <small>Publicar búsquedas y ver postulantes</small>
+        </button>
+      </div>
+
+      <div id="auth-forms" hidden>
+        <div class="auth-tabs" role="tablist">
+          <button type="button" id="tab-login" class="is-active" role="tab" aria-selected="true">Ingresar</button>
+          <button type="button" id="tab-register" role="tab" aria-selected="false">Crear cuenta</button>
+        </div>
+
+        <div id="auth-alert" hidden></div>
+
+        <form class="auth-form" id="login-form" novalidate>
+          <div class="field">
+            <label for="l-email" id="l-email-label">Email</label>
+            <input class="input" id="l-email" name="email" type="email" autocomplete="email" required>
+          </div>
+          <div class="field">
+            <label for="l-pass">Contraseña</label>
+            <input class="input" id="l-pass" name="password" type="password" autocomplete="current-password" required>
+          </div>
+          <button class="btn btn-primary btn-block" type="submit" id="login-submit">Ingresar</button>
+        </form>
+
+        <form class="auth-form" id="register-form" hidden novalidate>
+          <div class="field">
+            <label for="r-name" id="r-name-label">Nombre y apellido</label>
+            <input class="input" id="r-name" name="name" autocomplete="name" required maxlength="120">
+            <span class="error-text" data-error="name" hidden></span>
+          </div>
+          <div class="field">
+            <label for="r-email">Email</label>
+            <input class="input" id="r-email" name="email" type="email" autocomplete="email" required>
+            <span class="error-text" data-error="email" hidden></span>
+          </div>
+          <div class="field">
+            <label for="r-phone">Teléfono</label>
+            <input class="input" id="r-phone" name="phone" type="tel" autocomplete="tel" required>
+            <span class="error-text" data-error="phone" hidden></span>
+          </div>
+          <div class="field" id="r-locality-wrap">
+            <label for="r-locality">Localidad <span class="hint">(opcional)</span></label>
+            <select class="input" id="r-locality">
+              <option value="">Elegí tu localidad</option>
+              <option value="San Carlos">San Carlos</option>
+              <option value="Tunuyán">Tunuyán</option>
+              <option value="Tupungato">Tupungato</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="r-pass">Contraseña <span class="hint">(mínimo 8 caracteres)</span></label>
+            <input class="input" id="r-pass" name="password" type="password" autocomplete="new-password" required minlength="8">
+            <span class="error-text" data-error="password" hidden></span>
+          </div>
+          <button class="btn btn-primary btn-block" type="submit" id="register-submit">Crear cuenta</button>
+        </form>
+      </div>
+
+      <p class="auth-foot">¿Sos administrador de Workuco? <a href="/admin">Ingresá al panel</a></p>
     </div>
-
-    <div id="auth-alert" hidden></div>
-
-    <form class="auth-form" id="login-form" novalidate>
-      <div class="field">
-        <label for="l-email">Email de la empresa</label>
-        <input class="input" id="l-email" name="email" type="email" autocomplete="email" required>
-      </div>
-      <div class="field">
-        <label for="l-pass">Contraseña</label>
-        <input class="input" id="l-pass" name="password" type="password" autocomplete="current-password" required>
-      </div>
-      <button class="btn btn-primary btn-block" type="submit">Ingresar</button>
-    </form>
-
-    <form class="auth-form" id="register-form" hidden novalidate>
-      <div class="field">
-        <label for="r-name">Nombre de la empresa</label>
-        <input class="input" id="r-name" name="name" autocomplete="organization" required maxlength="120">
-        <span class="error-text" data-error="name" hidden></span>
-      </div>
-      <div class="field">
-        <label for="r-email">Email</label>
-        <input class="input" id="r-email" name="email" type="email" autocomplete="email" required>
-        <span class="error-text" data-error="email" hidden></span>
-      </div>
-      <div class="field">
-        <label for="r-phone">Teléfono</label>
-        <input class="input" id="r-phone" name="phone" type="tel" autocomplete="tel" required>
-        <span class="error-text" data-error="phone" hidden></span>
-      </div>
-      <div class="field">
-        <label for="r-pass">Contraseña <span class="hint">(mínimo 8 caracteres)</span></label>
-        <input class="input" id="r-pass" name="password" type="password" autocomplete="new-password" required minlength="8">
-        <span class="error-text" data-error="password" hidden></span>
-      </div>
-      <button class="btn btn-primary btn-block" type="submit">Crear cuenta</button>
-    </form>
-
-    <p class="auth-foot">¿Sos administrador de Workuco? <a href="/admin">Ingresá al panel</a></p>
   </div>
 </main>
 {{FOOTER}}

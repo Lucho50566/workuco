@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" role="img" aria-label="Posada de montaña al atardecer">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6f7fa8"/><stop offset=".55" stop-color="#c58d84"/><stop offset="1" stop-color="#f3c79b"/>
+    </linearGradient>
+    <linearGradient id="mtn" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4c5570"/><stop offset="1" stop-color="#2f3648"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="675" fill="url(#sky)"/>
+  <circle cx="960" cy="190" r="56" fill="#ffe6b0" opacity=".9"/>
+  <path d="M0 420 210 170 370 350 520 160 730 390 900 230 1200 430 V675 H0Z" fill="url(#mtn)"/>
+  <path d="M0 470 260 300 470 450 700 310 980 480 1200 400 V675 H0Z" fill="#3a4358" opacity=".8"/>
+  <path d="M0 560 Q300 520 600 550 T1200 540 V675 H0Z" fill="#222a38"/>
+  <g transform="translate(470 380)">
+    <rect x="0" y="80" width="260" height="150" rx="4" fill="#6b4a3a"/>
+    <path d="M-30 84 130 0l160 84Z" fill="#3c2b25"/>
+    <rect x="30" y="120" width="46" height="46" rx="3" fill="#ffd88a"/>
+    <rect x="112" y="120" width="46" height="46" rx="3" fill="#ffd88a"/>
+    <rect x="194" y="120" width="40" height="110" fill="#33241f"/>
+    <rect x="250" y="20" width="30" height="70" fill="#4a352b"/>
+    <path d="M265 20 q-6 -30 6 -46" stroke="#cdb9a5" stroke-width="5" fill="none" opacity=".65"/>
+  </g>
+  <g fill="#1c2430">
+    <path d="M150 640 l40 -150 40 150Z"/><path d="M930 640 l34 -130 34 130Z"/>
+  </g>
+</svg>

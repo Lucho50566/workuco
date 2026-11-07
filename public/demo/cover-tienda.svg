@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" role="img" aria-label="Almacén natural">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eef0e3"/><stop offset="1" stop-color="#dfe3cf"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="675" fill="url(#bg)"/>
+  <rect x="0" y="480" width="1200" height="195" fill="#b08f68"/>
+  <g>
+    <rect x="110" y="120" width="980" height="18" rx="6" fill="#8a6a4a"/>
+    <rect x="110" y="270" width="980" height="18" rx="6" fill="#8a6a4a"/>
+    <rect x="110" y="400" width="980" height="18" rx="6" fill="#8a6a4a"/>
+  </g>
+  <g>
+    <rect x="160" y="60" width="70" height="60" rx="8" fill="#c88f5a"/><rect x="250" y="50" width="60" height="70" rx="8" fill="#8ba36a"/>
+    <rect x="330" y="66" width="80" height="54" rx="8" fill="#d9b46a"/><rect x="430" y="48" width="56" height="72" rx="8" fill="#a87350"/>
+    <rect x="510" y="70" width="74" height="50" rx="8" fill="#7d9a74"/><rect x="610" y="54" width="62" height="66" rx="8" fill="#cf9f56"/>
+    <rect x="700" y="64" width="82" height="56" rx="8" fill="#9c6b48"/><rect x="810" y="50" width="58" height="70" rx="8" fill="#87a06b"/>
+    <rect x="890" y="68" width="70" height="52" rx="8" fill="#d2a964"/>
+  </g>
+  <g>
+    <rect x="170" y="310" width="54" height="90" rx="6" fill="#b0815a"/><rect x="240" y="292" width="60" height="108" rx="6" fill="#8a9d6d"/>
+    <rect x="320" y="322" width="70" height="78" rx="6" fill="#d8b373"/><rect x="410" y="300" width="52" height="100" rx="6" fill="#a56f4f"/>
+    <rect x="482" y="318" width="64" height="82" rx="6" fill="#7f9472"/><rect x="566" y="296" width="58" height="104" rx="6" fill="#c99a5c"/>
+    <rect x="644" y="326" width="76" height="74" rx="6" fill="#9a6a49"/><rect x="740" y="304" width="52" height="96" rx="6" fill="#89a06e"/>
+    <rect x="812" y="316" width="66" height="84" rx="6" fill="#d3a866"/><rect x="898" y="300" width="56" height="100" rx="6" fill="#ab7854"/>
+  </g>
+  <g fill="#5f7a4d">
+    <path d="M1030 480 q-40 -100 10 -150 q50 50 10 150Z"/>
+    <path d="M1060 480 q-10 -70 40 -100 q30 60 -20 100Z"/>
+    <rect x="1042" y="480" width="40" height="50" rx="6" fill="#a06a48"/>
+  </g>
+</svg>

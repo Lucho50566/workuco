@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Workuco — Portal de empleo del Valle de Uco
  * Servidor HTTP sin dependencias: API JSON + SQLite + frontend estático.
  *
@@ -11,13 +11,19 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { Store, uid, now, LOCALITIES, CATEGORIES, TYPES, MODALITIES } = require('./lib/store');
+const {
+  Store, uid, now, jparse,
+  LOCALITIES, CATEGORIES, TYPES, MODALITIES, BENEFITS, STAGES, STAGE_LABEL,
+} = require('./lib/store');
 const demo = require('./lib/demo');
+const ai = require('./lib/ai');
+const { extractCv } = require('./lib/cvtext');
 
 const ROOT = __dirname;
 const WEB = path.join(ROOT, 'public');
 const DATA = process.env.WORKUCO_DATA ? path.resolve(process.env.WORKUCO_DATA) : path.join(ROOT, 'data');
 const CV_DIR = path.join(DATA, 'cv');
+const UP_DIR = path.join(DATA, 'uploads');
 const DB_FILE = path.join(DATA, 'workuco.sqlite');
 const PORT = Number(process.env.PORT || 4250);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -26,6 +32,7 @@ const ADMIN_EMAIL = (process.env.WORKUCO_ADMIN_EMAIL || 'admin@workuco.com.ar').
 const ADMIN_PASS = process.env.WORKUCO_ADMIN_PASS || 'workuco2026';
 
 fs.mkdirSync(CV_DIR, { recursive: true });
+fs.mkdirSync(UP_DIR, { recursive: true });
 const store = new Store(DB_FILE);
 store.cleanSessions();
 
@@ -42,13 +49,14 @@ const send = (res, code, obj, headers = {}) => {
   });
   res.end(body);
 };
-const redirect = (res, url) => { res.writeHead(302, { Location: url }); res.end(); };
 const clean = (s, n = 500) => String(s == null ? '' : s).replace(/\s+/g, ' ').trim().slice(0, n);
 const cleanMultiline = (s, n = 5000) => String(s == null ? '' : s).replace(/\r/g, '').trim().slice(0, n);
 const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(s || '').trim());
 const phoneOk = (s) => String(s || '').replace(/\D/g, '').length >= 6;
+const arrOf = (v, max = 20, len = 40) => (Array.isArray(v) ? v : [])
+  .map((x) => clean(x, len)).filter(Boolean).slice(0, max);
 
-function readBody(req, limit = 8 * 1024 * 1024) {
+function readBody(req, limit = 16 * 1024 * 1024) {
   return new Promise((resolve, reject) => {
     let size = 0;
     const chunks = [];
@@ -103,10 +111,10 @@ function verifyPassword(pass, stored) {
   } catch (_) { return false; }
 }
 
-const SESSION_TTL = 7 * 24 * 3600e3;
-function setSession(res, role, companyId, req) {
+const SESSION_TTL = 30 * 24 * 3600e3;
+function setSession(res, role, req, ids = {}) {
   const token = crypto.randomBytes(24).toString('hex');
-  store.createSession(token, role, companyId, SESSION_TTL);
+  store.createSession(token, role, ids.companyId || null, SESSION_TTL, ids.candidateId || null);
   const secure = /https/i.test(req.headers['x-forwarded-proto'] || '') || /^https:/.test(PUBLIC_URL) ? ' Secure;' : '';
   res.setHeader('Set-Cookie', `wk_sess=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(SESSION_TTL / 1000)};${secure}`);
   return token;
@@ -116,6 +124,68 @@ function clearSession(req, res) {
   if (token) store.deleteSession(token);
   res.setHeader('Set-Cookie', 'wk_sess=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');
 }
+
+/* Imágenes: se guardan como archivo, nunca como base64 en la base. */
+const IMG_TYPES = [
+  { ext: 'jpg', mime: 'image/jpeg', magic: (b) => b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF },
+  { ext: 'png', mime: 'image/png', magic: (b) => b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47 },
+  { ext: 'webp', mime: 'image/webp', magic: (b) => b.toString('latin1', 0, 4) === 'RIFF' && b.toString('latin1', 8, 12) === 'WEBP' },
+];
+function parseDataUrl(v) {
+  const m = /^data:image\/(jpeg|jpg|png|webp);base64,([A-Za-z0-9+/=\s]+)$/i.exec(String(v || ''));
+  if (!m) return null;
+  const buf = Buffer.from(m[2].replace(/\s/g, ''), 'base64');
+  if (!buf.length) return null;
+  const type = IMG_TYPES.find((t) => t.magic(buf));
+  if (!type) return null;
+  return { buf, ext: type.ext, mime: type.mime };
+}
+function saveImage(dataUrl, prefix = 'img') {
+  const img = parseDataUrl(dataUrl);
+  if (!img) { const e = new Error('La imagen no es válida (usá JPG, PNG o WebP)'); e.status = 400; throw e; }
+  if (img.buf.length > 5 * 1024 * 1024) { const e = new Error('La imagen supera los 5 MB'); e.status = 413; throw e; }
+  const name = `${prefix}-${uid('')}.${img.ext}`;
+  fs.writeFileSync(path.join(UP_DIR, name), img.buf);
+  return name;
+}
+const mediaUrl = (f) => (f ? (/^https?:|^\//.test(f) ? f : `/media/${f}`) : null);
+const galleryUrls = (list) => jparse(list, []).map(mediaUrl).filter(Boolean);
+
+function publicCompany(c, { privateView = false } = {}) {
+  if (!c) return null;
+  const out = {
+    id: c.id, name: c.name, email: privateView ? c.email : undefined,
+    phone: c.phone || '', website: c.website || '', description: c.description || '',
+    locality: c.locality || '', verified: !!c.verified, plan: c.plan,
+    logo: mediaUrl(c.logo_file), gallery: galleryUrls(c.gallery),
+    createdAt: c.created_at,
+  };
+  if (privateView) {
+    const cfg = ai.configOf(c);
+    out.ai = {
+      provider: cfg.provider, model: cfg.model, baseUrl: cfg.baseUrl,
+      enabled: cfg.enabled, auto: cfg.auto, hasKey: !!cfg.apiKey,
+      keyMask: cfg.apiKey ? `${cfg.apiKey.slice(0, 3)}••••${cfg.apiKey.slice(-4)}` : '',
+    };
+  }
+  return out;
+}
+
+function publicCandidate(c, { privateView = false } = {}) {
+  if (!c) return null;
+  const out = {
+    id: c.id, name: c.name, phone: privateView ? c.phone : '',
+    locality: c.locality || '', headline: c.headline || '', about: c.about || '',
+    skills: jparse(c.skills, []), experience: c.experience || '', education: c.education || '',
+    availability: c.availability || '', linkedin: c.linkedin || '',
+    photo: c.photo_file ? `/api/photo/c/${c.id}` : null,
+    hasCv: !!c.cv_file, cvName: c.cv_name || '',
+    createdAt: c.created_at,
+  };
+  if (privateView) { out.email = c.email; out.cvUrl = c.cv_file ? `/api/cv/c/${c.id}` : null; }
+  return out;
+}
+
 function current(req) {
   const token = parseCookies(req).wk_sess;
   if (!token) return null;
@@ -125,14 +195,15 @@ function current(req) {
   if (s.role === 'company') {
     const c = store.company(s.company_id);
     if (!c) return null;
-    return { role: 'company', company: publicCompany(c) };
+    return { role: 'company', company: publicCompany(c, { privateView: true }) };
+  }
+  if (s.role === 'candidate') {
+    const c = store.candidate(s.candidate_id);
+    if (!c) return null;
+    return { role: 'candidate', candidate: publicCandidate(c, { privateView: true }) };
   }
   return null;
 }
-const publicCompany = (c) => c && ({
-  id: c.id, name: c.name, email: c.email, phone: c.phone, website: c.website,
-  description: c.description, verified: !!c.verified, plan: c.plan, createdAt: c.created_at,
-});
 
 /* Anti fuerza bruta en logins */
 const fails = new Map();
@@ -188,6 +259,8 @@ function validateJob(b) {
       contactEmail,
       contactPhone: clean(b.contactPhone, 60),
       closesAt,
+      benefits: arrOf(b.benefits, 12, 40),
+      positions: Math.min(99, Math.max(1, Number(b.positions) || 1)),
     },
   };
 }
@@ -198,7 +271,8 @@ function validateJob(b) {
 const NAV_ITEMS = [
   ['/', 'Inicio'],
   ['/buscar', 'Buscar empleo'],
-  ['/publicar', 'Publicar empleo'],
+  ['/empresas', 'Empresas'],
+  ['/publicar', 'Para empresas'],
 ];
 
 function navHtml(active) {
@@ -212,7 +286,7 @@ function navHtml(active) {
     </a>
     <nav class="main-nav" aria-label="Principal">${links}</nav>
     <div class="header-actions" data-auth-slot>
-      <a class="btn btn-ghost btn-sm" href="/acceder">Acceder</a>
+      <a class="btn btn-ghost btn-sm" href="/acceder">Ingresar</a>
       <a class="btn btn-primary btn-sm" href="/publicar">Publicar empleo</a>
     </div>
     <button class="menu-toggle" type="button" aria-label="Abrir menú" aria-expanded="false" data-menu-toggle>
@@ -221,7 +295,7 @@ function navHtml(active) {
   </div>
   <div class="mobile-menu" data-mobile-menu hidden>
     ${NAV_ITEMS.map(([href, label]) => `<a href="${href}">${label}</a>`).join('')}
-    <a href="/acceder" data-auth-mobile>Acceder</a>
+    <a href="/acceder" data-auth-mobile>Ingresar</a>
   </div>
 </header>`;
 }
@@ -245,20 +319,22 @@ function footerHtml() {
       <p>El portal de empleo del Valle de Uco. Conectamos talento local con empresas de San Carlos, Tunuyán y Tupungato.</p>
     </div>
     <div class="footer-col">
-      <h4>Plataforma</h4>
+      <h4>Para personas</h4>
       <a href="/buscar">Buscar empleo</a>
+      <a href="/mi-perfil">Mi perfil y postulaciones</a>
+      <a href="/acceder?rol=empleado">Crear cuenta</a>
+    </div>
+    <div class="footer-col">
+      <h4>Para empresas</h4>
       <a href="/publicar">Publicar empleo</a>
-      <a href="/acceder">Acceder</a>
+      <a href="/panel">Panel de empresa</a>
+      <a href="/empresas">Empresas del Valle</a>
     </div>
     <div class="footer-col">
       <h4>Workuco</h4>
       <a href="/acerca">Acerca de</a>
       <a href="/contacto">Contacto</a>
       <a href="/faq">Preguntas frecuentes</a>
-    </div>
-    <div class="footer-col">
-      <h4>Legal</h4>
-      <a href="/terminos">Términos y condiciones</a>
       <a href="/privacidad">Privacidad</a>
     </div>
   </div>
@@ -269,26 +345,84 @@ function footerHtml() {
 </footer>`;
 }
 
-function renderPage(res, file, { active = '', title = 'Workuco', content = '' } = {}) {
+function renderPage(res, file, { active = '', title = 'Workuco' } = {}) {
   fs.readFile(path.join(WEB, file), 'utf8', (err, html) => {
     if (err) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('No encontrado'); }
     const out = html
       .replace('{{TITLE}}', title)
       .replace('{{NAV}}', navHtml(active))
       .replace('{{FOOTER}}', footerHtml())
-      .replace('{{CONTENT}}', content);
+      .replace(/\{\{ICON_([A-Z]+)\}\}/g, (_, name) => pageIcon(name));
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
     res.end(out);
   });
 }
 
 const INFO_PAGES = {
-  '/acerca': ['Acerca de Workuco', 'info-acerca'],
-  '/contacto': ['Contacto', 'info-contacto'],
-  '/faq': ['Preguntas frecuentes', 'info-faq'],
-  '/terminos': ['Términos y condiciones', 'info-terminos'],
-  '/privacidad': ['Privacidad', 'info-privacidad'],
+  '/acerca': 'Acerca de Workuco',
+  '/contacto': 'Contacto',
+  '/faq': 'Preguntas frecuentes',
+  '/terminos': 'Términos y condiciones',
+  '/privacidad': 'Privacidad',
 };
+
+/* Iconos de línea que se usan en las plantillas HTML */
+const PAGE_ICONS = {
+  BAG: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M3 12h18"/>',
+  BUILDING: '<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2M10 21v-3h4v3"/>',
+  SEARCH: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  CHECK: '<path d="m5 12 4 4L19 6"/>',
+  PIN: '<path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11Z"/><circle cx="12" cy="10" r="2.6"/>',
+  USERS: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 5.5a3 3 0 0 1 0 5.8M18 20a6 6 0 0 0-3-5.2"/>',
+  SPARKLES: '<path d="m12 3 1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3Z"/><path d="M18 15.5 19 18l2.5 1L19 20l-1 2.5L17 20l-2.5-1L17 18l1-2.5Z"/>',
+  ARROW: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  USER: '<circle cx="12" cy="8" r="3.6"/><path d="M5 20a7 7 0 0 1 14 0"/>',
+  IMAGE: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m4 18 5-5 3 3 3-4 5 6"/>',
+  FILE: '<path d="M6 3h8l4 4v14H6V3Z"/><path d="M14 3v5h4M9 13h6M9 17h6"/>',
+  MAIL: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/>',
+  LOCK: '<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+  CLOCK: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  HEART: '<path d="M12 20s-7-4.4-7-9.2A4 4 0 0 1 12 8a4 4 0 0 1 7 2.8C19 15.6 12 20 12 20Z"/>',
+  STAR: '<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2-5.5-3-5.5 3 1-6.2L3 9.6l6.2-.9L12 3Z"/>',
+  WAND: '<path d="m4 20 9-9M14 4l1 3 3 1-3 1-1 3-1-3-3-1 3-1 1-3Z"/><path d="m18 14 .7 2.3L21 17l-2.3.7L18 20l-.7-2.3L15 17l2.3-.7L18 14Z"/>',
+  FILTER: '<path d="M3 5h18l-7 8v6l-4 2v-8L3 5Z"/>',
+  EYE: '<path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
+  PLUS: '<path d="M12 5v14M5 12h14"/>',
+  X: '<path d="m6 6 12 12M18 6 6 18"/>',
+  LEFT: '<path d="m15 6-6 6 6 6"/>',
+  RIGHT: '<path d="m9 6 6 6-6 6"/>',
+  TRASH: '<path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/>',
+  EDIT: '<path d="M4 20h4L20 8l-4-4L4 16v4Z"/><path d="m14 6 4 4"/>',
+  COPY: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
+  PHONE: '<path d="M5 4h4l2 5-2.5 1.5a12 12 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1C10.6 20 4 13.4 4 5a1 1 0 0 1 1-1Z"/>',
+  WHATSAPP: '<path d="M20 11.6a8 8 0 0 1-11.8 7L4 20l1.4-4.1A8 8 0 1 1 20 11.6Z"/><path d="M9 8.5c0 3 2.5 5.5 5.5 5.5.6 0 1.2-.5 1.2-1.1l-1.7-.9-1 .8a5 5 0 0 1-2-2l.8-1L11 8c-.7 0-1.2.5-1.2 1"/>',
+  MONEY: '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9v6M18 9v6"/>',
+  CHART: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  SETTINGS: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>',
+  INBOX: '<path d="M4 4h16v16H4z"/><path d="M4 13h4l2 3h4l2-3h4"/>',
+  UPLOAD: '<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>',
+};
+
+const pageIcon = (name, size = 18) =>
+  `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PAGE_ICONS[name] || ''}</svg>`;
+
+/* Analiza una postulación en segundo plano y guarda el resultado. */
+async function analyzeAndSave(applicationId, companyId) {
+  const company = store.company(companyId);
+  const app = store.applicationDetail(applicationId);
+  if (!company || !app) return null;
+  const job = store.job(app.jobId);
+  if (!job) return null;
+  const file = app.cvFile || (app.candidate && app.candidate.cvFile) || null;
+  let cvText = { text: '', ok: false, reason: 'Sin CV' };
+  if (file) {
+    const p = path.join(UP_DIR, path.basename(file));
+    if (fs.existsSync(p)) cvText = extractCv(p);
+  }
+  const result = await ai.analyzeApplication({ company, job, application: app, cvText });
+  store.setApplicationAi(app.id, result);
+  return result;
+}
 
 /* ------------------------------------------------------------------ */
 /* API                                                                 */
@@ -302,7 +436,11 @@ async function handleApi(req, res, url) {
 
   /* ---------- metadatos ---------- */
   if (p === '/api/meta' && method === 'GET') {
-    return send(res, 200, { localities: LOCALITIES, categories: CATEGORIES, types: TYPES, modalities: MODALITIES });
+    return send(res, 200, {
+      localities: LOCALITIES, categories: CATEGORIES, types: TYPES, modalities: MODALITIES,
+      benefits: BENEFITS, stages: STAGES.map((id) => ({ id, label: STAGE_LABEL[id] })),
+      aiProviders: ai.PROVIDERS,
+    });
   }
 
   /* ---------- sesión ---------- */
@@ -311,42 +449,96 @@ async function handleApi(req, res, url) {
   if (p === '/api/auth/register' && method === 'POST') {
     if (throttled(req)) return send(res, 429, { error: 'Demasiados intentos. Esperá unos minutos.' });
     const b = await readBody(req);
+    const role = b.role === 'candidate' ? 'candidate' : 'company';
     const name = clean(b.name, 120);
     const email = clean(b.email, 160).toLowerCase();
     const password = String(b.password || '');
     const phone = clean(b.phone, 60);
     const errs = {};
-    if (name.length < 2) errs.name = 'Ingresá el nombre de la empresa';
+    if (name.length < 2) errs.name = role === 'candidate' ? 'Ingresá tu nombre' : 'Ingresá el nombre de la empresa';
     if (!isEmail(email)) errs.email = 'Email inválido';
     if (password.length < 8) errs.password = 'La contraseña debe tener al menos 8 caracteres';
     if (!phoneOk(phone)) errs.phone = 'Ingresá un teléfono válido';
-    if (store.companyByEmail(email)) errs.email = 'Ya existe una cuenta con ese email';
+    if (role === 'company' && store.companyByEmail(email)) errs.email = 'Ya existe una cuenta con ese email';
+    if (role === 'candidate' && store.candidateByEmail(email)) errs.email = 'Ya existe una cuenta con ese email';
     if (Object.keys(errs).length) return send(res, 400, { error: 'Revisá los datos', fields: errs });
+
+    if (role === 'candidate') {
+      const c = store.insertCandidate({
+        id: uid('u'), name, email, phone, password: hashPassword(password),
+        locality: LOCALITIES.includes(b.locality) ? b.locality : '',
+      });
+      setSession(res, 'candidate', req, { candidateId: c.id });
+      return send(res, 201, { candidate: publicCandidate(c, { privateView: true }), user: { role: 'candidate' } });
+    }
     const c = store.insertCompany({
-      id: uid('c'), name, email, phone, website: cleanUrl(b.website), description: cleanMultiline(b.description, 1000),
-      password: hashPassword(password), verified: 0, plan: 'free', createdAt: now(),
+      id: uid('c'), name, email, phone, website: cleanUrl(b.website),
+      description: cleanMultiline(b.description, 1000), password: hashPassword(password),
+      verified: 0, plan: 'free', createdAt: now(),
+      locality: LOCALITIES.includes(b.locality) ? b.locality : '',
     });
-    setSession(res, 'company', c.id, req);
-    return send(res, 201, { company: publicCompany(c) });
+    setSession(res, 'company', req, { companyId: c.id });
+    return send(res, 201, { company: publicCompany(c, { privateView: true }) });
   }
 
   if (p === '/api/auth/login' && method === 'POST') {
     const wait = throttled(req);
     if (wait) return send(res, 429, { error: `Demasiados intentos. Probá en ${wait} s.` });
     const b = await readBody(req);
+    const role = b.role === 'candidate' ? 'candidate' : 'company';
+    if (role === 'candidate') {
+      const c = store.candidateByEmail(b.email);
+      if (!c || !verifyPassword(b.password, c.password)) {
+        loginFailed(req);
+        return send(res, 401, { error: 'Email o contraseña incorrectos' });
+      }
+      fails.delete(throttleKey(req));
+      setSession(res, 'candidate', req, { candidateId: c.id });
+      return send(res, 200, { candidate: publicCandidate(c, { privateView: true }) });
+    }
     const c = store.companyByEmail(b.email);
     if (!c || !verifyPassword(b.password, c.password)) {
       loginFailed(req);
       return send(res, 401, { error: 'Email o contraseña incorrectos' });
     }
     fails.delete(throttleKey(req));
-    setSession(res, 'company', c.id, req);
-    return send(res, 200, { company: publicCompany(c) });
+    setSession(res, 'company', req, { companyId: c.id });
+    return send(res, 200, { company: publicCompany(c, { privateView: true }) });
   }
 
   if (p === '/api/auth/logout' && method === 'POST') {
     clearSession(req, res);
     return send(res, 200, { ok: true });
+  }
+
+  /* ---------- imágenes ---------- */
+  if (p.startsWith('/api/photo/c/') && method === 'GET') {
+    const me = current(req);
+    const c = store.candidate(p.split('/').pop());
+    if (!c || !c.photo_file) return send(res, 404, { error: 'Foto no encontrada' });
+    let allowed = me && (me.role === 'admin' || (me.role === 'candidate' && me.candidate.id === c.id));
+    if (!allowed && me && me.role === 'company') {
+      allowed = !!store.one(`SELECT 1 AS x FROM applications a JOIN jobs j ON j.id=a.job_id
+        WHERE a.candidate_id=? AND j.company_id=? LIMIT 1`, c.id, me.company.id);
+    }
+    if (!allowed) return send(res, 401, { error: 'Iniciá sesión para ver la foto' });
+    return serveFile(res, path.join(UP_DIR, path.basename(c.photo_file)), 'image/*', true);
+  }
+  if (p.startsWith('/api/cv/c/') && method === 'GET') {
+    const me = current(req);
+    const c = store.candidate(p.split('/').pop());
+    if (!c || !c.cv_file) return send(res, 404, { error: 'CV no encontrado' });
+    let allowed = me && (me.role === 'admin' || (me.role === 'candidate' && me.candidate.id === c.id));
+    if (!allowed && me && me.role === 'company') {
+      allowed = !!store.one(`SELECT 1 AS x FROM applications a JOIN jobs j ON j.id=a.job_id
+        WHERE a.candidate_id=? AND j.company_id=? LIMIT 1`, c.id, me.company.id);
+    }
+    if (!allowed) return send(res, 403, { error: 'Sin permiso' });
+    return serveFile(res, path.join(UP_DIR, path.basename(c.cv_file)), 'application/pdf', false, c.cv_name || 'cv.pdf');
+  }
+  if (p.startsWith('/media/') && method === 'GET') {
+    const name = path.basename(decodeURIComponent(p.slice(7)));
+    return serveFile(res, path.join(UP_DIR, name), null, true);
   }
 
   /* ---------- ofertas públicas ---------- */
@@ -363,29 +555,63 @@ async function handleApi(req, res, url) {
     });
     const jobs = r.jobs.map((j) => ({
       id: j.id, title: j.title, companyName: j.companyName, companyVerified: j.companyVerified,
+      companyLogo: j.companyLogo, companyGallery: j.companyGallery,
       locality: j.locality, category: j.category, type: j.type, modality: j.modality,
       salary: j.salary, featured: j.featured, createdAt: j.createdAt, publishedAt: j.publishedAt, closesAt: j.closesAt,
     }));
-    return send(res, 200, { ...r, jobs });
+    const me = current(req);
+    let saved = [];
+    if (me && me.role === 'candidate') saved = store.savedJobs(me.candidate.id).map((s) => s.id);
+    return send(res, 200, { ...r, jobs, saved });
+  }
+
+  if (p === '/api/companies' && method === 'GET') {
+    return send(res, 200, {
+      companies: store.companies()
+        .filter((c) => c.published > 0)
+        .map((c) => ({ ...publicCompany(c), jobs: c.published, applications: c.applications })),
+    });
+  }
+
+  const compPublic = p.match(/^\/api\/companies\/([a-z0-9]+)$/);
+  if (compPublic && method === 'GET') {
+    const c = store.company(compPublic[1]);
+    if (!c) return send(res, 404, { error: 'Empresa no encontrada' });
+    const jobs = store.publicJobsForCompany(c.id);
+    return send(res, 200, {
+      company: { ...publicCompany(c), jobsCount: jobs.length },
+      jobs: jobs.map((j) => ({
+        id: j.id, title: j.title, locality: j.locality, category: j.category, type: j.type,
+        modality: j.modality, salary: j.salary, featured: j.featured, publishedAt: j.publishedAt,
+      })),
+    });
   }
 
   const jobMatch = p.match(/^\/api\/jobs\/([a-z0-9]+)$/);
   if (jobMatch && method === 'GET') {
     const j = store.job(jobMatch[1]);
-    if (!j || j.status !== 'approved') return send(res, 404, { error: 'Oferta no encontrada' });
+    if (!j || (j.status !== 'approved' && !(current(req) || {}).role)) return send(res, 404, { error: 'Oferta no encontrada' });
     store.bumpViews(j.id);
     const expired = j.closesAt && j.closesAt < todayAR();
+    const me = current(req);
+    let applied = false; let saved = false;
+    if (me && me.role === 'candidate') {
+      applied = !!store.applicationByCandidate(me.candidate.id, j.id);
+      saved = !!store.one('SELECT 1 AS x FROM saved_jobs WHERE candidate_id=? AND job_id=?', me.candidate.id, j.id);
+    }
     return send(res, 200, {
       job: {
-        id: j.id, title: j.title, companyName: j.companyName, companyVerified: j.companyVerified,
+        id: j.id, title: j.title, companyId: j.companyId, companyName: j.companyName, companyVerified: j.companyVerified,
+        companyLogo: j.companyLogo, companyGallery: j.companyGallery,
         companyWebsite: j.companyWebsite, companyDescription: j.companyDescription,
         locality: j.locality, category: j.category, type: j.type, modality: j.modality,
         description: j.description, responsibilities: j.responsibilities, requirements: j.requirements,
         experience: j.experience, schedule: j.schedule, salary: j.salary,
+        benefits: j.benefits, positions: j.positions,
         contactEmail: j.contactEmail, contactPhone: j.contactPhone,
         closesAt: j.closesAt, createdAt: j.createdAt, publishedAt: j.publishedAt, views: j.views + 1,
       },
-      canApply: !expired,
+      canApply: !expired, applied, saved,
     });
   }
 
@@ -394,10 +620,12 @@ async function handleApi(req, res, url) {
     const j = store.job(applyMatch[1]);
     if (!j || j.status !== 'approved') return send(res, 404, { error: 'Oferta no encontrada' });
     if (j.closesAt && j.closesAt < todayAR()) return send(res, 410, { error: 'La búsqueda está cerrada' });
+    const me = current(req);
+    const cand = me && me.role === 'candidate' ? store.candidate(me.candidate.id) : null;
     const b = await readBody(req);
-    const name = clean(b.name, 120);
-    const email = clean(b.email, 160).toLowerCase();
-    const phone = clean(b.phone, 60);
+    const name = clean(cand ? cand.name : b.name, 120);
+    const email = clean(cand ? cand.email : b.email, 160).toLowerCase();
+    const phone = clean(cand ? cand.phone : b.phone, 60);
     const errs = {};
     if (name.length < 3) errs.name = 'Ingresá tu nombre y apellido';
     if (!isEmail(email)) errs.email = 'Email inválido';
@@ -409,17 +637,29 @@ async function handleApi(req, res, url) {
       const buf = Buffer.from(String(b.cv.data), 'base64');
       if (buf.length > 4 * 1024 * 1024) return send(res, 413, { error: 'El CV supera los 4 MB' });
       if (buf.subarray(0, 5).toString('latin1') !== '%PDF-') return send(res, 400, { error: 'El CV debe ser un PDF' });
-      cvFile = `${uid('cv')}.pdf`;
+      cvFile = `cv-${uid('')}.pdf`;
       cvName = clean(b.cv.name, 120).replace(/[^\w.\-() ]+/g, '') || 'cv.pdf';
-      fs.writeFileSync(path.join(CV_DIR, cvFile), buf);
+      fs.writeFileSync(path.join(UP_DIR, cvFile), buf);
+    } else if (cand && cand.cv_file) {
+      cvFile = cand.cv_file; cvName = cand.cv_name || 'cv.pdf';
     }
-    const dup = store.all('SELECT id FROM applications WHERE job_id=? AND lower(email)=lower(?)', j.id, email);
-    if (dup.length) return send(res, 409, { error: 'Ya te postulaste a esta oferta con ese email' });
+
+    const dup = store.one('SELECT id FROM applications WHERE job_id=? AND (lower(email)=lower(?)' +
+      (cand ? ' OR candidate_id=?' : '') + ')', ...(cand ? [j.id, email, cand.id] : [j.id, email]));
+    if (dup) return send(res, 409, { error: 'Ya te postulaste a esta oferta' });
 
     const app = store.insertApplication({
-      id: uid('a'), jobId: j.id, name, email, phone,
+      id: uid('a'), jobId: j.id, candidateId: cand ? cand.id : null, name, email, phone,
       message: cleanMultiline(b.message, 2000), cvFile, cvName, createdAt: now(),
     });
+
+    /* comodidad: si la empresa activó el análisis automático, corre en segundo plano */
+    const company = store.company(j.companyId);
+    if (company && company.ai_enabled && company.ai_auto && company.ai_key) {
+      setImmediate(() => {
+        analyzeAndSave(app.id, company.id).catch((e) => console.warn('IA automática:', e.message));
+      });
+    }
     return send(res, 201, { ok: true, application: { id: app.id } });
   }
 
@@ -428,6 +668,7 @@ async function handleApi(req, res, url) {
 
   if (p === '/api/company/profile' && method === 'PATCH') {
     if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
+    const c = store.company(me.company.id);
     const b = await readBody(req);
     const patch = {};
     if ('name' in b) {
@@ -436,9 +677,40 @@ async function handleApi(req, res, url) {
     }
     if ('phone' in b) patch.phone = clean(b.phone, 60);
     if ('website' in b) patch.website = cleanUrl(b.website);
-    if ('description' in b) patch.description = cleanMultiline(b.description, 1200);
-    const c = store.updateCompany(me.company.id, patch);
-    return send(res, 200, { company: publicCompany(c) });
+    if ('description' in b) patch.description = cleanMultiline(b.description, 1600);
+    if ('locality' in b) patch.locality = LOCALITIES.includes(b.locality) ? b.locality : '';
+    if ('logo' in b && b.logo) {
+      const f = saveImage(b.logo, 'logo');
+      if (c.logo_file) removeUpload(c.logo_file);
+      patch.logo_file = f;
+    }
+    if (b.removeLogo) { if (c.logo_file) removeUpload(c.logo_file); patch.logo_file = null; }
+    const updated = store.updateCompany(me.company.id, patch);
+    return send(res, 200, { company: publicCompany(updated, { privateView: true }) });
+  }
+
+  if (p === '/api/company/gallery' && method === 'POST') {
+    if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
+    const c = store.company(me.company.id);
+    const b = await readBody(req);
+    const gallery = jparse(c.gallery, []);
+    if (gallery.length >= 8) return send(res, 400, { error: 'Podés subir hasta 8 fotos' });
+    if (!b.image) return send(res, 400, { error: 'Falta la imagen' });
+    const f = saveImage(b.image, 'foto');
+    gallery.push(f);
+    const updated = store.updateCompany(c.id, { gallery });
+    return send(res, 201, { company: publicCompany(updated, { privateView: true }) });
+  }
+
+  if (p === '/api/company/gallery' && method === 'DELETE') {
+    if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
+    const c = store.company(me.company.id);
+    const file = String(q.get('file') || '').split('/').pop();
+    const gallery = jparse(c.gallery, []).filter((x) => x !== file);
+    if (gallery.length === jparse(c.gallery, []).length) return send(res, 404, { error: 'Foto no encontrada' });
+    removeUpload(file);
+    const updated = store.updateCompany(c.id, { gallery });
+    return send(res, 200, { company: publicCompany(updated, { privateView: true }) });
   }
 
   if (p === '/api/company/jobs' && method === 'GET') {
@@ -458,16 +730,35 @@ async function handleApi(req, res, url) {
   }
 
   const compJob = p.match(/^\/api\/company\/jobs\/([a-z0-9]+)$/);
-  if (compJob && (method === 'PUT' || method === 'DELETE')) {
+  if (compJob && (method === 'PUT' || method === 'DELETE' || method === 'PATCH')) {
     if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
     const j = store.job(compJob[1]);
     if (!j || j.companyId !== me.company.id) return send(res, 404, { error: 'Oferta no encontrada' });
     if (method === 'DELETE') { store.removeJob(j.id); return send(res, 200, { ok: true }); }
+    if (method === 'PATCH') {
+      const b = await readBody(req);
+      if (!['closed', 'pending', 'approved'].includes(b.status)) return send(res, 400, { error: 'Estado inválido' });
+      if (b.status === 'approved') return send(res, 403, { error: 'Sólo administración puede aprobar' });
+      const updated = store.updateJob(j.id, { status: b.status });
+      return send(res, 200, { job: updated });
+    }
     const b = await readBody(req);
     const v = validateJob(b);
     if (!v.ok) return send(res, 400, { error: 'Revisá los datos', fields: v.errors });
     const updated = store.updateJob(j.id, { ...v.data, status: 'pending', rejectReason: null, featured: 0, publishedAt: null });
     return send(res, 200, { job: updated, message: 'Los cambios quedaron pendientes de aprobación' });
+  }
+
+  const compJobDup = p.match(/^\/api\/company\/jobs\/([a-z0-9]+)\/duplicate$/);
+  if (compJobDup && method === 'POST') {
+    if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
+    const j = store.job(compJobDup[1]);
+    if (!j || j.companyId !== me.company.id) return send(res, 404, { error: 'Oferta no encontrada' });
+    const copy = store.insertJob({
+      ...j, id: uid('j'), title: `${j.title} (copia)`, status: 'pending', featured: 0,
+      createdAt: now(), publishedAt: null,
+    });
+    return send(res, 201, { job: copy });
   }
 
   const compJobApps = p.match(/^\/api\/company\/jobs\/([a-z0-9]+)\/applications$/);
@@ -481,39 +772,253 @@ async function handleApi(req, res, url) {
 
   if (p === '/api/company/applications' && method === 'GET') {
     if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
-    const jobs = store.companyJobs(me.company.id);
-    const all = [];
-    for (const j of jobs) all.push(...store.applicationsForJob(j.id));
-    all.sort((a, b) => b.createdAt - a.createdAt);
-    return send(res, 200, { applications: all });
+    const applications = store.applicationsForCompany(me.company.id, {
+      jobId: clean(q.get('job'), 40),
+      stage: clean(q.get('stage'), 20),
+      q: clean(q.get('q'), 80),
+    });
+    return send(res, 200, {
+      applications,
+      stages: store.stageCounts(me.company.id),
+    });
   }
 
-  const appStatus = p.match(/^\/api\/company\/applications\/([a-z0-9]+)$/);
-  if (appStatus && method === 'PATCH') {
+  if (p === '/api/company/applications.csv' && method === 'GET') {
     if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
-    const a = store.application(appStatus[1]);
-    if (!a || a.companyId !== me.company.id) return send(res, 404, { error: 'Postulación no encontrada' });
+    const rows = store.applicationsForCompany(me.company.id);
+    const cell = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+    const lines = [['Nombre', 'Email', 'Teléfono', 'Puesto', 'Etapa', 'Puntaje IA', 'Postulación', 'Mensaje']]
+      .concat(rows.map((a) => [
+        a.name, a.email, a.phone, a.jobTitle, STAGE_LABEL[a.stage] || a.stage,
+        a.aiScore == null ? '' : a.aiScore,
+        new Date(a.createdAt).toLocaleDateString('es-AR'), a.message || '',
+      ]))
+      .map((r) => r.map(cell).join(';'));
+    res.writeHead(200, {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="postulantes-workuco.csv"',
+      'Cache-Control': 'no-store',
+    });
+    return res.end(`\uFEFF${lines.join('\r\n')}`);
+  }
+
+  if (p === '/api/company/applications' && method === 'POST') {
+    /* alta manual de un postulante (para empresas que reciben CV por WhatsApp) */
+    if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
     const b = await readBody(req);
-    if (!['nueva', 'contactada', 'descartada'].includes(b.status)) return send(res, 400, { error: 'Estado inválido' });
-    store.setApplicationStatus(a.id, b.status);
-    return send(res, 200, { ok: true });
+    const job = store.job(clean(b.jobId, 40));
+    if (!job || job.companyId !== me.company.id) return send(res, 404, { error: 'Elegí una oferta válida' });
+    const name = clean(b.name, 120);
+    const email = clean(b.email, 160).toLowerCase();
+    const phone = clean(b.phone, 60);
+    if (name.length < 3 || !isEmail(email) || !phoneOk(phone)) {
+      return send(res, 400, { error: 'Completá nombre, email y teléfono' });
+    }
+    let cvFile = null; let cvName = '';
+    if (b.cv && b.cv.data) {
+      const buf = Buffer.from(String(b.cv.data), 'base64');
+      if (buf.subarray(0, 5).toString('latin1') !== '%PDF-') return send(res, 400, { error: 'El CV debe ser un PDF' });
+      cvFile = `cv-${uid('')}.pdf`;
+      cvName = clean(b.cv.name, 120) || 'cv.pdf';
+      fs.writeFileSync(path.join(UP_DIR, cvFile), buf);
+    }
+    const app = store.insertApplication({
+      id: uid('a'), jobId: job.id, name, email, phone,
+      message: cleanMultiline(b.message, 2000), cvFile, cvName, createdAt: now(),
+    });
+    return send(res, 201, { application: store.applicationDetail(app.id) });
+  }
+
+  const appOne = p.match(/^\/api\/company\/applications\/([a-z0-9]+)$/);
+  if (appOne && (method === 'GET' || method === 'PATCH')) {
+    if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
+    const a = store.applicationDetail(appOne[1]);
+    if (!a || a.companyId !== me.company.id) return send(res, 404, { error: 'Postulación no encontrada' });
+    if (method === 'GET') return send(res, 200, { application: a });
+    const b = await readBody(req);
+    const patch = {};
+    if ('stage' in b) {
+      if (!STAGES.includes(b.stage)) return send(res, 400, { error: 'Etapa inválida' });
+      patch.stage = b.stage;
+    }
+    if ('rating' in b) patch.rating = Math.max(0, Math.min(5, Number(b.rating) || 0));
+    if ('notes' in b) patch.notes = cleanMultiline(b.notes, 4000);
+    if ('tags' in b) patch.tags = arrOf(b.tags, 10, 30);
+    if ('status' in b) { store.setApplicationStatus(a.id, b.status); }
+    if (Object.keys(patch).length) store.updateApplication(a.id, patch);
+    return send(res, 200, { application: store.applicationDetail(a.id) });
+  }
+
+  const appAnalyze = p.match(/^\/api\/company\/applications\/([a-z0-9]+)\/analyze$/);
+  if (appAnalyze && method === 'POST') {
+    if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
+    const a = store.applicationDetail(appAnalyze[1]);
+    if (!a || a.companyId !== me.company.id) return send(res, 404, { error: 'Postulación no encontrada' });
+    const company = store.company(me.company.id);
+    const cfg = ai.configOf(company);
+    if (!cfg.provider) return send(res, 400, { error: 'Primero configurá un proveedor de IA en la pestaña IA' });
+    if (!cfg.apiKey) return send(res, 400, { error: 'Falta la API key de IA' });
+    try {
+      const result = await analyzeAndSave(a.id, me.company.id);
+      return send(res, 200, { application: store.applicationDetail(a.id), ai: result });
+    } catch (e) {
+      return send(res, 502, { error: `No pudimos conectar con la IA: ${e.message || 'error desconocido'}` });
+    }
   }
 
   const cvMatch = p.match(/^\/api\/company\/cv\/([a-z0-9]+)$/);
   if (cvMatch && method === 'GET') {
-    if (!me) return send(res, 401, { error: 'Iniciá sesión' });
     const a = store.application(cvMatch[1]);
     if (!a || !a.cvFile) return send(res, 404, { error: 'CV no encontrado' });
-    if (me.role === 'company' && a.companyId !== me.company.id) return send(res, 403, { error: 'Sin permiso' });
-    const file = path.join(CV_DIR, path.basename(a.cvFile));
-    if (!fs.existsSync(file)) return send(res, 404, { error: 'Archivo no encontrado' });
-    res.writeHead(200, {
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="${(a.cvName || 'cv.pdf').replace(/"/g, '')}"`,
-      'Cache-Control': 'private, no-store',
-      'X-Content-Type-Options': 'nosniff',
+    const user = current(req);
+    const allowed = user && (user.role === 'admin' || (user.role === 'company' && a.companyId === user.company.id)
+      || (user.role === 'candidate' && a.candidateId === user.candidate.id));
+    if (!allowed) return send(res, user ? 403 : 401, { error: 'Sin permiso' });
+    const file = path.join(UP_DIR, path.basename(a.cvFile));
+    return serveFile(res, file, 'application/pdf', false, a.cvName || 'cv.pdf');
+  }
+
+  /* ---------- panel / IA de empresa ---------- */
+  if (p === '/api/company/dashboard' && method === 'GET') {
+    if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
+    const jobs = store.companyJobs(me.company.id);
+    const applications = store.applicationsForCompany(me.company.id);
+    const company = store.company(me.company.id);
+    return send(res, 200, {
+      company: publicCompany(company, { privateView: true }),
+      jobs,
+      applications,
+      stageCounts: store.stageCounts(me.company.id),
+      kpis: {
+        views: jobs.reduce((n, j) => n + (j.views || 0), 0),
+        applications: applications.length,
+        newApplications: applications.filter((a) => a.stage === 'nuevo').length,
+        hired: applications.filter((a) => a.stage === 'contratado').length,
+        published: jobs.filter((j) => j.status === 'approved').length,
+        pending: jobs.filter((j) => j.status === 'pending').length,
+      },
     });
-    return fs.createReadStream(file).pipe(res);
+  }
+
+  if (p === '/api/company/ai' && method === 'GET') {
+    if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
+    return send(res, 200, { ai: publicCompany(store.company(me.company.id), { privateView: true }).ai });
+  }
+
+  if (p === '/api/company/ai' && method === 'PATCH') {
+    if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
+    const c = store.company(me.company.id);
+    const b = await readBody(req);
+    const patch = {};
+    if ('provider' in b) {
+      if (b.provider && !ai.PROVIDERS.some((x) => x.id === b.provider)) return send(res, 400, { error: 'Proveedor inválido' });
+      patch.ai_provider = b.provider || null;
+    }
+    if ('apiKey' in b) {
+      const key = clean(b.apiKey, 300);
+      patch.ai_key = key === '' ? null : key;
+    }
+    if ('model' in b) patch.ai_model = clean(b.model, 120) || null;
+    if ('baseUrl' in b) patch.ai_base_url = clean(b.baseUrl, 300) || null;
+    if ('enabled' in b) patch.ai_enabled = b.enabled ? 1 : 0;
+    if ('auto' in b) patch.ai_auto = b.auto ? 1 : 0;
+    const updated = store.updateCompanyAi(c.id, patch);
+    return send(res, 200, { ai: publicCompany(updated, { privateView: true }).ai });
+  }
+
+  if (p === '/api/company/ai/test' && method === 'POST') {
+    if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
+    try {
+      const out = await ai.testConnection(store.company(me.company.id));
+      return send(res, 200, { ok: true, reply: out });
+    } catch (e) {
+      return send(res, 502, { error: `No pudimos conectar con la IA: ${e.message}` });
+    }
+  }
+
+  if (p === '/api/company/ai/describe' && method === 'POST') {
+    if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
+    const b = await readBody(req);
+    const company = store.company(me.company.id);
+    const cfg = ai.configOf(company);
+    if (!cfg.provider || !cfg.apiKey) return send(res, 400, { error: 'Configurá tu API de IA para generar el aviso' });
+    try {
+      const out = await ai.generateJob({
+        company,
+        inputs: {
+          title: clean(b.title, 120), category: clean(b.category, 60), locality: clean(b.locality, 60),
+          modality: clean(b.modality, 40), type: clean(b.type, 40), notes: cleanMultiline(b.notes, 600),
+          benefits: arrOf(b.benefits, 12, 40), positions: Number(b.positions) || 1,
+        },
+      });
+      return send(res, 200, { draft: out });
+    } catch (e) {
+      return send(res, 502, { error: `No pudimos conectar con la IA: ${e.message}` });
+    }
+  }
+
+  /* ---------- candidato ---------- */
+  if (p === '/api/candidate/profile' && method === 'GET') {
+    if (!me || me.role !== 'candidate') return send(res, 401, { error: 'Iniciá sesión' });
+    const c = store.candidate(me.candidate.id);
+    return send(res, 200, { candidate: publicCandidate(c, { privateView: true }) });
+  }
+
+  if (p === '/api/candidate/profile' && method === 'PATCH') {
+    if (!me || me.role !== 'candidate') return send(res, 401, { error: 'Iniciá sesión' });
+    const c = store.candidate(me.candidate.id);
+    const b = await readBody(req);
+    const patch = {};
+    if ('name' in b) {
+      patch.name = clean(b.name, 120);
+      if (patch.name.length < 2) return send(res, 400, { error: 'Nombre inválido', fields: { name: 'Nombre inválido' } });
+    }
+    if ('phone' in b) {
+      patch.phone = clean(b.phone, 60);
+      if (!phoneOk(patch.phone)) return send(res, 400, { error: 'Teléfono inválido', fields: { phone: 'Teléfono inválido' } });
+    }
+    if ('locality' in b) patch.locality = LOCALITIES.includes(b.locality) ? b.locality : '';
+    if ('headline' in b) patch.headline = clean(b.headline, 120);
+    if ('about' in b) patch.about = cleanMultiline(b.about, 1600);
+    if ('skills' in b) patch.skills = arrOf(b.skills, 20, 30);
+    if ('experience' in b) patch.experience = cleanMultiline(b.experience, 1200);
+    if ('education' in b) patch.education = cleanMultiline(b.education, 800);
+    if ('availability' in b) patch.availability = clean(b.availability, 120);
+    if ('linkedin' in b) patch.linkedin = cleanUrl(b.linkedin);
+    if ('photo' in b && b.photo) {
+      const f = saveImage(b.photo, 'perfil');
+      if (c.photo_file) removeUpload(c.photo_file);
+      patch.photo_file = f;
+    }
+    if (b.removePhoto) { if (c.photo_file) removeUpload(c.photo_file); patch.photo_file = null; }
+    if (b.cv && b.cv.data) {
+      const buf = Buffer.from(String(b.cv.data), 'base64');
+      if (buf.length > 4 * 1024 * 1024) return send(res, 413, { error: 'El CV supera los 4 MB' });
+      if (buf.subarray(0, 5).toString('latin1') !== '%PDF-') return send(res, 400, { error: 'El CV debe ser un PDF' });
+      const f = `cv-${uid('')}.pdf`;
+      fs.writeFileSync(path.join(UP_DIR, f), buf);
+      if (c.cv_file) removeUpload(c.cv_file);
+      patch.cv_file = f; patch.cv_name = clean(b.cv.name, 120) || 'cv.pdf';
+    }
+    if (b.removeCv) { if (c.cv_file) removeUpload(c.cv_file); patch.cv_file = null; patch.cv_name = ''; }
+    const updated = store.updateCandidate(c.id, patch);
+    return send(res, 200, { candidate: publicCandidate(updated, { privateView: true }) });
+  }
+
+  if (p === '/api/candidate/applications' && method === 'GET') {
+    if (!me || me.role !== 'candidate') return send(res, 401, { error: 'Iniciá sesión' });
+    return send(res, 200, { applications: store.applicationsForCandidate(me.candidate.id) });
+  }
+
+  if (p === '/api/candidate/saved' && method === 'GET') {
+    if (!me || me.role !== 'candidate') return send(res, 401, { error: 'Iniciá sesión' });
+    return send(res, 200, { jobs: store.savedJobs(me.candidate.id) });
+  }
+
+  const saveMatch = p.match(/^\/api\/candidate\/saved\/([a-z0-9]+)$/);
+  if (saveMatch && method === 'POST') {
+    if (!me || me.role !== 'candidate') return send(res, 401, { error: 'Iniciá sesión' });
+    return send(res, 200, { saved: store.toggleSaved(me.candidate.id, saveMatch[1]) });
   }
 
   /* ---------- admin ---------- */
@@ -525,7 +1030,7 @@ async function handleApi(req, res, url) {
     const okPass = String(b.password || '') === ADMIN_PASS;
     if (!okMail || !okPass) { loginFailed(req); return send(res, 401, { error: 'Credenciales incorrectas' }); }
     fails.delete(throttleKey(req));
-    setSession(res, 'admin', null, req);
+    setSession(res, 'admin', req);
     return send(res, 200, { ok: true });
   }
 
@@ -536,7 +1041,7 @@ async function handleApi(req, res, url) {
 
   if (p === '/api/admin/jobs' && method === 'GET') {
     if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
-    const status = ['pending', 'approved', 'rejected'].includes(q.get('status')) ? q.get('status') : '';
+    const status = ['pending', 'approved', 'rejected', 'closed'].includes(q.get('status')) ? q.get('status') : '';
     return send(res, 200, { jobs: store.allJobs({ status }) });
   }
 
@@ -582,7 +1087,9 @@ async function handleApi(req, res, url) {
     return send(res, 200, {
       companies: store.companies().map((c) => ({
         id: c.id, name: c.name, email: c.email, phone: c.phone, verified: !!c.verified,
-        plan: c.plan, jobs: c.jobs, published: c.published, createdAt: c.created_at,
+        plan: c.plan, jobs: c.jobs, published: c.published, applications: c.applications,
+        logo: mediaUrl(c.logo_file), createdAt: c.created_at,
+        ai: c.ai_provider ? { provider: c.ai_provider, enabled: !!c.ai_enabled, hasKey: !!c.ai_key } : null,
       })),
     });
   }
@@ -596,10 +1103,31 @@ async function handleApi(req, res, url) {
     if ('plan' in b) patch.plan = ['free', 'pro', 'premium'].includes(b.plan) ? b.plan : 'free';
     const c = store.updateCompany(admCompany[1], patch);
     if (!c) return send(res, 404, { error: 'Empresa no encontrada' });
-    return send(res, 200, { company: publicCompany(c) });
+    return send(res, 200, { company: publicCompany(c, { privateView: true }) });
   }
 
   return send(res, 404, { error: 'API no encontrada' });
+}
+
+function removeUpload(file) {
+  if (!file) return;
+  try { fs.unlinkSync(path.join(UP_DIR, path.basename(file))); } catch (_) { /* ya no está */ }
+}
+
+function serveFile(res, file, mime, cache = false, downloadName = '') {
+  if (!fs.existsSync(file)) return send(res, 404, { error: 'Archivo no encontrado' });
+  const ext = path.extname(file).toLowerCase();
+  const type = mime === 'image/*'
+    ? ({ '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.svg': 'image/svg+xml' }[ext] || 'application/octet-stream')
+    : (mime || 'application/octet-stream');
+  const headers = {
+    'Content-Type': type,
+    'Cache-Control': cache ? 'public, max-age=86400' : 'private, no-store',
+    'X-Content-Type-Options': 'nosniff',
+  };
+  if (downloadName) headers['Content-Disposition'] = `inline; filename="${String(downloadName).replace(/"/g, '')}"`;
+  res.writeHead(200, headers);
+  fs.createReadStream(file).pipe(res);
 }
 
 /* ------------------------------------------------------------------ */
@@ -626,12 +1154,25 @@ const server = http.createServer(async (req, res) => {
   try {
     if (url.pathname.startsWith('/api/')) return await handleApi(req, res, url);
 
+    /* imágenes subidas por empresas y candidatos */
+    if (url.pathname.startsWith('/media/') && req.method === 'GET') {
+      const name = path.basename(decodeURIComponent(url.pathname.slice(7)));
+      if (!name || name.startsWith('.')) { res.writeHead(404); return res.end('No encontrado'); }
+      return serveFile(res, path.join(UP_DIR, name), 'image/*', true);
+    }
+
     /* páginas */
     if (url.pathname === '/' && req.method === 'GET') {
       return renderPage(res, 'index.html', { active: '/', title: 'Workuco · Empleos en el Valle de Uco' });
     }
     if (url.pathname === '/buscar' && req.method === 'GET') {
       return renderPage(res, 'buscar.html', { active: '/buscar', title: 'Buscar empleo · Workuco' });
+    }
+    if (url.pathname === '/empresas' && req.method === 'GET') {
+      return renderPage(res, 'empresas.html', { active: '/empresas', title: 'Empresas del Valle de Uco · Workuco' });
+    }
+    if (/^\/empresa\/[a-z0-9]+$/.test(url.pathname) && req.method === 'GET') {
+      return renderPage(res, 'empresa.html', { active: '/empresas', title: 'Empresa · Workuco' });
     }
     if (url.pathname === '/publicar' && req.method === 'GET') {
       return renderPage(res, 'publicar.html', { active: '/publicar', title: 'Publicar empleo · Workuco' });
@@ -645,12 +1186,14 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/panel' && req.method === 'GET') {
       return renderPage(res, 'panel.html', { title: 'Panel de empresa · Workuco' });
     }
+    if (url.pathname === '/mi-perfil' && req.method === 'GET') {
+      return renderPage(res, 'mi-perfil.html', { title: 'Mi perfil · Workuco' });
+    }
     if (url.pathname === '/admin' && req.method === 'GET') {
       return renderPage(res, 'admin.html', { title: 'Administración · Workuco' });
     }
     if (INFO_PAGES[url.pathname] && req.method === 'GET') {
-      const [title] = INFO_PAGES[url.pathname];
-      return renderPage(res, 'info.html', { title: `${title} · Workuco`, content: `<div data-info="${url.pathname.slice(1)}"></div>` });
+      return renderPage(res, 'info.html', { title: `${INFO_PAGES[url.pathname]} · Workuco` });
     }
     if (url.pathname === '/robots.txt') {
       res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -666,14 +1209,14 @@ const server = http.createServer(async (req, res) => {
       const ext = path.extname(file).toLowerCase();
       res.writeHead(200, {
         'Content-Type': MIME[ext] || 'application/octet-stream',
-        'Cache-Control': ext === '.html' ? 'no-store' : 'public, max-age=3600',
+        'Cache-Control': ['.html', '.css', '.js'].includes(ext) ? 'no-cache' : 'public, max-age=3600',
         'X-Content-Type-Options': 'nosniff',
       });
       fs.createReadStream(file).pipe(res);
     });
   } catch (e) {
     console.error(e);
-    send(res, 500, { error: e.message || 'Error interno' });
+    send(res, e.status || 500, { error: e.message || 'Error interno' });
   }
 });
 
@@ -681,9 +1224,9 @@ const server = http.createServer(async (req, res) => {
 if (process.env.WORKUCO_DEMO === '1') {
   try {
     if (store.isEmpty()) {
-      const { companies, jobs, applications } = demo.build();
-      store.seedDemo({ companies, jobs, applications });
-      console.log(`Demo: ${jobs.length} ofertas y ${applications.length} postulaciones cargadas`);
+      const { companies, candidates, jobs, applications } = demo.build();
+      store.seedDemo({ companies, candidates, jobs, applications });
+      console.log(`Demo: ${jobs.length} ofertas, ${applications.length} postulaciones y ${(candidates || []).length} perfiles cargados`);
     }
   } catch (e) { console.error('Demo seed:', e.message); }
 }
@@ -695,4 +1238,3 @@ server.listen(PORT, HOST, () => {
 });
 
 module.exports = { server, store };
-

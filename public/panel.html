@@ -13,84 +13,249 @@
 </head>
 <body data-page="panel">
 {{NAV}}
-<main class="container app-shell">
-  <div id="panel-loading"><div class="skeleton" style="height:36px;width:40%"></div><div class="skeleton" style="height:120px;margin-top:20px"></div></div>
-
-  <div id="panel-gate" hidden>
-    <div class="card" style="text-align:center;padding:44px 26px">
-      <h1 style="font-size:26px;margin-bottom:8px">Panel de empresa</h1>
-      <p style="color:var(--muted);max-width:440px;margin:0 auto 22px">Ingresá con tu cuenta para administrar tus ofertas y ver las postulaciones.</p>
-      <a class="btn btn-primary" href="/acceder?next=/panel">Ingresar</a>
-    </div>
-  </div>
+<main class="panel-shell">
+  <div id="panel-loading" class="container"><div class="skeleton" style="height:36px;width:40%"></div><div class="skeleton" style="height:180px;margin-top:20px"></div></div>
+  <div id="panel-gate" class="container" hidden></div>
 
   <div id="panel-app" hidden>
-    <div class="app-head">
-      <div>
-        <h1 id="panel-company">Mi empresa</h1>
-        <p>Gestioná tus búsquedas laborales y las postulaciones recibidas.</p>
+    <aside class="panel-side">
+      <div class="panel-brand">
+        <div id="panel-logo"></div>
+        <div class="panel-brand-text">
+          <strong id="panel-company">Mi empresa</strong>
+          <a id="panel-public-link" href="#" target="_blank" rel="noopener">Ver página pública {{ICON_ARROW}}</a>
+        </div>
       </div>
-      <a class="btn btn-primary" href="/publicar">Nueva publicación</a>
-    </div>
-
-    <div class="kpis">
-      <div class="kpi"><div class="n" id="kpi-published">0</div><div class="l">Ofertas publicadas</div></div>
-      <div class="kpi"><div class="n" id="kpi-pending">0</div><div class="l">Pendientes de revisión</div></div>
-      <div class="kpi"><div class="n" id="kpi-apps">0</div><div class="l">Postulaciones</div></div>
-      <div class="kpi"><div class="n" id="kpi-views">0</div><div class="l">Visitas a tus ofertas</div></div>
-    </div>
-
-    <div class="tabs" role="tablist">
-      <button class="tab is-active" data-tab="jobs" type="button">Mis ofertas</button>
-      <button class="tab" data-tab="apps" type="button">Postulaciones</button>
-      <button class="tab" data-tab="profile" type="button">Perfil de empresa</button>
-    </div>
-
-    <section data-panel="jobs">
-      <div class="card">
-        <div id="jobs-list"></div>
+      <nav class="panel-nav" aria-label="Panel de empresa">
+        <button type="button" class="panel-nav-item is-active" data-tab="overview">{{ICON_CHART}}<span>Resumen</span></button>
+        <button type="button" class="panel-nav-item" data-tab="jobs">{{ICON_BAG}}<span>Ofertas</span></button>
+        <button type="button" class="panel-nav-item" data-tab="applicants">{{ICON_USERS}}<span>Postulantes</span></button>
+        <button type="button" class="panel-nav-item" data-tab="company">{{ICON_BUILDING}}<span>Mi empresa</span></button>
+        <button type="button" class="panel-nav-item" data-tab="ai">{{ICON_SPARKLES}}<span>IA</span></button>
+      </nav>
+      <a class="btn btn-primary btn-block" href="/publicar">{{ICON_PLUS}} Nueva publicación</a>
+      <div class="panel-side-foot">
+        <a href="/" class="muted-link">Volver al sitio</a>
+        <button class="muted-link" type="button" data-logout>Cerrar sesión</button>
       </div>
-    </section>
+    </aside>
 
-    <section data-panel="apps" hidden>
-      <div class="card">
-        <h2>Postulaciones recibidas</h2>
-        <p class="sub">Podés marcar cada postulación como contactada o descartada.</p>
-        <div id="apps-list"></div>
+    <section class="panel-main">
+      <!-- RESUMEN -->
+      <div data-panel="overview">
+        <header class="panel-head">
+          <div>
+            <span class="kicker">Tu espacio de trabajo</span>
+            <h1>Resumen</h1>
+            <p>Todo lo que pasó con tus búsquedas, de un vistazo.</p>
+          </div>
+          <a class="btn btn-primary" href="/publicar">{{ICON_PLUS}} Publicar empleo</a>
+        </header>
+
+        <div class="kpi-grid">
+          <div class="kpi-card"><span class="kpi-ico">{{ICON_BAG}}</span><div><b id="kpi-published">0</b><small>Publicadas</small></div></div>
+          <div class="kpi-card"><span class="kpi-ico">{{ICON_CLOCK}}</span><div><b id="kpi-pending">0</b><small>En revisión</small></div></div>
+          <div class="kpi-card"><span class="kpi-ico">{{ICON_USERS}}</span><div><b id="kpi-apps">0</b><small>Postulantes</small></div></div>
+          <div class="kpi-card highlight"><span class="kpi-ico">{{ICON_INBOX}}</span><div><b id="kpi-new">0</b><small>Sin revisar</small></div></div>
+          <div class="kpi-card"><span class="kpi-ico">{{ICON_EYE}}</span><div><b id="kpi-views">0</b><small>Vistas</small></div></div>
+          <div class="kpi-card"><span class="kpi-ico">{{ICON_CHECK}}</span><div><b id="kpi-hired">0</b><small>Contratados</small></div></div>
+        </div>
+
+        <div class="overview-grid">
+          <div class="card">
+            <h2>Embudo de postulantes</h2>
+            <p class="sub">En qué etapa está cada persona.</p>
+            <div id="funnel" class="funnel"></div>
+          </div>
+          <div class="card">
+            <h2>Para hacer hoy</h2>
+            <p class="sub">Sugerencias para mover la búsqueda.</p>
+            <div id="todo-list" class="todo-list"></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:18px">
+          <div class="card-head-row">
+            <div><h2>Últimos postulantes</h2><p class="sub" style="margin:0">Los que llegaron más recientemente.</p></div>
+            <button class="btn btn-ghost btn-sm" type="button" data-goto="applicants">Ver todos →</button>
+          </div>
+          <div id="recent-apps" class="recent-list"></div>
+        </div>
       </div>
-    </section>
 
-    <section data-panel="profile" hidden>
-      <div class="card" style="max-width:620px">
-        <h2>Perfil de empresa</h2>
-        <p class="sub">Estos datos se muestran junto a tus ofertas.</p>
-        <div id="profile-alert" hidden></div>
-        <form id="profile-form">
-          <div class="field">
-            <label for="p-name">Nombre</label>
-            <input class="input" id="p-name" name="name" required maxlength="120">
+      <!-- OFERTAS -->
+      <div data-panel="jobs" hidden>
+        <header class="panel-head">
+          <div><span class="kicker">Publicaciones</span><h1>Tus ofertas</h1><p id="jobs-count">—</p></div>
+          <a class="btn btn-primary" href="/publicar">{{ICON_PLUS}} Nueva oferta</a>
+        </header>
+        <div class="toolbar">
+          <div class="filter-chips">
+            <button class="filter-chip is-active" type="button" data-job-filter="">Todas</button>
+            <button class="filter-chip" type="button" data-job-filter="approved">Publicadas</button>
+            <button class="filter-chip" type="button" data-job-filter="pending">En revisión</button>
+            <button class="filter-chip" type="button" data-job-filter="rejected">Rechazadas</button>
+            <button class="filter-chip" type="button" data-job-filter="closed">Cerradas</button>
           </div>
-          <div class="field" style="margin-top:14px">
-            <label for="p-phone">Teléfono</label>
-            <input class="input" id="p-phone" name="phone" maxlength="60">
+          <input class="input input-sm toolbar-search" id="job-search" placeholder="Buscar por puesto…">
+        </div>
+        <div id="jobs-cards" class="offer-grid"></div>
+      </div>
+
+      <!-- POSTULANTES -->
+      <div data-panel="applicants" hidden>
+        <header class="panel-head">
+          <div><span class="kicker">Selección</span><h1>Postulantes</h1><p>Abrí una tarjeta para ver el perfil, la IA y moverla de etapa.</p></div>
+          <div class="head-actions">
+            <a class="btn btn-ghost" href="/api/company/applications.csv" download>{{ICON_FILE}} Exportar CSV</a>
+            <button class="btn btn-outline" type="button" id="manual-open">{{ICON_PLUS}} Cargar postulante</button>
           </div>
-          <div class="field" style="margin-top:14px">
-            <label for="p-website">Sitio web <span class="hint">(opcional)</span></label>
-            <input class="input" id="p-website" name="website" maxlength="200" placeholder="https://">
+        </header>
+        <div class="toolbar">
+          <select class="input input-sm toolbar-select" id="kanban-job"><option value="">Todas las búsquedas</option></select>
+          <input class="input input-sm toolbar-search" id="kanban-search" placeholder="Buscar por nombre, email o teléfono…">
+        </div>
+        <div class="kanban" id="kanban"></div>
+        <p class="kanban-hint">{{ICON_ARROW}} Deslizá para ver todas las etapas. Podés mover con el botón de cada tarjeta o desde la ficha.</p>
+      </div>
+
+      <!-- EMPRESA -->
+      <div data-panel="company" hidden>
+        <header class="panel-head">
+          <div><span class="kicker">Perfil público</span><h1>Mi empresa</h1><p>Así te ven las personas que buscan trabajo.</p></div>
+          <a class="btn btn-ghost btn-sm" id="panel-public-link-2" href="#" target="_blank" rel="noopener">{{ICON_EYE}} Ver página</a>
+        </header>
+
+        <div class="company-edit-grid">
+          <div class="card">
+            <h2>Logo</h2>
+            <p class="sub">Cuadrado, mínimo 400×400.</p>
+            <div class="logo-upload">
+              <div id="p-logo-preview"></div>
+              <label class="btn btn-outline btn-sm" for="p-logo-input">{{ICON_UPLOAD}} Subir logo</label>
+              <input class="sr-only" id="p-logo-input" type="file" accept="image/*">
+            </div>
           </div>
-          <div class="field" style="margin-top:14px">
-            <label for="p-desc">Descripción</label>
-            <textarea class="input" id="p-desc" name="description" maxlength="1200" placeholder="Contá a qué se dedica tu empresa."></textarea>
+          <div class="card">
+            <h2>Datos</h2>
+            <div id="profile-alert" hidden></div>
+            <form id="profile-form" novalidate>
+              <div class="form-grid">
+                <div class="field span-2"><label for="p-name">Nombre</label><input class="input" id="p-name" required maxlength="120"></div>
+                <div class="field"><label for="p-locality">Localidad</label><select class="input" id="p-locality"><option value="">Sin definir</option></select></div>
+                <div class="field"><label for="p-phone">Teléfono</label><input class="input" id="p-phone" maxlength="60"></div>
+                <div class="field span-2"><label for="p-website">Sitio web</label><input class="input" id="p-website" maxlength="200" placeholder="https://"></div>
+                <div class="field span-2"><label for="p-desc">Descripción</label><textarea class="input" id="p-desc" rows="5" maxlength="1600" placeholder="Contá a qué se dedica tu empresa y cómo es el equipo."></textarea></div>
+              </div>
+              <button class="btn btn-primary" type="submit" id="profile-save" style="margin-top:16px">Guardar cambios</button>
+            </form>
           </div>
-          <button class="btn btn-primary" type="submit" style="margin-top:18px">Guardar cambios</button>
-        </form>
+        </div>
+
+        <div class="card" style="margin-top:18px">
+          <div class="card-head-row">
+            <div><h2>Fotos de la empresa</h2><p class="sub" style="margin:0">Se muestran como carrusel en tus avisos. Hasta 8 fotos.</p></div>
+            <label class="btn btn-outline btn-sm" for="p-gallery-input">{{ICON_IMAGE}} Sumar fotos</label>
+            <input class="sr-only" id="p-gallery-input" type="file" accept="image/*" multiple>
+          </div>
+          <div class="gallery-grid" id="p-gallery"></div>
+          <div class="muted" id="gallery-status" style="margin-top:8px"></div>
+        </div>
+      </div>
+
+      <!-- IA -->
+      <div data-panel="ai" hidden>
+        <header class="panel-head">
+          <div><span class="kicker">Opcional</span><h1>Análisis con IA</h1><p>Conectá tu propia API para resumir CV y ordenar postulantes.</p></div>
+          <div id="ai-status" class="ai-status"></div>
+        </header>
+
+        <div id="ai-alert" hidden></div>
+
+        <div class="card">
+          <h2>1. Elegí un proveedor</h2>
+          <p class="sub">Usás tu cuenta y tu cuota. La key queda guardada en tu empresa y no se muestra de nuevo.</p>
+          <div class="provider-grid" id="ai-providers"></div>
+
+          <div class="form-grid" style="margin-top:18px">
+            <div class="field span-2">
+              <label for="ai-key">API key</label>
+              <input class="input" id="ai-key" type="password" autocomplete="off" placeholder="Pegá tu API key">
+              <span class="hint">Si ya hay una guardada, dejá vacío para conservarla.</span>
+            </div>
+            <div class="field">
+              <label for="ai-model">Modelo</label>
+              <input class="input" id="ai-model" list="ai-models" autocomplete="off" placeholder="Ej.: gpt-4o-mini">
+              <datalist id="ai-models"></datalist>
+              <span class="hint">Elegí de la lista o escribí el nombre exacto del modelo.</span>
+            </div>
+            <div class="field" id="ai-base-wrap" hidden>
+              <label for="ai-base">URL base</label>
+              <input class="input" id="ai-base" placeholder="https://api.groq.com/openai/v1">
+            </div>
+          </div>
+
+          <div class="toggle-row">
+            <label class="switch"><input type="checkbox" id="ai-enabled"><span></span></label>
+            <div><strong>Usar IA en esta empresa</strong><small>Habilita el botón “Analizar CV” en cada postulante.</small></div>
+          </div>
+          <div class="toggle-row">
+            <label class="switch"><input type="checkbox" id="ai-auto"><span></span></label>
+            <div><strong>Analizar automáticamente</strong><small>Cada postulación nueva se resume sola (consume tu cuota de IA).</small></div>
+          </div>
+
+          <div class="ai-actions">
+            <button class="btn btn-primary" type="button" id="ai-save">Guardar configuración</button>
+            <button class="btn btn-outline" type="button" id="ai-test">Probar conexión</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Qué hace la IA (y qué no)</h2>
+          <div class="ai-explainer">
+            <div><strong>Lee el CV y el perfil</strong><p>Extrae el texto del PDF. Si el CV es una foto escaneada, usa los datos del perfil.</p></div>
+            <div><strong>Devuelve un resumen útil</strong><p>Puntaje de encaje, puntos fuertes, dudas para la entrevista y seniority estimado.</p></div>
+            <div><strong>No decide por vos</strong><p>Es un apoyo. No evalúa edad, género, apariencia ni otros datos sensibles.</p></div>
+          </div>
+          <p class="aside-note">{{ICON_LOCK}} El texto del CV viaja sólo al proveedor que elijas. Workuco no entrena modelos con tus datos.</p>
+        </div>
       </div>
     </section>
   </div>
 </main>
 
+<!-- Ficha de postulante -->
+<div class="drawer" id="drawer" hidden>
+  <div class="drawer-backdrop" data-close-drawer></div>
+  <aside class="drawer-panel" role="dialog" aria-modal="true" aria-label="Ficha del postulante">
+    <div id="drawer-body"></div>
+  </aside>
+</div>
+
+<!-- Alta manual -->
+<div class="modal-backdrop" id="manual-modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <div><h2>Cargar postulante</h2><p class="modal-sub">Para CV que llegaron por WhatsApp o en mano.</p></div>
+      <button class="modal-close" type="button" data-close-manual aria-label="Cerrar">{{ICON_X}}</button>
+    </div>
+    <form id="manual-form">
+      <div class="field"><label for="m-job">Oferta</label><select class="input" id="m-job"></select></div>
+      <div class="form-grid" style="margin-top:12px">
+        <div class="field span-2"><label for="m-name">Nombre y apellido</label><input class="input" id="m-name" required></div>
+        <div class="field"><label for="m-email">Email</label><input class="input" id="m-email" type="email" required></div>
+        <div class="field"><label for="m-phone">Teléfono</label><input class="input" id="m-phone" required></div>
+        <div class="field span-2"><label for="m-msg">Mensaje o nota</label><textarea class="input" id="m-msg" rows="3"></textarea></div>
+        <div class="field span-2"><label for="m-cv">CV PDF <span class="hint">(opcional)</span></label><input class="input file-input" id="m-cv" type="file" accept="application/pdf,.pdf"></div>
+      </div>
+      <button class="btn btn-primary btn-block" type="submit" style="margin-top:14px">Agregar postulante</button>
+    </form>
+  </div>
+</div>
+
 <div class="toast-wrap" id="toasts"></div>
 {{FOOTER}}
 <script src="/app.js"></script>
+<script src="/panel.js"></script>
 </body>
 </html>

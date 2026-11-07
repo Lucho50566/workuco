@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{TITLE}}</title>
-  <meta name="description" content="Encontrá oportunidades laborales en San Carlos, Tunuyán y Tupungato. Publicá búsquedas y postulate en minutos.">
+  <meta name="description" content="Encontrá oportunidades laborales en San Carlos, Tunuyán y Tupungato. Creá tu perfil con foto y CV, postulate en un toque y publicá búsquedas con panel de postulantes.">
   <meta name="theme-color" content="#0ba37c">
   <link rel="icon" href="/favicon.png" type="image/png" sizes="64x64">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -14,81 +14,164 @@
 <body data-page="home">
 {{NAV}}
 <main>
-  <section class="hero">
-    <div class="container hero-inner">
-      <span class="eyebrow">Valle de Uco · Mendoza</span>
-      <h1>Tu próximo trabajo está más cerca</h1>
-      <p class="hero-sub">Encontrá oportunidades laborales en todo el Valle de Uco. San Carlos, Tunuyán y Tupungato en un solo lugar.</p>
+  <section class="hero hero-home">
+    <div class="container hero-grid">
+      <div class="hero-copy">
+        <span class="eyebrow">Valle de Uco · Mendoza</span>
+        <h1>El trabajo que buscás está <span class="mark">acá nomás</span>.</h1>
+        <p class="hero-sub">San Carlos, Tunuyán y Tupungato en un solo lugar. Creá tu perfil con foto y CV, postulate en un toque y seguí cada postulación.</p>
 
-      <form class="search-card" id="home-search" role="search">
-        <div class="field field-q">
-          <label class="sr-only" for="home-q">Puesto o palabra clave</label>
-          <input class="input" id="home-q" name="q" type="search" placeholder="Puesto, empresa o palabra clave" autocomplete="off">
+        <div class="role-switch">
+          <a class="role-btn is-active" href="#ofertas">
+            <span class="role-ico">{{ICON_BAG}}</span>
+            <span><strong>Busco trabajo</strong><small>Ver búsquedas abiertas</small></span>
+          </a>
+          <a class="role-btn" href="/publicar">
+            <span class="role-ico">{{ICON_BUILDING}}</span>
+            <span><strong>Quiero contratar</strong><small>Publicar y ver postulantes</small></span>
+          </a>
         </div>
-        <div class="field">
-          <label class="sr-only" for="home-loc">Localidad</label>
-          <select class="input" id="home-loc" name="locality">
-            <option value="">Toda la zona</option>
-          </select>
+
+        <form class="search-card" id="home-search" role="search">
+          <div class="field field-q">
+            <label class="sr-only" for="home-q">Puesto o palabra clave</label>
+            <span class="field-ico" aria-hidden="true">{{ICON_SEARCH}}</span>
+            <input class="input" id="home-q" name="q" type="search" placeholder="Puesto, empresa o palabra clave" autocomplete="off">
+          </div>
+          <div class="field">
+            <label class="sr-only" for="home-loc">Localidad</label>
+            <select class="input" id="home-loc" name="locality">
+              <option value="">Toda la zona</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" type="submit">Buscar empleo</button>
+        </form>
+        <div class="hero-hint">
+          <span>Más buscados:</span>
+          <a class="chip-link" href="/buscar?q=vend">Ventas</a>
+          <a class="chip-link" href="/buscar?q=cocina">Cocina</a>
+          <a class="chip-link" href="/buscar?category=Agricultura">Agricultura</a>
+          <a class="chip-link" href="/buscar?modality=Remoto">Remoto</a>
         </div>
-        <div class="field">
-          <label class="sr-only" for="home-cat">Categoría</label>
-          <select class="input" id="home-cat" name="category">
-            <option value="">Todas las categorías</option>
-          </select>
+      </div>
+
+      <div class="hero-art" aria-hidden="true">
+        <div class="art-glow"></div>
+        <div class="art-card art-1">
+          <span class="art-logo">AU</span>
+          <div><b>Operario de bodega</b><small>San Carlos · Tiempo completo</small></div>
+          <em class="art-tag">Nuevo</em>
         </div>
-        <button class="btn btn-primary" type="submit">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-          Buscar empleo
-        </button>
-      </form>
-      <div class="hero-hint">
-        <span>Búsquedas populares:</span>
-        <a class="chip-link" href="/buscar?q=vend">Ventas</a>
-        <a class="chip-link" href="/buscar?q=cocina">Cocina</a>
-        <a class="chip-link" href="/buscar?category=Agricultura">Agricultura</a>
-        <a class="chip-link" href="/buscar?modality=Remoto">Remoto</a>
+        <div class="art-card art-2">
+          <span class="art-logo alt">CP</span>
+          <div><b>Barista</b><small>Tupungato · Medio tiempo</small></div>
+        </div>
+        <div class="art-card art-3">
+          <span class="art-logo alt2">EV</span>
+          <div><b>Asistente contable</b><small>Tunuyán · Híbrido</small></div>
+          <em class="art-match">88% match</em>
+        </div>
+        <div class="art-pill">{{ICON_CHECK}} Perfil con CV y foto</div>
+        <div class="art-ring"></div>
       </div>
     </div>
   </section>
 
-  <section class="section">
+  <section class="trust-strip">
+    <div class="container trust-grid">
+      <div>{{ICON_PIN}}<span><strong>3 localidades</strong><small>Todo el Valle de Uco</small></span></div>
+      <div>{{ICON_USERS}}<span><strong>Perfiles completos</strong><small>Foto, CV y habilidades</small></span></div>
+      <div>{{ICON_SPARKLES}}<span><strong>IA para empresas</strong><small>CV ordenados y resumidos</small></span></div>
+      <div>{{ICON_CHECK}}<span><strong>Gratis</strong><small>Publicar y postularse</small></span></div>
+    </div>
+  </section>
+
+  <section class="section" id="ofertas">
     <div class="container">
       <div class="section-head">
         <div>
-          <h2>Ofertas destacadas</h2>
-          <p>Las búsquedas que las empresas del Valle quieren que veas primero.</p>
+          <span class="kicker">Oportunidades</span>
+          <h2>Búsquedas abiertas ahora</h2>
+          <p>Las empresas del Valle están buscando gente como vos.</p>
         </div>
-        <a class="link-arrow" href="/buscar">Ver todas las ofertas →</a>
+        <a class="link-arrow" href="/buscar">Ver todas {{ICON_ARROW}}</a>
       </div>
       <div class="jobs-grid" id="featured-jobs" aria-live="polite">
-        <div class="job-card"><div class="skeleton" style="height:18px;width:70%"></div><div class="skeleton" style="height:13px;width:45%"></div><div class="skeleton" style="height:13px;width:85%"></div><div class="skeleton" style="height:36px;width:100%"></div></div>
-        <div class="job-card"><div class="skeleton" style="height:18px;width:60%"></div><div class="skeleton" style="height:13px;width:50%"></div><div class="skeleton" style="height:13px;width:80%"></div><div class="skeleton" style="height:36px;width:100%"></div></div>
-        <div class="job-card"><div class="skeleton" style="height:18px;width:75%"></div><div class="skeleton" style="height:13px;width:40%"></div><div class="skeleton" style="height:13px;width:90%"></div><div class="skeleton" style="height:36px;width:100%"></div></div>
+        <div class="job-card"><div class="skeleton" style="height:86px"></div><div class="job-card-body"><div class="skeleton" style="height:18px;width:70%"></div><div class="skeleton" style="height:13px;width:45%"></div><div class="skeleton" style="height:13px;width:85%"></div></div></div>
+        <div class="job-card"><div class="skeleton" style="height:86px"></div><div class="job-card-body"><div class="skeleton" style="height:18px;width:60%"></div><div class="skeleton" style="height:13px;width:50%"></div><div class="skeleton" style="height:13px;width:80%"></div></div></div>
+        <div class="job-card"><div class="skeleton" style="height:86px"></div><div class="job-card-body"><div class="skeleton" style="height:18px;width:75%"></div><div class="skeleton" style="height:13px;width:40%"></div><div class="skeleton" style="height:13px;width:90%"></div></div></div>
       </div>
     </div>
   </section>
 
-  <section class="section" style="padding-top:0">
+  <section class="section section-tight">
     <div class="container">
       <div class="section-head">
         <div>
-          <h2>Explorá por categoría</h2>
-          <p>Encontrá el área en la que querés trabajar.</p>
+          <span class="kicker">El Valle trabaja</span>
+          <h2>Empresas que están contratando</h2>
+        </div>
+        <a class="link-arrow" href="/empresas">Ver empresas {{ICON_ARROW}}</a>
+      </div>
+      <div class="companies-strip" id="companies-strip">
+        <div class="skeleton" style="height:74px"></div><div class="skeleton" style="height:74px"></div><div class="skeleton" style="height:74px"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-tight">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <span class="kicker">Explorá</span>
+          <h2>¿En qué querés trabajar?</h2>
+          <p>Elegí un área y mirá las búsquedas disponibles.</p>
         </div>
       </div>
       <div class="cats-grid" id="categories-grid"></div>
     </div>
   </section>
 
-  <section class="section" style="padding-top:0">
+  <section class="section how-section">
+    <div class="container">
+      <div class="section-head center">
+        <div>
+          <span class="kicker">Simple de verdad</span>
+          <h2>Así funciona Workuco</h2>
+        </div>
+      </div>
+      <div class="how-grid">
+        <div class="how-card">
+          <div class="how-head"><span class="how-badge">{{ICON_USER}}</span><h3>Si buscás trabajo</h3></div>
+          <ol class="how-steps">
+            <li><span>1</span><div><strong>Creá tu perfil</strong><p>Foto, CV, habilidades y disponibilidad. Una sola vez.</p></div></li>
+            <li><span>2</span><div><strong>Postulate en un toque</strong><p>Sin volver a escribir tus datos en cada aviso.</p></div></li>
+            <li><span>3</span><div><strong>Seguí tus postulaciones</strong><p>Mirá en qué etapa está cada búsqueda.</p></div></li>
+          </ol>
+          <a class="btn btn-primary btn-block" href="/acceder?rol=empleado&modo=registro&next=/mi-perfil">Crear mi perfil gratis</a>
+        </div>
+        <div class="how-card how-company">
+          <div class="how-head"><span class="how-badge">{{ICON_BUILDING}}</span><h3>Si querés contratar</h3></div>
+          <ol class="how-steps">
+            <li><span>1</span><div><strong>Publicá en 4 pasos</strong><p>Elegís con tarjetas y chips, sin formularios eternos.</p></div></li>
+            <li><span>2</span><div><strong>Recibí postulantes ordenados</strong><p>Kanban por etapa, notas, etiquetas y contacto directo.</p></div></li>
+            <li><span>3</span><div><strong>Dejá que la IA te ayude</strong><p>Resume CV, detecta puntos fuertes y dudas.</p></div></li>
+          </ol>
+          <a class="btn btn-outline btn-block" href="/publicar">Publicar una búsqueda</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-tight">
     <div class="container">
       <div class="cta-band">
         <div>
-          <h2>Encontrá a tu próximo empleado</h2>
-          <p>Publicá tu búsqueda laboral y llegá a personas de todo el Valle de Uco. Las publicaciones se revisan antes de salir, para mantener la calidad de las ofertas.</p>
+          <span class="kicker light">Para empresas del Valle</span>
+          <h2>Tu próxima gran incorporación está a un clic</h2>
+          <p>Publicá gratis, sumá fotos de tu empresa y gestioná todos los postulantes desde un panel pensado para PyMEs.</p>
         </div>
-        <a class="btn btn-primary" href="/publicar">Publicar una búsqueda</a>
+        <a class="btn btn-light" href="/publicar">Publicar empleo {{ICON_ARROW}}</a>
       </div>
     </div>
   </section>

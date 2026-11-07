@@ -209,6 +209,100 @@ async function main() {
     const adminCv = await admin.get(`/api/company/cv/${appId}`);
     check('admin puede ver el CV', adminCv.status === 200);
 
+    console.log('\n— Cuenta de persona y perfil —');
+    const cand = client();
+    const candReg = await cand.post('/api/auth/register', {
+      role: 'candidate', name: 'Sofía Herrera', email: 'sofia@test.com', phone: '2622000111',
+      password: 'clave12345', locality: 'San Carlos',
+    });
+    check('registro de persona', candReg.status === 201);
+    const candMe = await cand.get('/api/me');
+    check('sesión de persona activa', candMe.data.user && candMe.data.user.role === 'candidate');
+    check('persona no puede publicar ofertas', (await cand.post('/api/company/jobs', { title: 'x' })).status === 401);
+
+    const dupCand = await pub.post('/api/auth/register', { role: 'candidate', name: 'Otra', email: 'sofia@test.com', phone: '2622000111', password: 'clave12345' });
+    check('email de persona duplicado rechazado', dupCand.status === 400);
+
+    const tinyPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    const prof = await cand.patch('/api/candidate/profile', {
+      name: 'Sofía Herrera', headline: 'Operaria de bodega', locality: 'San Carlos',
+      skills: ['Fraccionamiento', 'Control de stock', 'Excel'], about: 'Cuatro vendimias en bodega boutique.',
+      experience: '4 temporadas en bodega.', education: 'Secundario completo', availability: 'Tiempo completo',
+      photo: tinyPng,
+    });
+    check('actualiza perfil de persona', prof.status === 200 && prof.data.candidate.headline === 'Operaria de bodega');
+    check('sube foto de perfil', !!prof.data.candidate.photo);
+    check('foto protegida sin sesión', (await pub.get(prof.data.candidate.photo)).status === 401);
+
+    const candCv = await cand.patch('/api/candidate/profile', {
+      cv: { name: 'sofia.pdf', data: Buffer.from('%PDF-1.4\n% cv de prueba\n').toString('base64') },
+    });
+    check('sube CV al perfil', candCv.status === 200 && candCv.data.candidate.hasCv === true);
+    check('persona descarga su propio CV', (await cand.get(`/api/cv/c/${candMe.data.user.candidate.id}`)).status === 200);
+
+    const jobDetail = await cand.get('/api/jobs/jdemo005');
+    check('detalle incluye estado de postulación', jobDetail.status === 200 && jobDetail.data.applied === false);
+    const candApply = await cand.post('/api/jobs/jdemo005/apply', { message: 'Me interesa la obra.' });
+    check('persona se postula con su perfil', candApply.status === 201);
+    check('no se puede postular dos veces', (await cand.post('/api/jobs/jdemo005/apply', {})).status === 409);
+    const myApps = await cand.get('/api/candidate/applications');
+    check('persona ve sus postulaciones', myApps.data.applications.length === 1 && myApps.data.applications[0].jobId === 'jdemo005');
+    check('el detalle marca postulada', (await cand.get('/api/jobs/jdemo005')).data.applied === true);
+
+    const saveOn = await cand.post('/api/candidate/saved/jdemo003');
+    check('guarda una oferta', saveOn.status === 200 && saveOn.data.saved === true);
+    const savedList = await cand.get('/api/candidate/saved');
+    check('lista de guardadas', savedList.data.jobs.length === 1 && savedList.data.jobs[0].id === 'jdemo003');
+    check('quita de guardadas', (await cand.post('/api/candidate/saved/jdemo003')).data.saved === false);
+
+    console.log('\n— Galería y ficha de empresa —');
+    const bodega = client();
+    await bodega.post('/api/auth/login', { email: 'bodega@demo.workuco', password: 'demo12345' });
+    const beforeGal = await bodega.get('/api/company/profile');
+    const galAdd = await bodega.post('/api/company/gallery', { image: tinyPng });
+    check('empresa sube foto a la galería', galAdd.status === 201 && galAdd.data.company.gallery.length >= 1);
+    const galFile = galAdd.data.company.gallery[galAdd.data.company.gallery.length - 1].split('/').pop();
+    check('carrusel público incluye la foto', (await pub.get('/api/companies/cdemo01bodega')).data.company.gallery.length >= 1);
+    check('persona no puede subir fotos de empresa', (await cand.post('/api/company/gallery', { image: tinyPng })).status === 401);
+    const galDel = await bodega.del(`/api/company/gallery?file=${encodeURIComponent(galFile)}`);
+    check('empresa elimina foto', galDel.status === 200);
+
+    const pubCompany = await pub.get('/api/companies/cdemo01bodega');
+    check('página pública de empresa', pubCompany.status === 200 && pubCompany.data.jobs.length >= 1);
+    const companiesList = await pub.get('/api/companies');
+    check('listado de empresas con búsquedas', companiesList.data.companies.length >= 5);
+
+    console.log('\n— Gestión de postulantes —');
+    const dash = await bodega.get('/api/company/dashboard');
+    check('dashboard con KPIs y embudo', dash.status === 200 && dash.data.stageCounts.nuevo >= 1 && dash.data.kpis.applications >= 1);
+    const appToMove = dash.data.applications.find((a) => a.jobId === 'jdemo001');
+    const moved = await bodega.patch(`/api/company/applications/${appToMove.id}`, {
+      stage: 'entrevista', rating: 5, notes: 'Disponibilidad inmediata. Entrevista el jueves.', tags: ['turno tarde', 'recomendada'],
+    });
+    check('mueve postulante de etapa', moved.status === 200 && moved.data.application.stage === 'entrevista');
+    check('guarda nota, puntaje y etiquetas', moved.data.application.rating === 5 && moved.data.application.tags.includes('recomendada'));
+    check('valida etapa inválida', (await bodega.patch(`/api/company/applications/${appToMove.id}`, { stage: 'inventada' })).status === 400);
+
+    const manual = await bodega.post('/api/company/applications', {
+      jobId: 'jdemo001', name: 'Postulante Manual', email: 'manual@test.com', phone: '2622333444',
+      message: 'Llegó por WhatsApp.',
+    });
+    check('empresa carga postulante manual', manual.status === 201 && manual.data.application.name === 'Postulante Manual');
+    check('otra empresa no ve la postulación', (await comp.get(`/api/company/applications/${manual.data.application.id}`)).status === 404);
+
+    console.log('\n— Configuración de IA —');
+    const aiCfg = await bodega.patch('/api/company/ai', {
+      provider: 'openai', apiKey: 'sk-prueba-1234567890', model: 'gpt-4o-mini', enabled: true, auto: false,
+    });
+    check('guarda configuración de IA', aiCfg.status === 200 && aiCfg.data.ai.hasKey === true && aiCfg.data.ai.enabled === true);
+    check('nunca devuelve la API key', !JSON.stringify(aiCfg.data).includes('sk-prueba-1234567890'));
+    check('enmascara la key', aiCfg.data.ai.keyMask.includes('••••'));
+    const aiCfgGet = await bodega.get('/api/company/ai');
+    check('lee configuración sin la key', aiCfgGet.data.ai.hasKey === true && !('apiKey' in aiCfgGet.data.ai));
+    check('persona no configura IA', (await cand.patch('/api/company/ai', { provider: 'openai' })).status === 401);
+    const noAi = await comp.post(`/api/company/applications/${compApps.data.applications[0].id}/analyze`);
+    check('IA sin configurar rechaza análisis', noAi.status === 400);
+
     console.log('\n— Borrado —');
     const del = await admin.del(`/api/admin/jobs/${newJobId}`);
     check('admin elimina oferta', del.status === 200);

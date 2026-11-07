@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{TITLE}}</title>
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#0ba37c">
+  <link rel="icon" href="/favicon.png" type="image/png" sizes="64x64">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body data-page="profile">
+{{NAV}}
+<main class="container app-shell">
+  <div id="profile-loading"><div class="skeleton" style="height:36px;width:40%"></div><div class="skeleton" style="height:180px;margin-top:20px"></div></div>
+  <div id="profile-gate" hidden></div>
+
+  <div id="profile-app" hidden>
+    <span id="profile-name" class="sr-only"></span>
+    <div class="profile-layout">
+      <aside class="profile-side">
+        <div class="card profile-card" id="profile-summary"></div>
+        <a class="btn btn-outline btn-block" href="/buscar">Buscar empleo</a>
+        <div class="profile-tip">
+          {{ICON_SPARKLES}}
+          <div><strong>Consejo</strong><span>Los perfiles con foto, CV y habilidades reciben muchas más respuestas.</span></div>
+        </div>
+      </aside>
+
+      <section class="profile-main">
+        <div class="tabs" role="tablist">
+          <button class="tab is-active" data-tab="profile" type="button">Mi perfil</button>
+          <button class="tab" data-tab="apps" type="button">Mis postulaciones</button>
+          <button class="tab" data-tab="saved" type="button">Guardadas</button>
+        </div>
+
+        <section data-panel="profile">
+          <div id="profile-alert" hidden></div>
+          <form id="profile-form" class="profile-form" novalidate>
+            <div class="card">
+              <h2>Foto y presentación</h2>
+              <p class="sub">Una foto clara y un buen titular hacen la diferencia.</p>
+              <div class="photo-row">
+                <div id="photo-preview" class="photo-preview"></div>
+                <div>
+                  <label class="btn btn-outline btn-sm" for="photo-input">{{ICON_UPLOAD}} Cambiar foto</label>
+                  <input class="sr-only" id="photo-input" type="file" accept="image/*">
+                  <p class="hint">JPG, PNG o WebP. Se recorta en cuadrado.</p>
+                </div>
+              </div>
+              <div class="form-grid" style="margin-top:16px">
+                <div class="field span-2">
+                  <label for="c-headline">Titular <span class="hint">¿Qué sabés hacer?</span></label>
+                  <input class="input" id="c-headline" maxlength="120" placeholder="Ej.: Operaria de bodega y fraccionamiento">
+                </div>
+                <div class="field span-2">
+                  <label for="c-about">Sobre vos</label>
+                  <textarea class="input" id="c-about" rows="4" maxlength="1600" placeholder="Contá tu experiencia, cómo trabajás y qué buscás."></textarea>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <h2>Datos y disponibilidad</h2>
+              <div class="form-grid">
+                <div class="field">
+                  <label for="c-name">Nombre y apellido</label>
+                  <input class="input" id="c-name" required maxlength="120">
+                </div>
+                <div class="field">
+                  <label for="c-phone">Teléfono</label>
+                  <input class="input" id="c-phone" type="tel" required>
+                </div>
+                <div class="field">
+                  <label for="c-locality">Localidad</label>
+                  <select class="input" id="c-locality"><option value="">Elegí tu localidad</option></select>
+                </div>
+                <div class="field">
+                  <label for="c-linkedin">LinkedIn <span class="hint">(opcional)</span></label>
+                  <input class="input" id="c-linkedin" placeholder="https://linkedin.com/in/…">
+                </div>
+                <div class="field span-2">
+                  <label for="c-availability">Disponibilidad</label>
+                  <div class="filter-chips" id="avail-chips"></div>
+                  <input class="input" id="c-availability" maxlength="120" placeholder="Ej.: Tiempo completo, turnos rotativos" style="margin-top:8px">
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <h2>Habilidades</h2>
+              <p class="sub">Agregá las que te salgan naturales. Ayudan a que te encuentren.</p>
+              <div class="tag-list" id="skills-list"></div>
+              <div class="inline-add" style="margin-top:10px">
+                <input class="input input-sm" id="skill-input" placeholder="Ej.: Excel, atención al público, tractor" maxlength="30">
+                <button class="btn btn-outline btn-sm" type="button" id="skill-add">{{ICON_PLUS}} Agregar</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <h2>Experiencia y formación</h2>
+              <div class="form-grid">
+                <div class="field span-2">
+                  <label for="c-experience">Experiencia</label>
+                  <textarea class="input" id="c-experience" rows="4" maxlength="1200" placeholder="Ej.: 4 temporadas en bodega, fraccionamiento y etiquetado."></textarea>
+                </div>
+                <div class="field span-2">
+                  <label for="c-education">Formación</label>
+                  <textarea class="input" id="c-education" rows="3" maxlength="800" placeholder="Ej.: Secundario completo, curso de manipulador de alimentos."></textarea>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <h2>Currículum</h2>
+              <p class="sub">PDF de hasta 4 MB. Lo ven sólo las empresas a las que te postulás.</p>
+              <div id="cv-status"></div>
+              <label class="btn btn-outline" for="cv-input">{{ICON_FILE}} Subir CV en PDF</label>
+              <input class="sr-only" id="cv-input" type="file" accept="application/pdf,.pdf">
+            </div>
+
+            <div class="sticky-save">
+              <button class="btn btn-primary btn-lg" type="submit" id="profile-save">Guardar perfil</button>
+            </div>
+          </form>
+        </section>
+
+        <section data-panel="apps" hidden>
+          <div class="card">
+            <h2>Mis postulaciones</h2>
+            <p class="sub">Seguí en qué etapa está cada búsqueda.</p>
+            <div id="my-apps" class="my-list"></div>
+          </div>
+        </section>
+
+        <section data-panel="saved" hidden>
+          <div class="card">
+            <h2>Ofertas guardadas</h2>
+            <p class="sub">Tus favoritas para revisar después.</p>
+            <div id="my-saved" class="my-list"></div>
+          </div>
+        </section>
+      </section>
+    </div>
+  </div>
+</main>
+{{FOOTER}}
+<script src="/app.js"></script>
+<script src="/panel.js"></script>
+</body>
+</html>
