@@ -672,17 +672,26 @@
     let profile = null;
     let applications = [];
     let saved = [];
+    let invites = [];
+    let alerts = [];
+    let recs = [];
 
     const showTab = (name) => {
       $$('[data-tab]').forEach((b) => b.classList.toggle('is-active', b.dataset.tab === name));
       $$('[data-panel]').forEach((p) => { p.hidden = p.dataset.panel !== name; });
     };
     $$('[data-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
+    /* las notificaciones abren la pestaña justa: /mi-perfil?tab=postulaciones */
+    const TAB_ALIAS = { postulaciones: 'apps', alertas: 'alerts', invitaciones: 'foryou', guardadas: 'saved' };
+    const wanted = new URLSearchParams(location.search).get('tab');
+    if (wanted && $(`[data-panel="${TAB_ALIAS[wanted] || wanted}"]`)) showTab(TAB_ALIAS[wanted] || wanted);
 
     async function load() {
       try {
-        const [p, a, s] = await Promise.all([api('/api/candidate/profile'), api('/api/candidate/applications'), api('/api/candidate/saved')]);
+        const [p, a, s, inv, al, rc] = await Promise.all([api('/api/candidate/profile'), api('/api/candidate/applications'), api('/api/candidate/saved'),
+          api('/api/candidate/invitations'), api('/api/candidate/alerts'), api('/api/candidate/recommended')]);
         profile = p.candidate; applications = a.applications; saved = s.jobs;
+        invites = inv.invitations; alerts = al.alerts; recs = rc.jobs;
         render();
       } catch (err) {
         if (err.status === 401) location.href = '/acceder?rol=empleado&next=/mi-perfil';
@@ -732,7 +741,75 @@
       });
       renderApps();
       renderSaved();
+      renderVisibility();
+      renderForYou();
+      renderAlerts();
     }
+
+    /* visibilidad: disponible, rubros, sueldo, perfil público */
+    function renderVisibility() {
+      $('#c-open').checked = !!profile.openToWork;
+      $('#c-public').checked = !!profile.isPublic;
+      $('#c-salary').value = profile.salaryMin || '';
+      const cats = new Set(profile.categories || []);
+      $('#cat-chips').innerHTML = meta.categories.filter((c) => c !== 'Otros').map((c) =>
+        `<button type="button" class="filter-chip${cats.has(c) ? ' is-active' : ''}" data-cat="${esc(c)}" aria-pressed="${cats.has(c)}">${esc(c)}</button>`).join('');
+      $$('[data-cat]').forEach((b) => b.addEventListener('click', () => {
+        b.classList.toggle('is-active');
+        b.setAttribute('aria-pressed', String(b.classList.contains('is-active')));
+      }));
+      const url = `${location.origin}/p/${profile.publicSlug}`;
+      $('#public-url').textContent = url;
+      $('#share-wa').href = `https://wa.me/?text=${encodeURIComponent(`Mirá mi perfil en Workuco: ${url}`)}`;
+      $('#share-row').hidden = !profile.isPublic;
+      const cv = `/cv/${profile.id}`;
+      $('#cv-link').href = cv;
+      $$('[data-cv-link]').forEach((a) => { a.href = cv; });
+    }
+    $('#copy-public').addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText($('#public-url').textContent); toast('Link copiado', 'ok'); } catch (_) { toast('No pudimos copiar el link', 'err'); }
+    });
+    /* estos dos interruptores se guardan al toque, sin esperar al botón */
+    ['#c-open', '#c-public'].forEach((sel) => $(sel).addEventListener('change', async (e) => {
+      const body = sel === '#c-open' ? { openToWork: e.target.checked } : { isPublic: e.target.checked };
+      try {
+        const r = await api('/api/candidate/profile', { method: 'PATCH', body });
+        profile = r.candidate;
+        $('#share-row').hidden = !profile.isPublic;
+        toast(sel === '#c-open'
+          ? (profile.openToWork ? 'Listo: las empresas ya pueden encontrarte' : 'Saliste de la base de talento')
+          : (profile.isPublic ? 'Tu perfil público está activo' : 'Tu perfil público quedó oculto'), 'ok');
+      } catch (err) { e.target.checked = !e.target.checked; toast(err.message, 'err'); }
+    }));
+
+    function renderForYou() {
+      const pending = invites.filter((i) => i.status === 'enviada');
+      const count = $('#foryou-count');
+      count.hidden = !pending.length; count.textContent = String(pending.length);
+      $('#my-invites').innerHTML = invites.length ? invites.map((i) => `<div class="my-app invite">
+        ${logoHtml(i.companyName, i.job.companyLogo, 'logo')}
+        <div class="my-app-main"><strong>${esc(i.job.title)}</strong><span>${esc(i.companyName)} · ${esc(i.job.locality)}${i.job.salaryLabel ? ` · ${esc(i.job.salaryLabel)}` : ''}</span>
+          ${i.message ? `<p class="invite-msg">“${esc(i.message)}”</p>` : ''}<small>${esc(timeAgo(i.createdAt))}</small></div>
+        ${i.status === 'postulada' ? '<span class="stage-pill stage-revisado"><i></i>Ya te postulaste</span>'
+          : `<a class="btn btn-primary btn-sm" href="/oferta/${esc(i.job.id)}">Ver y postularme</a>`}
+      </div>`).join('') : '<div class="empty"><h3>Todavía no te invitaron</h3><p>Activá "Estoy disponible" para que las empresas te encuentren.</p></div>';
+      $('#my-recs').innerHTML = recs.length ? recs.map(W.jobCard).join('')
+        : '<div class="empty" style="grid-column:1/-1"><h3>Todavía no hay recomendaciones</h3><p>Sumá habilidades, localidad y rubros para que calculemos tu compatibilidad.</p></div>';
+    }
+
+    function renderAlerts() {
+      $('#my-alerts').innerHTML = alerts.length ? alerts.map((a) => `<div class="my-app">
+        <span class="alert-ico">${icon('clock', 18)}</span>
+        <div class="my-app-main"><strong>${esc(a.label)}</strong><small>Creada ${esc(timeAgo(a.createdAt).toLowerCase())}</small></div>
+        <a class="btn btn-ghost btn-sm" href="/buscar?${new URLSearchParams(Object.entries({ q: a.q, locality: a.locality, category: a.category, type: a.type, modality: a.modality, gig: a.gig ? '1' : '' }).filter(([, v]) => v))}">Ver ofertas</a>
+        <button class="icon-btn" type="button" data-rm-alert="${esc(a.id)}" title="Borrar alerta" aria-label="Borrar alerta">${icon('trash', 16)}</button>
+      </div>`).join('') : '<div class="empty"><h3>No tenés alertas</h3><p>En Buscar empleo, filtrá lo que te interesa y tocá "Avisarme de búsquedas como esta".</p></div>';
+      $$('[data-rm-alert]').forEach((b) => b.addEventListener('click', async () => {
+        try { await api(`/api/candidate/alerts/${b.dataset.rmAlert}`, { method: 'DELETE' }); alerts = alerts.filter((x) => x.id !== b.dataset.rmAlert); renderAlerts(); toast('Alerta borrada', 'ok'); }
+        catch (err) { toast(err.message, 'err'); }
+      }));
+    }
+
 
     let skills = [];
     function renderSkills() {
@@ -818,6 +895,9 @@
           about: $('#c-about').value.trim(), skills, experience: $('#c-experience').value.trim(),
           education: $('#c-education').value.trim(), availability: $('#c-availability').value.trim(),
           linkedin: $('#c-linkedin').value.trim(),
+          openToWork: $('#c-open').checked, isPublic: $('#c-public').checked,
+          categories: $$('[data-cat].is-active').map((b) => b.dataset.cat),
+          salaryMin: Number(String($('#c-salary').value).replace(/\D/g, '')) || 0,
         } });
         profile = r.candidate; W.state.user.candidate = profile;
         render();

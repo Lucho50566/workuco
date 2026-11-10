@@ -22,7 +22,8 @@
     <div class="profile-layout">
       <aside class="profile-side">
         <div class="card profile-card" id="profile-summary"></div>
-        <a class="btn btn-outline btn-block" href="/buscar">Buscar empleo</a>
+        <a class="btn btn-night btn-block" id="cv-link" href="#">{{ICON_FILE}} Ver mi CV Workuco</a>
+        <a class="btn btn-outline btn-block" href="/buscar?sort=match">Ofertas más compatibles</a>
         <div class="profile-tip">
           {{ICON_SPARKLES}}
           <div><strong>Consejo</strong><span>Los perfiles con foto, CV y habilidades reciben muchas más respuestas.</span></div>
@@ -32,13 +33,45 @@
       <section class="profile-main">
         <div class="tabs" role="tablist">
           <button class="tab is-active" data-tab="profile" type="button">Mi perfil</button>
+          <button class="tab" data-tab="foryou" type="button">Para vos <span class="tab-count" id="foryou-count" hidden></span></button>
           <button class="tab" data-tab="apps" type="button">Mis postulaciones</button>
+          <button class="tab" data-tab="alerts" type="button">Alertas</button>
           <button class="tab" data-tab="saved" type="button">Guardadas</button>
         </div>
 
         <section data-panel="profile">
           <div id="profile-alert" hidden></div>
           <form id="profile-form" class="profile-form" novalidate>
+            <div class="card visibility-card">
+              <h2>Que te encuentren</h2>
+              <p class="sub">Elegí si las empresas del Valle pueden encontrarte e invitarte. Tu teléfono y tu mail nunca se muestran hasta que vos te postulás.</p>
+              <label class="switch-row">
+                <input type="checkbox" id="c-open">
+                <span class="switch" aria-hidden="true"></span>
+                <span><strong>Estoy disponible para trabajar</strong><small>Aparecés en la base de talento y las empresas pueden invitarte a sus búsquedas.</small></span>
+              </label>
+              <div class="field" style="margin-top:14px">
+                <span class="field-label">Rubros que te interesan</span>
+                <div class="filter-chips" id="cat-chips"></div>
+              </div>
+              <div class="form-grid" style="margin-top:14px">
+                <div class="field">
+                  <label for="c-salary">Sueldo mensual que buscás <span class="hint">(opcional, sólo para calcular compatibilidad)</span></label>
+                  <input class="input" id="c-salary" inputmode="numeric" placeholder="Ej.: 800000">
+                </div>
+              </div>
+              <label class="switch-row" style="margin-top:14px">
+                <input type="checkbox" id="c-public">
+                <span class="switch" aria-hidden="true"></span>
+                <span><strong>Perfil público para compartir</strong><small>Un link con tu foto, titular, habilidades y experiencia. Sin teléfono ni mail.</small></span>
+              </label>
+              <div class="share-row" id="share-row" hidden>
+                <code id="public-url"></code>
+                <a class="btn btn-sm btn-outline" id="share-wa" target="_blank" rel="noopener">{{ICON_WHATSAPP}} Compartir por WhatsApp</a>
+                <button class="btn btn-sm btn-ghost" type="button" id="copy-public">{{ICON_COPY}} Copiar link</button>
+              </div>
+            </div>
+
             <div class="card">
               <h2>Foto y presentación</h2>
               <p class="sub">Una foto clara y un buen titular hacen la diferencia.</p>
@@ -115,7 +148,7 @@
 
             <div class="card">
               <h2>Currículum</h2>
-              <p class="sub">PDF de hasta 4 MB. Lo ven sólo las empresas a las que te postulás.</p>
+              <p class="sub">Si no tenés CV, no pasa nada: con tu perfil armamos el <a class="link-inline" href="#" data-cv-link>CV Workuco</a> listo para descargar. Si tenés uno en PDF (hasta 4 MB), subilo acá. Lo ven sólo las empresas a las que te postulás.</p>
               <div id="cv-status"></div>
               <label class="btn btn-outline" for="cv-input">{{ICON_FILE}} Subir CV en PDF</label>
               <input class="sr-only" id="cv-input" type="file" accept="application/pdf,.pdf">
@@ -125,6 +158,27 @@
               <button class="btn btn-primary btn-lg" type="submit" id="profile-save">Guardar perfil</button>
             </div>
           </form>
+        </section>
+
+        <section data-panel="foryou" hidden>
+          <div class="card">
+            <h2>Invitaciones de empresas</h2>
+            <p class="sub">Empresas que vieron tu perfil y quieren que te postules.</p>
+            <div id="my-invites" class="my-list"></div>
+          </div>
+          <div class="card">
+            <h2>Ofertas que encajan con vos</h2>
+            <p class="sub">Calculadas con tus habilidades, localidad, rubros y sueldo pretendido.</p>
+            <div class="jobs-grid jobs-grid-2" id="my-recs"></div>
+          </div>
+        </section>
+
+        <section data-panel="alerts" hidden>
+          <div class="card">
+            <h2>Mis alertas</h2>
+            <p class="sub">Cuando se publica una oferta que coincide, te avisamos en la campanita. Creá alertas desde <a class="link-inline" href="/buscar">Buscar empleo</a> o <a class="link-inline" href="/changas">Changas</a>.</p>
+            <div id="my-alerts" class="my-list"></div>
+          </div>
         </section>
 
         <section data-panel="apps" hidden>

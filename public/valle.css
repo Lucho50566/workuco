@@ -175,7 +175,10 @@ html { scrollbar-color: #b9ad94 var(--cream); }
 .job-cover-shade { background: linear-gradient(180deg, rgba(11, 22, 18, 0) 35%, rgba(11, 22, 18, .55)); }
 .job-card:hover .job-cover.has-img { filter: saturate(1.15); }
 .job-title { font: 700 18.5px/1.2 var(--font-display); letter-spacing: -.02em; color: var(--ink); }
-.job-foot { border-top-color: var(--line); align-items: flex-end; }
+.job-foot { border-top-color: var(--line); align-items: flex-end; flex-wrap: wrap; row-gap: 8px; }
+.job-foot .job-pay { flex: 1 1 auto; min-width: 0; }
+.job-pay b { white-space: nowrap; }
+.job-pay b, .job-pay .is-empty { overflow-wrap: anywhere; }
 .job-pay { display: flex; flex-direction: column; gap: 2px; }
 .job-pay b { font: 700 16px/1.15 var(--font-display); color: var(--ink); letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
 .job-pay small { color: var(--muted); font-size: 12px; }
@@ -275,6 +278,52 @@ html { scrollbar-color: #b9ad94 var(--cream); }
   color: #1f5a3f; background: #e3f3e8; border-radius: 999px; padding: 4px 10px; white-space: nowrap;
 }
 .response-badge.is-slow { color: #7a4a06; background: #fbf0d6; }
+
+/* =====================================================================
+   DETALLE DE OFERTA Y BÚSQUEDA
+   ===================================================================== */
+.detail-pay { display: flex; flex-direction: column; gap: 2px; padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid var(--line); }
+.detail-pay b { font: 800 clamp(24px, 2.4vw, 30px)/1.05 var(--font-display); letter-spacing: -.03em; color: var(--ink); font-variant-numeric: tabular-nums; }
+.detail-pay span { color: var(--muted); font-size: 13px; }
+.detail-pay.is-text b { font-size: 18px; letter-spacing: -.01em; }
+.match-box { margin-top: 14px; padding: 14px; border-radius: 12px; background: var(--bg-warm); border: 1px solid var(--line); }
+.match-box.is-guest { font-size: 13.5px; color: var(--muted); }
+.match-box.is-guest a { color: var(--green); font-weight: 650; text-decoration: underline; }
+.match-why { list-style: none; display: grid; gap: 6px; margin-top: 10px; }
+.match-why li { display: flex; gap: 7px; align-items: flex-start; font-size: 13.5px; }
+.match-why .icon { color: var(--green); margin-top: 3px; }
+.match-missing { margin-top: 10px; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.match-missing span { background: var(--surface-2); color: #3d4842; border-radius: 999px; padding: 2px 9px; font-size: 12px; }
+.response-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.filter-foot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.search-page-head h1 { font: 800 clamp(32px, 4.6vw, 56px)/1 var(--font-display); letter-spacing: -.035em; }
+.job-row .side { align-items: flex-end; gap: 6px; }
+.filter-chip.is-active { background: var(--night); color: #fff; border-color: var(--night); }
+.detail-pay b { font-size: clamp(22px, 2vw, 27px); }
+.job-row .side .date { margin-right: 40px; }
+.job-row .side .job-pay { text-align: right; }
+
+/* =====================================================================
+   MI PERFIL
+   ===================================================================== */
+.visibility-card { border-color: var(--night); box-shadow: 0 0 0 1px var(--night) inset; }
+.switch-row { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: start; cursor: pointer; }
+.switch-row input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.switch { width: 46px; height: 28px; border-radius: 999px; background: var(--surface-3); position: relative; transition: background .25s var(--ease-out); margin-top: 1px; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 2px 5px rgba(0, 0, 0, .2); transition: transform .3s var(--ease-out); }
+.switch-row input:checked + .switch { background: var(--green); }
+.switch-row input:checked + .switch::after { transform: translateX(18px); }
+.switch-row input:focus-visible + .switch { outline: 2px solid var(--green); outline-offset: 3px; }
+.switch-row strong { display: block; font-size: 15px; color: var(--ink); }
+.switch-row small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+.field-label { display: block; font-weight: 600; font-size: 13.5px; margin-bottom: 8px; color: var(--ink); }
+.share-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; padding: 12px; border-radius: 12px; background: var(--bg-warm); border: 1px dashed var(--line-strong); }
+.share-row code { flex: 1 1 220px; font-size: 13px; color: var(--green); word-break: break-all; }
+.tab-count { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 4px; border-radius: 999px; background: var(--lime); color: var(--night); font-size: 11px; font-weight: 800; }
+.invite-msg { font-size: 13.5px; color: var(--text); margin-top: 6px; font-style: italic; }
+.alert-ico { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--surface-2); color: var(--green); flex: 0 0 auto; }
+.jobs-grid-2 { grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); }
+.profile-main .card + .card { margin-top: 16px; }
 
 /* =====================================================================
    CAMPANITA

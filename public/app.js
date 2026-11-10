@@ -246,9 +246,11 @@ function matchPill(m) {
   return `<span class="match-pill${cls}" style="--pct:${Number(m.score)}" title="${esc((m.reasons || []).join(' · '))}">${Number(m.score)}% compatible</span>`;
 }
 const PERIOD_WORD = { mes: 'por mes', 'día': 'por día', hora: 'por hora' };
+/* "$ 900.000" nunca se parte entre el signo y el número */
+const nbMoney = (t) => String(t).replace(/\$ /g, '$\u00a0');
 function payHtml(j) {
   if (j.salaryMin > 0) {
-    const label = String(j.salaryLabel || '').replace(/ por (mes|día|hora)$/, '');
+    const label = nbMoney(String(j.salaryLabel || '').replace(/ por (mes|día|hora)$/, ''));
     return `<span class="job-pay"><b>${esc(label)}</b><small>${esc(PERIOD_WORD[j.salaryPeriod] || '')}</small></span>`;
   }
   return `<span class="job-pay"><span class="is-empty">${esc(j.salaryLabel || j.salary || 'Sueldo a convenir')}</span></span>`;
@@ -477,8 +479,15 @@ async function initSearch() {
     category: params.get('category') || '',
     type: params.get('type') || '',
     modality: params.get('modality') || '',
-    sort: params.get('sort') === 'old' ? 'old' : 'recent',
+    sort: ['old', 'salary', 'match'].includes(params.get('sort')) ? params.get('sort') : 'recent',
+    withSalary: params.get('withSalary') === '1' ? '1' : '',
+    gig: params.get('gig') === '1' ? '1' : '',
   };
+  const isCand = !!(state.user && state.user.role === 'candidate');
+  $$('[data-candidate-only]').forEach((o) => { o.hidden = !isCand; });
+  if (f.sort === 'match' && !isCand) f.sort = 'recent';
+  $('#save-alert').hidden = !isCand;
+  $('#alert-login').hidden = isCand || !!state.user;
   $('#f-q').value = f.q;
   $('#f-sort').value = f.sort;
 
@@ -492,6 +501,8 @@ async function initSearch() {
       meta.modalities.map((m) => chip('modality', m, m, f.modality === m)).join('');
     $('#chips-type').innerHTML = chip('type', '', 'Todos', !f.type) +
       meta.types.map((t) => chip('type', t, t, f.type === t)).join('');
+    $('#chips-extra').innerHTML = chip('withSalary', f.withSalary ? '' : '1', 'Con sueldo publicado', !!f.withSalary) +
+      chip('gig', f.gig ? '' : '1', 'Solo changas', !!f.gig);
     $$('[data-filter]').forEach((b) => b.addEventListener('click', () => {
       f[b.dataset.filter] = b.dataset.value;
       renderChips();
@@ -509,7 +520,8 @@ async function initSearch() {
       results.innerHTML = '<div class="skeleton" style="height:120px"></div><div class="skeleton" style="height:120px;margin-top:12px"></div>';
     }
     const p = new URLSearchParams();
-    for (const [k, v] of Object.entries({ q: f.q, locality: f.locality, category: f.category, type: f.type, modality: f.modality, sort: f.sort })) if (v) p.set(k, v);
+    for (const [k, v] of Object.entries({ q: f.q, locality: f.locality, category: f.category, type: f.type, modality: f.modality, withSalary: f.withSalary, gig: f.gig })) if (v) p.set(k, v);
+    if (f.sort !== 'recent') p.set('sort', f.sort);
     p.set('page', String(page)); p.set('limit', '8');
     try {
       const data = await api(`/api/jobs?${p}`);
@@ -546,17 +558,56 @@ async function initSearch() {
   $('#f-q').addEventListener('search', () => { f.q = $('#f-q').value.trim(); load(true); });
   $('#f-sort').addEventListener('change', () => { f.sort = $('#f-sort').value; load(true); });
   $('#clear-filters')?.addEventListener('click', () => {
-    Object.assign(f, { q: '', locality: '', category: '', type: '', modality: '', sort: 'recent' });
+    Object.assign(f, { q: '', locality: '', category: '', type: '', modality: '', sort: 'recent', withSalary: '', gig: '' });
     $('#f-q').value = ''; $('#f-sort').value = 'recent';
     renderChips(); load(true);
   });
   $('#load-more')?.addEventListener('click', () => { page += 1; load(false); });
+  $('#save-alert')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    try {
+      const { alert } = await api('/api/candidate/alerts', { method: 'POST', body: { q: f.q, locality: f.locality, category: f.category, type: f.type, modality: f.modality, gig: !!f.gig } });
+      toast(`Alerta creada: ${alert.label}. Te avisamos en la campanita.`, 'ok');
+      btn.disabled = true;
+    } catch (err) { toast(err.message, 'err'); }
+  });
   await load(true);
 }
 
 /* ================================================================== */
 /* DETALLE DE OFERTA                                                  */
 /* ================================================================== */
+/* sueldo grande arriba del botón de postulación */
+function detailPayHtml(job) {
+  if (job.salaryMin > 0) {
+    const label = nbMoney(String(job.salaryLabel || '').replace(/ por (mes|día|hora)$/, ''));
+    return `<div class="detail-pay"><b>${esc(label)}</b><span>${esc(PERIOD_WORD[job.salaryPeriod] || '')}${job.gig ? ' · changa' : ''}</span></div>`;
+  }
+  return job.salaryLabel || job.salary ? `<div class="detail-pay is-text"><span>Remuneración</span><b>${esc(job.salaryLabel || job.salary)}</b></div>` : '';
+}
+
+/* compatibilidad explicada (sólo personas logueadas) */
+function matchBoxHtml(job) {
+  const u = state.user;
+  if (!u) return '<p class="match-box is-guest"><a href="/acceder?rol=empleado">Ingresá</a> para ver qué tan compatible sos con este puesto.</p>';
+  if (u.role !== 'candidate') return '';
+  const m = job.match;
+  if (!m) return '<p class="match-box is-guest">Completá tus habilidades y tu localidad en <a href="/mi-perfil">tu perfil</a> para ver qué tan compatible sos.</p>';
+  return `<div class="match-box">
+    <div class="match-box-head">${matchPill(m)}</div>
+    ${m.reasons.length ? `<ul class="match-why">${m.reasons.map((r) => `<li>${icon('check', 14)}<span>${esc(r)}</span></li>`).join('')}</ul>` : ''}
+    ${m.missing.length ? `<p class="match-missing">Te faltaría: ${m.missing.map((x) => `<span>${esc(x)}</span>`).join('')}</p>` : ''}
+  </div>`;
+}
+
+/* qué tan rápido responde la empresa */
+function responseHtml(r) {
+  if (!r) return '';
+  const slow = r.rate < 50 || r.days > 7;
+  const days = r.days <= 1 ? 'en 1 día' : `en ${r.days} días`;
+  return `<p class="response-line"><span class="response-badge${slow ? ' is-slow' : ''}">Responde el ${r.rate}%</span> <span class="muted">Suele responder ${days}</span></p>`;
+}
+
 async function initJob() {
   const id = location.pathname.split('/').pop();
   const view = $('#job-view');
@@ -586,7 +637,7 @@ async function initJob() {
             ${logoHtml(job.companyName, job.companyLogo, 'logo-xl')}
             <div class="detail-head-info">
               <div class="job-meta">
-                ${job.featured ? '<span class="badge badge-featured">Destacada</span>' : ''}
+                ${job.gig ? '<span class="badge badge-gig">Changa</span>' : job.featured ? '<span class="badge badge-featured">Destacada</span>' : ''}
                 <span class="badge badge-green">${esc(job.category)}</span>
                 <span class="badge">${esc(job.locality)}</span>
                 <span class="badge">${esc(job.modality)}</span>
@@ -617,6 +668,7 @@ async function initJob() {
 
       <aside class="detail-aside">
         <div class="aside-card apply-card">
+          ${detailPayHtml(job)}
           ${!canApply
             ? '<div class="alert alert-info">Esta búsqueda ya cerró. Podés ver otras ofertas disponibles.</div><a class="btn btn-outline btn-block" href="/buscar" style="margin-top:12px">Ver otras ofertas</a>'
             : applied
@@ -625,6 +677,8 @@ async function initJob() {
               : `<button class="btn btn-primary btn-block btn-lg" type="button" id="open-apply">Postularme ${icon('arrow', 17)}</button>
                  <p class="aside-note">Postulación directa a la empresa.<br>Sin intermediarios.</p>
                  ${state.user && state.user.role === 'candidate' ? `<p class="profile-hint">Perfil completo al <strong>${profileCompleteness(state.user.candidate)}%</strong></p>` : ''}`}
+          ${matchBoxHtml(job)}
+          ${responseHtml(job.companyResponse)}
           <div class="aside-actions">
             ${state.user && state.user.role === 'candidate' ? `<button class="btn btn-ghost btn-sm${saved ? ' is-on' : ''}" type="button" id="save-job">${icon('heart', 16)} ${saved ? 'Guardada' : 'Guardar'}</button>` : ''}
             <button class="btn btn-ghost btn-sm" type="button" id="share-job">${icon('external', 16)} Compartir</button>
@@ -637,7 +691,8 @@ async function initJob() {
           <div class="kv"><span>Modalidad</span><span>${esc(job.modality)}</span></div>
           <div class="kv"><span>Jornada</span><span>${esc(job.schedule || 'A convenir')}</span></div>
           <div class="kv"><span>Experiencia</span><span>${esc(job.experience || 'No excluyente')}</span></div>
-          <div class="kv"><span>Remuneración</span><span>${esc(job.salary || 'A convenir')}</span></div>
+          <div class="kv"><span>Remuneración</span><span>${esc(job.salaryLabel || job.salary || 'A convenir')}</span></div>
+          ${job.gig ? `<div class="kv"><span>Empieza</span><span>${esc(fmtDay(job.startDate) || 'A coordinar')}</span></div><div class="kv"><span>Duración</span><span>${esc(job.duration || 'A coordinar')}</span></div>` : ''}
           ${job.positions > 1 ? `<div class="kv"><span>Puestos</span><span>${job.positions}</span></div>` : ''}
           <div class="kv"><span>Publicada</span><span>${fmtDate(job.publishedAt)}</span></div>
           ${job.closesAt ? `<div class="kv"><span>Cierra</span><span>${fmtDate(job.closesAt + 'T12:00:00')}</span></div>` : ''}
@@ -1425,7 +1480,7 @@ async function initPublicProfile() {
 window.WK = {
   $, $$, api, esc, toast, showAlert, hideAlert, setFieldErrors, icon, logoHtml, avatarHtml,
   state, loadMe, loadMeta, fmtDate, timeAgo, initials, stageBadge, STAGE_LABEL, statusBadge,
-  jobCard, jobRow, gigCard, matchPill, payHtml, profileCompleteness, setupCarousel, fileToBase64, ready: null,
+  jobCard, jobRow, gigCard, matchPill, payHtml, responseHtml, profileCompleteness, setupCarousel, fileToBase64, ready: null,
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
