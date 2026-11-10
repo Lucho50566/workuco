@@ -477,5 +477,20 @@ html { scrollbar-color: #b9ad94 var(--cream); }
 .talent-top .avatar-fallback { background: var(--night); color: var(--lime); }
 /* portada sin fotos: la cordillera en lugar de una losa vacía */
 .job-cover:not(.has-img) { background: url('/demo/cover-default.svg') center bottom / cover no-repeat, var(--night); }
+/* el interruptor queda debajo del título: más aire arriba que abajo */
+.vh-title + .role-toggle { margin-top: clamp(20px, 2.4vw, 30px); margin-bottom: 0; }
+.role-toggle + .vh-sub { margin-top: 16px; }
+/* en el celular los pueblos tienen que entrar en el primer viewport */
+@media (max-width: 430px) {
+  .vh-copy { padding-top: 18px; }
+  .vh-title { font-size: 38px; }
+  .vh-title + .role-toggle { margin-top: 16px; }
+  .vh-sub { font-size: 15px; margin: 12px 0 14px; }
+  .vh-search .input, .vh-search .btn { min-height: 46px; }
+  .vh-hint { margin-top: 10px; gap: 6px; }
+  .vh-hint a { padding: 4px 10px; }
+  .vh-valley { height: 190px; margin-top: -46px; }
+  .demo-strip { font-size: 12px; padding: 5px 12px; }
+}
 /* aviso de datos de demostración */
 .demo-strip { background: var(--malbec); color: #fbe9f1; font-size: 13px; font-weight: 600; text-align: center; padding: 7px 16px; }
