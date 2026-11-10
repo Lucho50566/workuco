@@ -17,6 +17,7 @@ const {
 } = require('./lib/store');
 const { matchScore, norm } = require('./lib/match');
 const { TEMPLATES } = require('./lib/templates');
+const { normPhone, normName, buildImportPrompt, normalizeDrafts } = require('./lib/importer');
 const demo = require('./lib/demo');
 const ai = require('./lib/ai');
 const { extractCv } = require('./lib/cvtext');
@@ -34,6 +35,17 @@ const ADMIN_EMAIL = (process.env.WORKUCO_ADMIN_EMAIL || 'admin@workuco.com.ar').
 const ADMIN_PASS = process.env.WORKUCO_ADMIN_PASS || 'workuco2026';
 const INVITE_LIMIT = Number(process.env.WORKUCO_INVITE_LIMIT) || 20; // invitaciones por empresa por día
 const MAX_ALERTS = 10;
+const IMPORT_FAKE = process.env.WORKUCO_IMPORT_AI_FAKE === '1'; // sólo para pruebas: IA simulada
+const CONTACT_WA = process.env.WORKUCO_CONTACT_WA || '';
+const IMPORT_FAKE_REPLY = { avisos: [
+  { title: 'Mozo para restaurante', companyName: 'Resto El Álamo', locality: 'Tunuyán', category: 'Gastronomía', type: 'Medio tiempo', modality: 'Presencial',
+    description: 'Resto El Álamo busca mozo o moza para el turno noche en el centro de Tunuyán. Se valora experiencia en salón y buena atención.', contactPhone: '2622 15-555123' },
+  { title: 'Cosechadores de manzana', companyName: 'Finca Las Pircas', locality: 'Tunuyán', category: 'Agricultura', type: 'Temporal', modality: 'Presencial', gig: true,
+    salaryMin: 30000, salaryPeriod: 'día', duration: '3 semanas',
+    description: 'Finca Las Pircas busca cosechadores de manzana para la temporada. Pago por jornada y traslado desde la plaza de Tunuyán.', contactPhone: '+54 9 2622 444777' },
+] };
+/* Fecha AR + n días (AAAA-MM-DD) */
+const addDaysAR = (n) => new Date(Date.now() - 3 * 3600e3 + n * 86400000).toISOString().slice(0, 10);
 
 fs.mkdirSync(CV_DIR, { recursive: true });
 fs.mkdirSync(UP_DIR, { recursive: true });
@@ -160,7 +172,7 @@ function publicCompany(c, { privateView = false } = {}) {
   const out = {
     id: c.id, name: c.name, email: privateView ? c.email : undefined,
     phone: c.phone || '', website: c.website || '', description: c.description || '',
-    locality: c.locality || '', verified: !!c.verified, plan: c.plan,
+    locality: c.locality || '', verified: !!c.verified, plan: c.plan, claimed: c.claimed !== 0,
     logo: mediaUrl(c.logo_file), gallery: galleryUrls(c.gallery),
     createdAt: c.created_at,
   };
@@ -293,6 +305,7 @@ function jobSummary(j) {
     locality: j.locality, category: j.category, type: j.type, modality: j.modality,
     salary: j.salary, salaryMin: j.salaryMin, salaryMax: j.salaryMax, salaryPeriod: j.salaryPeriod, salaryLabel: j.salaryLabel,
     skills: j.skills, gig: j.gig, startDate: j.startDate, duration: j.duration, positions: j.positions,
+    sourceKind: j.sourceKind, sourceName: j.sourceName,
     featured: j.featured, createdAt: j.createdAt, publishedAt: j.publishedAt, closesAt: j.closesAt,
   };
 }
@@ -552,7 +565,7 @@ async function handleApi(req, res, url) {
       localities: LOCALITIES, categories: CATEGORIES, types: TYPES, modalities: MODALITIES,
       benefits: BENEFITS, stages: STAGES.map((id) => ({ id, label: STAGE_LABEL[id] })),
       aiProviders: ai.PROVIDERS,
-      salaryPeriods: SALARY_PERIODS, templates: TEMPLATES, counts: store.publicCounts(),
+      salaryPeriods: SALARY_PERIODS, templates: TEMPLATES, counts: store.publicCounts(), contactWa: CONTACT_WA,
     });
   }
 
@@ -728,6 +741,7 @@ async function handleApi(req, res, url) {
         salaryMin: j.salaryMin, salaryMax: j.salaryMax, salaryPeriod: j.salaryPeriod, salaryLabel: j.salaryLabel,
         skills: j.skills, gig: j.gig, startDate: j.startDate, duration: j.duration,
         match, companyResponse: store.responseStats(j.companyId),
+        sourceKind: j.sourceKind, sourceName: j.sourceName, companyClaimed: (store.company(j.companyId) || {}).claimed !== 0,
         benefits: j.benefits, positions: j.positions,
         contactEmail: j.contactEmail, contactPhone: j.contactPhone,
         closesAt: j.closesAt, createdAt: j.createdAt, publishedAt: j.publishedAt, views: j.views + 1,
@@ -1311,6 +1325,161 @@ async function handleApi(req, res, url) {
     });
   }
 
+  /* ---------- avisos importados (admin) ---------- */
+  if (p.startsWith('/api/admin/import')) {
+    if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
+    const importMeta = { localities: LOCALITIES, categories: CATEGORIES, types: TYPES, modalities: MODALITIES };
+
+    if (p === '/api/admin/import/config' && method === 'GET') {
+      const cfg = ai.importConfig();
+      return send(res, 200, { aiReady: IMPORT_FAKE || !!cfg, provider: IMPORT_FAKE ? 'prueba' : (cfg ? cfg.provider : '') });
+    }
+
+    if (p === '/api/admin/import/parse' && method === 'POST') {
+      const b = await readBody(req, 40 * 1024 * 1024);
+      const text = String(b.text || '');
+      const images = Array.isArray(b.images) ? b.images : [];
+      if (text.length > 20000) return send(res, 413, { error: 'El texto supera los 20.000 caracteres: pegalo en partes' });
+      if (images.length > 6) return send(res, 400, { error: 'Podés subir hasta 6 imágenes por vez' });
+      if (!text.trim() && !images.length) return send(res, 400, { error: 'Pegá el texto de los avisos o subí capturas' });
+      const imgs = [];
+      for (const i of images) {
+        const mime = ['image/jpeg', 'image/png', 'image/webp'].includes(i && i.mime) ? i.mime : '';
+        const base64 = String((i && i.base64) || '').replace(/^data:[^,]+,/, '');
+        if (!mime || !base64) return send(res, 400, { error: 'Las imágenes tienen que ser JPG, PNG o WebP' });
+        if (base64.length > 4 * 1024 * 1024 * 1.37) return send(res, 413, { error: 'Cada imagen puede pesar hasta 4 MB' });
+        imgs.push({ mime, base64 });
+      }
+      if (IMPORT_FAKE) return send(res, 200, normalizeDrafts(IMPORT_FAKE_REPLY, importMeta, text));
+      const cfg = ai.importConfig();
+      if (!cfg) return send(res, 400, { code: 'no_ai', error: 'La IA del importador no está configurada: cargá los avisos a mano o configurá WORKUCO_IMPORT_AI_PROVIDER y WORKUCO_IMPORT_AI_KEY' });
+      try {
+        const { system, user } = buildImportPrompt(importMeta);
+        const raw = await ai.callProvider(cfg, { system, user: text.trim() ? `${user}\n\n${text}` : user, images: imgs, maxTokens: 6000 });
+        return send(res, 200, normalizeDrafts(raw, importMeta, text));
+      } catch (e) {
+        return send(res, 502, { error: `No pudimos leer los avisos con la IA: ${e.message}` });
+      }
+    }
+
+    if (p === '/api/admin/import/publish' && method === 'POST') {
+      const b = await readBody(req);
+      const d = b.draft || {};
+      const companyName = clean(d.companyName, 120);
+      const contactPhone = clean(d.contactPhone, 60);
+      const hasEmail = isEmail(d.contactEmail);
+      const v = validateJob({ ...d, contactEmail: hasEmail ? d.contactEmail : 'sin-email@import.workuco' });
+      const fields = { ...v.errors };
+      if (companyName.length < 2) fields.companyName = 'Falta el nombre de la empresa';
+      if (Object.keys(fields).length) return send(res, 400, { error: 'Revisá el borrador', fields });
+      const phoneNorm = normPhone(contactPhone);
+      const nameNorm = normName(companyName);
+      if (store.blocked(phoneNorm, nameNorm)) {
+        return send(res, 409, { code: 'blocked', error: 'Esta empresa pidió no aparecer en Workuco' });
+      }
+      if (!b.force && store.importedDuplicate(phoneNorm, v.data.title)) {
+        return send(res, 409, { code: 'duplicate', error: 'Ya hay un aviso igual de esta empresa publicado' });
+      }
+      const co = store.findUnclaimed({ phoneNorm, nameNorm })
+        || store.createUnclaimed({ name: companyName, phone: contactPhone, locality: v.data.locality, phoneNorm, nameNorm });
+      const limit = addDaysAR(30);
+      const closesAt = v.data.closesAt && v.data.closesAt < limit ? v.data.closesAt : limit;
+      const job = store.insertJob({
+        id: uid('j'), companyId: co.id, ...v.data,
+        contactEmail: hasEmail ? v.data.contactEmail : '', contactPhone, closesAt,
+        status: 'approved', featured: 0, createdAt: now(), publishedAt: now(),
+      });
+      store.setJobSource(job.id, { sourceName: clean(b.sourceName, 80) || 'Canal de WhatsApp', sourceText: cleanMultiline(b.sourceText, 20000) });
+      const saved = store.job(job.id);
+      announceJob(saved);
+      return send(res, 201, { job: saved, company: publicCompany(store.company(co.id)) });
+    }
+
+    if (p === '/api/admin/import' && method === 'GET') {
+      const origin = PUBLIC_URL || `http://${req.headers.host}`;
+      const companies = store.importedOverview().map(({ company: c, jobs }) => {
+        const claimUrl = c.claim_token ? `${origin}/reclamar/${c.claim_token}` : '';
+        const applications = jobs.reduce((n, j) => n + j.applications, 0);
+        const open = jobs.find((j) => j.status === 'approved') || jobs[0];
+        const msg = open && claimUrl ? `Hola, ¿cómo están? Les escribo de Workuco, el portal de empleo del Valle de Uco. Vimos su búsqueda "${open.title}" en ${open.source_name || 'un canal de empleo'} y la publicamos para que llegue a más gente de la zona. Si quieren, pueden reclamarla gratis para manejar sus postulantes (ya tienen ${applications}), o pedir que la borremos con un toque: ${claimUrl}. ¡Gracias!` : '';
+        return {
+          id: c.id, name: c.name, phone: c.phone || '', locality: c.locality || '',
+          claimed: c.claimed !== 0, notifyStatus: c.notify_status || 'sin_avisar', notifiedAt: c.notified_at || null,
+          claimUrl, waUrl: msg && c.phone_norm ? `https://wa.me/549${c.phone_norm}?text=${encodeURIComponent(msg)}` : '',
+          applications,
+          jobs: jobs.map((j) => ({ id: j.id, title: j.title, status: j.status, closesAt: j.closes_at, sourceName: j.source_name || '', sourceText: j.source_text || '', applications: j.applications })),
+          createdAt: c.created_at,
+        };
+      });
+      return send(res, 200, { companies, removed: store.blockedCompanies() });
+    }
+
+    const impCo = p.match(/^\/api\/admin\/import\/companies\/([a-z0-9]+)(\/notified)?$/);
+    if (impCo && method === 'POST' && impCo[2]) {
+      if (!store.markNotified(impCo[1])) return send(res, 404, { error: 'Ficha no encontrada' });
+      return send(res, 200, { ok: true });
+    }
+    if (impCo && method === 'DELETE' && !impCo[2]) {
+      const c = store.company(impCo[1]);
+      if (!c || !c.imported) return send(res, 404, { error: 'Ficha importada no encontrada' });
+      store.deleteCompanyCascade(c.id);
+      return send(res, 200, { ok: true });
+    }
+    return send(res, 404, { error: 'API no encontrada' });
+  }
+
+  /* ---------- reclamo de fichas importadas (público, con código) ---------- */
+  const claimM = p.match(/^\/api\/claim\/([^/]+)(\/accept|\/delete)?$/);
+  if (claimM) {
+    const wait = throttled(req);
+    if (wait) return send(res, 429, { error: `Demasiados intentos. Probá en ${wait} s.` });
+    const c = store.companyByClaimToken(claimM[1]);
+    if (!c) { loginFailed(req); return send(res, 404, { error: 'Este link ya se usó o no existe' }); }
+    const action = claimM[2] || '';
+
+    if (!action && method === 'GET') {
+      return send(res, 200, {
+        company: publicCompany(c),
+        jobs: store.companyJobs(c.id).map(jobSummary),
+        applicationsCount: store.countApplicantsOf(c.id),
+      });
+    }
+
+    if (action === '/accept' && method === 'POST') {
+      const b = await readBody(req);
+      const email = clean(b.email, 160).toLowerCase();
+      const password = String(b.password || '');
+      const fieldsErr = {};
+      if (!isEmail(email)) fieldsErr.email = 'Email inválido';
+      if (password.length < 8) fieldsErr.password = 'La contraseña debe tener al menos 8 caracteres';
+      if (Object.keys(fieldsErr).length) return send(res, 400, { error: 'Revisá los datos', fields: fieldsErr });
+      if (store.companyByEmail(email) || store.candidateByEmail(email)) {
+        return send(res, 409, { error: 'Ya hay una cuenta con ese email: ingresá con ella o usá otro', fields: { email: 'Email ya registrado' } });
+      }
+      const claimed = store.claimCompany(c.id, { email, password: hashPassword(password) });
+      setSession(res, 'company', req, { companyId: c.id });
+      const seen = new Set();
+      for (const a of store.applicantsOf(c.id)) {
+        if (seen.has(a.candidateId)) continue;
+        seen.add(a.candidateId);
+        tryNotify('candidate', a.candidateId, { kind: 'etapa', title: `${c.name} ya administra su aviso en Workuco`, body: `Tu postulación a "${a.jobTitle}" ya está en manos de la empresa.`, link: '/mi-perfil?tab=postulaciones' });
+      }
+      return send(res, 200, { company: publicCompany(claimed, { privateView: true }) });
+    }
+
+    if (action === '/delete' && method === 'POST') {
+      const applicants = store.applicantsOf(c.id);
+      store.addBlock('phone', c.phone_norm || normPhone(c.phone), c.name);
+      store.addBlock('name', c.name_norm || normName(c.name), c.name);
+      store.deleteCompanyCascade(c.id);
+      for (const a of applicants) {
+        tryNotify('candidate', a.candidateId, { kind: 'etapa', title: `El aviso "${a.jobTitle}" fue retirado por la empresa`, body: 'Hay más búsquedas en Workuco para vos.', link: '/buscar' });
+      }
+      return send(res, 200, { ok: true });
+    }
+    return send(res, 405, { error: 'Método no permitido' });
+  }
+
   /* ---------- admin ---------- */
   if (p === '/api/admin/login' && method === 'POST') {
     const wait = throttled(req);
@@ -1464,6 +1633,9 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/buscar' && req.method === 'GET') {
       return renderPage(res, 'buscar.html', { active: '/buscar', title: 'Buscar empleo · Workuco' });
+    }
+    if (/^\/reclamar\/[A-Za-z0-9]+$/.test(url.pathname) && req.method === 'GET') {
+      return renderPage(res, 'reclamar.html', { title: 'Tu empresa en Workuco' });
     }
     if (url.pathname === '/changas' && req.method === 'GET') {
       return renderPage(res, 'changas.html', { active: '/changas', title: 'Changas y trabajos por temporada · Workuco' });
