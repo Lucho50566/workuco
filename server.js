@@ -13,8 +13,10 @@ const path = require('path');
 const crypto = require('crypto');
 const {
   Store, uid, now, jparse,
-  LOCALITIES, CATEGORIES, TYPES, MODALITIES, BENEFITS, STAGES, STAGE_LABEL,
+  LOCALITIES, CATEGORIES, TYPES, MODALITIES, BENEFITS, STAGES, STAGE_LABEL, SALARY_PERIODS, MONTH_FACTOR,
 } = require('./lib/store');
+const { matchScore, norm } = require('./lib/match');
+const { TEMPLATES } = require('./lib/templates');
 const demo = require('./lib/demo');
 const ai = require('./lib/ai');
 const { extractCv } = require('./lib/cvtext');
@@ -30,6 +32,8 @@ const HOST = process.env.HOST || '0.0.0.0';
 const PUBLIC_URL = (process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/+$/, '');
 const ADMIN_EMAIL = (process.env.WORKUCO_ADMIN_EMAIL || 'admin@workuco.com.ar').toLowerCase();
 const ADMIN_PASS = process.env.WORKUCO_ADMIN_PASS || 'workuco2026';
+const INVITE_LIMIT = Number(process.env.WORKUCO_INVITE_LIMIT) || 20; // invitaciones por empresa por día
+const MAX_ALERTS = 10;
 
 fs.mkdirSync(CV_DIR, { recursive: true });
 fs.mkdirSync(UP_DIR, { recursive: true });
@@ -180,9 +184,13 @@ function publicCandidate(c, { privateView = false } = {}) {
     availability: c.availability || '', linkedin: c.linkedin || '',
     photo: c.photo_file ? `/api/photo/c/${c.id}` : null,
     hasCv: !!c.cv_file, cvName: c.cv_name || '',
+    openToWork: !!c.open_to_work, categories: jparse(c.categories, []),
     createdAt: c.created_at,
   };
-  if (privateView) { out.email = c.email; out.cvUrl = c.cv_file ? `/api/cv/c/${c.id}` : null; }
+  if (privateView) {
+    out.email = c.email; out.cvUrl = c.cv_file ? `/api/cv/c/${c.id}` : null;
+    out.salaryMin = c.salary_min || 0; out.isPublic = !!c.is_public; out.publicSlug = c.public_slug || '';
+  }
   return out;
 }
 
@@ -247,6 +255,13 @@ function validateJob(b) {
   if (!isEmail(contactEmail)) errors.contactEmail = 'Email de contacto inválido';
   const closesAt = clean(b.closesAt, 10);
   if (closesAt && !/^\d{4}-\d{2}-\d{2}$/.test(closesAt)) errors.closesAt = 'Fecha de cierre inválida';
+  const amount = (v) => Math.min(99999999, Math.max(0, Math.round(Number(v) || 0)));
+  let salaryMin = amount(b.salaryMin);
+  const salaryMax = amount(b.salaryMax);
+  if (!salaryMin && salaryMax) salaryMin = salaryMax;
+  if (salaryMax && salaryMax < salaryMin) errors.salaryMax = 'El máximo no puede ser menor que el mínimo';
+  const startDate = clean(b.startDate, 10);
+  if (startDate && !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) errors.startDate = 'Fecha de inicio inválida';
   return {
     ok: Object.keys(errors).length === 0, errors,
     data: {
@@ -261,9 +276,83 @@ function validateJob(b) {
       closesAt,
       benefits: arrOf(b.benefits, 12, 40),
       positions: Math.min(99, Math.max(1, Number(b.positions) || 1)),
+      salaryMin, salaryMax,
+      salaryPeriod: SALARY_PERIODS.includes(b.salaryPeriod) ? b.salaryPeriod : 'mes',
+      skills: arrOf(b.skills, 8, 30),
+      gig: b.gig === true || b.gig === 1 || b.gig === '1',
+      startDate, duration: clean(b.duration, 60),
     },
   };
 }
+
+/* Resumen público de una oferta (listados, recomendadas, invitaciones). */
+function jobSummary(j) {
+  return {
+    id: j.id, title: j.title, companyId: j.companyId, companyName: j.companyName, companyVerified: j.companyVerified,
+    companyLogo: j.companyLogo, companyGallery: j.companyGallery,
+    locality: j.locality, category: j.category, type: j.type, modality: j.modality,
+    salary: j.salary, salaryMin: j.salaryMin, salaryMax: j.salaryMax, salaryPeriod: j.salaryPeriod, salaryLabel: j.salaryLabel,
+    skills: j.skills, gig: j.gig, startDate: j.startDate, duration: j.duration, positions: j.positions,
+    featured: j.featured, createdAt: j.createdAt, publishedAt: j.publishedAt, closesAt: j.closesAt,
+  };
+}
+
+/* Compatibilidad entre una persona (fila de la base) y una oferta. null si el perfil está vacío. */
+function matchFor(c, j) {
+  if (!c || !j) return null;
+  const f = MONTH_FACTOR[j.salaryPeriod] || 1;
+  const m = matchScore({
+    skills: jparse(c.skills, []), locality: c.locality, headline: c.headline, experience: c.experience,
+    availability: c.availability, categories: jparse(c.categories, []), salaryMin: c.salary_min || 0,
+  }, { ...j, salaryMin: j.salaryMin * f, salaryMax: j.salaryMax * f });
+  return m.score == null ? null : m;
+}
+const byMatchDesc = (a, b) => ((b.match ? b.match.score : -1) - (a.match ? a.match.score : -1));
+
+/* Las notificaciones nunca pueden hacer fallar la acción que las origina. */
+function tryNotify(type, id, data) {
+  try { store.notify(type, id, data); } catch (e) { console.warn('Notificación:', e.message); }
+}
+
+const STAGE_NOTICE = {
+  revisado: (c, t) => ['Tu postulación está en revisión', `${c} está mirando tu perfil para ${t}.`],
+  entrevista: (c, t) => ['¡Te quieren entrevistar!', `${c} quiere conocerte por el puesto de ${t}. Estate atento/a al teléfono.`],
+  ofrecido: (c, t) => ['¡Recibiste una oferta!', `${c} te hizo una propuesta por el puesto de ${t}.`],
+  contratado: (c, t) => ['¡Felicitaciones, quedaste!', `${c} te eligió para el puesto de ${t}.`],
+  descartado: (c, t) => ['Novedades de tu postulación', `${c} siguió con otros perfiles para ${t}. Gracias por postularte: hay más búsquedas para vos.`],
+};
+
+function alertLabel(a) {
+  return [a.q ? `"${a.q}"` : '', a.gig ? 'Changas' : '', a.category, a.locality, a.type, a.modality].filter(Boolean).join(' · ');
+}
+function alertMatches(a, j) {
+  if (a.locality && a.locality !== j.locality) return false;
+  if (a.category && a.category !== j.category) return false;
+  if (a.type && a.type !== j.type) return false;
+  if (a.modality && a.modality !== j.modality) return false;
+  if (a.gig && !j.gig) return false;
+  if (a.q && !norm(`${j.title} ${j.description} ${j.companyName}`).includes(norm(a.q))) return false;
+  return true;
+}
+/* Al publicarse una oferta: avisa a la empresa y a cada persona con una alerta que coincide (una vez). */
+function announceJob(j) {
+  tryNotify('company', j.companyId, { kind: 'oferta', title: 'Tu aviso ya está publicado', body: j.title, link: `/oferta/${j.id}` });
+  try {
+    const seen = new Set();
+    for (const a of store.allAlerts()) {
+      if (seen.has(a.candidateId) || !alertMatches(a, j)) continue;
+      seen.add(a.candidateId);
+      tryNotify('candidate', a.candidateId, {
+        kind: 'alerta', title: `Nueva oferta para tu alerta: ${j.title}`,
+        body: `${j.companyName} · ${j.locality}${j.salaryLabel ? ` · ${j.salaryLabel}` : ''}`, link: `/oferta/${j.id}`,
+      });
+    }
+  } catch (e) { console.warn('Alertas:', e.message); }
+}
+
+/* Una empresa puede ver datos de una persona sólo si esa persona se le postuló. */
+const companyHasApplicant = (companyId, candidateId) => !!store.one(`SELECT 1 AS x FROM applications a
+  JOIN jobs j ON j.id=a.job_id WHERE a.candidate_id=? AND j.company_id=? LIMIT 1`, candidateId, companyId);
 
 /* ------------------------------------------------------------------ */
 /* Páginas                                                             */
@@ -271,6 +360,7 @@ function validateJob(b) {
 const NAV_ITEMS = [
   ['/', 'Inicio'],
   ['/buscar', 'Buscar empleo'],
+  ['/changas', 'Changas'],
   ['/empresas', 'Empresas'],
   ['/publicar', 'Para empresas'],
 ];
@@ -440,6 +530,7 @@ async function handleApi(req, res, url) {
       localities: LOCALITIES, categories: CATEGORIES, types: TYPES, modalities: MODALITIES,
       benefits: BENEFITS, stages: STAGES.map((id) => ({ id, label: STAGE_LABEL[id] })),
       aiProviders: ai.PROVIDERS,
+      salaryPeriods: SALARY_PERIODS, templates: TEMPLATES, counts: store.publicCounts(),
     });
   }
 
@@ -518,8 +609,7 @@ async function handleApi(req, res, url) {
     if (!c || !c.photo_file) return send(res, 404, { error: 'Foto no encontrada' });
     let allowed = me && (me.role === 'admin' || (me.role === 'candidate' && me.candidate.id === c.id));
     if (!allowed && me && me.role === 'company') {
-      allowed = !!store.one(`SELECT 1 AS x FROM applications a JOIN jobs j ON j.id=a.job_id
-        WHERE a.candidate_id=? AND j.company_id=? LIMIT 1`, c.id, me.company.id);
+      allowed = !!c.open_to_work || companyHasApplicant(me.company.id, c.id);
     }
     if (!allowed) return send(res, 401, { error: 'Iniciá sesión para ver la foto' });
     return serveFile(res, path.join(UP_DIR, path.basename(c.photo_file)), 'image/*', true);
@@ -543,33 +633,41 @@ async function handleApi(req, res, url) {
 
   /* ---------- ofertas públicas ---------- */
   if (p === '/api/jobs' && method === 'GET') {
+    const me = current(req);
+    const cand = me && me.role === 'candidate' ? store.candidate(me.candidate.id) : null;
+    const sort = ['old', 'salary', 'match'].includes(q.get('sort')) ? q.get('sort') : 'recent';
+    const byMatch = sort === 'match' && !!cand;
+    const limit = Math.min(30, Math.max(3, Number(q.get('limit') || 9)));
     const r = store.searchJobs({
       q: clean(q.get('q'), 80),
       locality: LOCALITIES.includes(q.get('locality')) ? q.get('locality') : '',
       category: CATEGORIES.includes(q.get('category')) ? q.get('category') : '',
       type: TYPES.includes(q.get('type')) ? q.get('type') : '',
       modality: MODALITIES.includes(q.get('modality')) ? q.get('modality') : '',
-      sort: q.get('sort') === 'old' ? 'old' : 'recent',
-      page: Number(q.get('page') || 1),
-      limit: Math.min(30, Math.max(3, Number(q.get('limit') || 9))),
+      withSalary: q.get('withSalary') === '1',
+      gig: q.get('gig') || '',
+      sort: sort === 'match' ? 'recent' : sort,
+      /* por compatibilidad se ordena sobre todo el resultado y se pagina después */
+      page: byMatch ? 1 : Number(q.get('page') || 1),
+      limit: byMatch ? 1000 : limit,
     });
-    const jobs = r.jobs.map((j) => ({
-      id: j.id, title: j.title, companyName: j.companyName, companyVerified: j.companyVerified,
-      companyLogo: j.companyLogo, companyGallery: j.companyGallery,
-      locality: j.locality, category: j.category, type: j.type, modality: j.modality,
-      salary: j.salary, featured: j.featured, createdAt: j.createdAt, publishedAt: j.publishedAt, closesAt: j.closesAt,
-    }));
-    const me = current(req);
-    let saved = [];
-    if (me && me.role === 'candidate') saved = store.savedJobs(me.candidate.id).map((s) => s.id);
-    return send(res, 200, { ...r, jobs, saved });
+    let jobs = r.jobs.map((j) => (cand ? { ...jobSummary(j), match: matchFor(cand, j) } : jobSummary(j)));
+    const out = { total: r.total, page: r.page, pages: r.pages, limit };
+    if (byMatch) {
+      jobs.sort(byMatchDesc);
+      out.pages = Math.max(1, Math.ceil(r.total / limit));
+      out.page = Math.min(Math.max(1, Number(q.get('page')) || 1), out.pages);
+      jobs = jobs.slice((out.page - 1) * limit, out.page * limit);
+    }
+    const saved = cand ? store.savedJobs(cand.id).map((s) => s.id) : [];
+    return send(res, 200, { ...out, jobs, saved });
   }
 
   if (p === '/api/companies' && method === 'GET') {
     return send(res, 200, {
       companies: store.companies()
         .filter((c) => c.published > 0)
-        .map((c) => ({ ...publicCompany(c), jobs: c.published, applications: c.applications })),
+        .map((c) => ({ ...publicCompany(c), jobs: c.published, applications: c.applications, response: store.responseStats(c.id) })),
     });
   }
 
@@ -579,11 +677,8 @@ async function handleApi(req, res, url) {
     if (!c) return send(res, 404, { error: 'Empresa no encontrada' });
     const jobs = store.publicJobsForCompany(c.id);
     return send(res, 200, {
-      company: { ...publicCompany(c), jobsCount: jobs.length },
-      jobs: jobs.map((j) => ({
-        id: j.id, title: j.title, locality: j.locality, category: j.category, type: j.type,
-        modality: j.modality, salary: j.salary, featured: j.featured, publishedAt: j.publishedAt,
-      })),
+      company: { ...publicCompany(c), jobsCount: jobs.length, response: store.responseStats(c.id) },
+      jobs: jobs.map(jobSummary),
     });
   }
 
@@ -594,8 +689,9 @@ async function handleApi(req, res, url) {
     store.bumpViews(j.id);
     const expired = j.closesAt && j.closesAt < todayAR();
     const me = current(req);
-    let applied = false; let saved = false;
+    let applied = false; let saved = false; let match;
     if (me && me.role === 'candidate') {
+      match = matchFor(store.candidate(me.candidate.id), j);
       applied = !!store.applicationByCandidate(me.candidate.id, j.id);
       saved = !!store.one('SELECT 1 AS x FROM saved_jobs WHERE candidate_id=? AND job_id=?', me.candidate.id, j.id);
     }
@@ -607,6 +703,9 @@ async function handleApi(req, res, url) {
         locality: j.locality, category: j.category, type: j.type, modality: j.modality,
         description: j.description, responsibilities: j.responsibilities, requirements: j.requirements,
         experience: j.experience, schedule: j.schedule, salary: j.salary,
+        salaryMin: j.salaryMin, salaryMax: j.salaryMax, salaryPeriod: j.salaryPeriod, salaryLabel: j.salaryLabel,
+        skills: j.skills, gig: j.gig, startDate: j.startDate, duration: j.duration,
+        match, companyResponse: store.responseStats(j.companyId),
         benefits: j.benefits, positions: j.positions,
         contactEmail: j.contactEmail, contactPhone: j.contactPhone,
         closesAt: j.closesAt, createdAt: j.createdAt, publishedAt: j.publishedAt, views: j.views + 1,
@@ -651,6 +750,11 @@ async function handleApi(req, res, url) {
     const app = store.insertApplication({
       id: uid('a'), jobId: j.id, candidateId: cand ? cand.id : null, name, email, phone,
       message: cleanMultiline(b.message, 2000), cvFile, cvName, createdAt: now(),
+    });
+
+    if (cand) store.markInvitationApplied(j.id, cand.id);
+    tryNotify('company', j.companyId, {
+      kind: 'postulacion', title: `Nueva postulación: ${name}`, body: j.title, link: '/panel#postulantes',
     });
 
     /* comodidad: si la empresa activó el análisis automático, corre en segundo plano */
@@ -777,8 +881,11 @@ async function handleApi(req, res, url) {
       stage: clean(q.get('stage'), 20),
       q: clean(q.get('q'), 80),
     });
+    const jobsById = new Map();
+    const jobOf = (id) => { if (!jobsById.has(id)) jobsById.set(id, store.job(id)); return jobsById.get(id); };
     return send(res, 200, {
-      applications,
+      applications: applications.map((a) => (a.candidateId
+        ? { ...a, match: matchFor(store.candidate(a.candidateId), jobOf(a.jobId)) } : a)),
       stages: store.stageCounts(me.company.id),
     });
   }
@@ -846,7 +953,12 @@ async function handleApi(req, res, url) {
     if ('tags' in b) patch.tags = arrOf(b.tags, 10, 30);
     if ('status' in b) { store.setApplicationStatus(a.id, b.status); }
     if (Object.keys(patch).length) store.updateApplication(a.id, patch);
-    return send(res, 200, { application: store.applicationDetail(a.id) });
+    const after = store.applicationDetail(a.id);
+    if (a.candidateId && after.stage !== a.stage && STAGE_NOTICE[after.stage]) {
+      const [title, body] = STAGE_NOTICE[after.stage](a.companyName, a.jobTitle);
+      tryNotify('candidate', a.candidateId, { kind: 'etapa', title, body, link: '/mi-perfil?tab=postulaciones' });
+    }
+    return send(res, 200, { application: after });
   }
 
   const appAnalyze = p.match(/^\/api\/company\/applications\/([a-z0-9]+)\/analyze$/);
@@ -889,6 +1001,7 @@ async function handleApi(req, res, url) {
       jobs,
       applications,
       stageCounts: store.stageCounts(me.company.id),
+      response: store.responseStats(me.company.id),
       kpis: {
         views: jobs.reduce((n, j) => n + (j.views || 0), 0),
         applications: applications.length,
@@ -985,6 +1098,10 @@ async function handleApi(req, res, url) {
     if ('education' in b) patch.education = cleanMultiline(b.education, 800);
     if ('availability' in b) patch.availability = clean(b.availability, 120);
     if ('linkedin' in b) patch.linkedin = cleanUrl(b.linkedin);
+    if ('openToWork' in b) patch.open_to_work = b.openToWork ? 1 : 0;
+    if ('isPublic' in b) patch.is_public = b.isPublic ? 1 : 0;
+    if ('categories' in b) patch.categories = (Array.isArray(b.categories) ? b.categories : []).filter((x) => CATEGORIES.includes(x));
+    if ('salaryMin' in b) patch.salary_min = Math.min(99999999, Math.max(0, Math.round(Number(b.salaryMin) || 0)));
     if ('photo' in b && b.photo) {
       const f = saveImage(b.photo, 'perfil');
       if (c.photo_file) removeUpload(c.photo_file);
@@ -1019,6 +1136,157 @@ async function handleApi(req, res, url) {
   if (saveMatch && method === 'POST') {
     if (!me || me.role !== 'candidate') return send(res, 401, { error: 'Iniciá sesión' });
     return send(res, 200, { saved: store.toggleSaved(me.candidate.id, saveMatch[1]) });
+  }
+
+  if (p === '/api/candidate/recommended' && method === 'GET') {
+    if (!me || me.role !== 'candidate') return send(res, 401, { error: 'Iniciá sesión' });
+    const c = store.candidate(me.candidate.id);
+    const applied = new Set(store.applicationsForCandidate(c.id).map((a) => a.jobId));
+    const jobs = store.searchJobs({ limit: 1000 }).jobs
+      .filter((j) => !applied.has(j.id))
+      .map((j) => ({ ...jobSummary(j), match: matchFor(c, j) }))
+      .filter((j) => j.match && j.match.score >= 40)
+      .sort(byMatchDesc).slice(0, 6);
+    return send(res, 200, { jobs });
+  }
+
+  /* ---------- alertas de empleo ---------- */
+  if (p === '/api/candidate/alerts' && method === 'GET') {
+    if (!me || me.role !== 'candidate') return send(res, 401, { error: 'Iniciá sesión' });
+    return send(res, 200, { alerts: store.alertsFor(me.candidate.id), max: MAX_ALERTS });
+  }
+  if (p === '/api/candidate/alerts' && method === 'POST') {
+    if (!me || me.role !== 'candidate') return send(res, 401, { error: 'Iniciá sesión' });
+    const b = await readBody(req);
+    const a = {
+      q: clean(b.q, 60),
+      locality: LOCALITIES.includes(b.locality) ? b.locality : '',
+      category: CATEGORIES.includes(b.category) ? b.category : '',
+      type: TYPES.includes(b.type) ? b.type : '',
+      modality: MODALITIES.includes(b.modality) ? b.modality : '',
+      gig: b.gig === true || b.gig === '1' || b.gig === 1,
+    };
+    if (!a.q && !a.locality && !a.category && !a.type && !a.modality && !a.gig) {
+      return send(res, 400, { error: 'Elegí al menos un filtro para la alerta' });
+    }
+    if (store.alertsFor(me.candidate.id).length >= MAX_ALERTS) {
+      return send(res, 400, { error: `Podés tener hasta ${MAX_ALERTS} alertas. Borrá alguna para crear otra.` });
+    }
+    const alert = store.insertAlert({ id: uid('al'), candidateId: me.candidate.id, label: alertLabel(a), ...a });
+    return send(res, 201, { alert });
+  }
+  const alertOne = p.match(/^\/api\/candidate\/alerts\/([a-z0-9]+)$/);
+  if (alertOne && method === 'DELETE') {
+    if (!me || me.role !== 'candidate') return send(res, 401, { error: 'Iniciá sesión' });
+    if (!store.deleteAlert(alertOne[1], me.candidate.id)) return send(res, 404, { error: 'Alerta no encontrada' });
+    return send(res, 200, { ok: true });
+  }
+
+  /* ---------- invitaciones (lado persona) ---------- */
+  if (p === '/api/candidate/invitations' && method === 'GET') {
+    if (!me || me.role !== 'candidate') return send(res, 401, { error: 'Iniciá sesión' });
+    const invitations = store.invitationsForCandidate(me.candidate.id).map((i) => ({
+      id: i.id, job: jobSummary(store.job(i.job_id)), companyName: i.company_name,
+      message: i.message || '', status: i.status, createdAt: i.created_at,
+    }));
+    return send(res, 200, { invitations });
+  }
+
+  /* ---------- notificaciones (personas y empresas) ---------- */
+  if (p === '/api/notifications' || p === '/api/notifications/read') {
+    const who = me && me.role === 'candidate' ? ['candidate', me.candidate.id]
+      : me && me.role === 'company' ? ['company', me.company.id] : null;
+    if (!who) return send(res, 401, { error: 'Iniciá sesión' });
+    if (p === '/api/notifications' && method === 'GET') {
+      return send(res, 200, { items: store.notifications(...who), unread: store.unreadCount(...who) });
+    }
+    if (p === '/api/notifications/read' && method === 'POST') {
+      const b = await readBody(req);
+      store.markRead(...who, clean(b.id, 40));
+      return send(res, 200, { ok: true, unread: store.unreadCount(...who) });
+    }
+  }
+
+  /* ---------- base de talento e invitaciones (lado empresa) ---------- */
+  if (p === '/api/company/talent' && method === 'GET') {
+    if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
+    let job = null;
+    if (q.get('jobId')) {
+      job = store.job(clean(q.get('jobId'), 40));
+      if (!job) return send(res, 404, { error: 'Oferta no encontrada' });
+      if (job.companyId !== me.company.id) return send(res, 403, { error: 'Esa oferta no es de tu empresa' });
+    }
+    const marks = job ? store.jobPeople(job.id) : null;
+    const people = store.talent({
+      q: clean(q.get('q'), 60),
+      locality: LOCALITIES.includes(q.get('locality')) ? q.get('locality') : '',
+      category: CATEGORIES.includes(q.get('category')) ? q.get('category') : '',
+    }).map((c) => ({
+      /* sin teléfono ni mail: el contacto llega recién cuando la persona se postula */
+      id: c.id, name: c.name, photo: c.photo_file ? `/api/photo/c/${c.id}` : null,
+      headline: c.headline || '', about: c.about || '', locality: c.locality || '',
+      skills: jparse(c.skills, []), categories: jparse(c.categories, []),
+      availability: c.availability || '', experience: c.experience || '',
+      match: job ? matchFor(c, job) : null,
+      invited: marks ? marks.invited.has(c.id) : false,
+      applied: marks ? marks.applied.has(c.id) : false,
+    }));
+    if (job) people.sort(byMatchDesc);
+    return send(res, 200, { people, invitesLeft: Math.max(0, INVITE_LIMIT - store.invitationsToday(me.company.id)) });
+  }
+
+  if (p === '/api/company/invitations' && method === 'POST') {
+    if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
+    const b = await readBody(req);
+    const job = store.job(clean(b.jobId, 40));
+    if (!job) return send(res, 404, { error: 'Oferta no encontrada' });
+    if (job.companyId !== me.company.id) return send(res, 403, { error: 'Esa oferta no es de tu empresa' });
+    if (job.status !== 'approved') return send(res, 400, { error: 'Sólo podés invitar a ofertas publicadas' });
+    const c = store.candidate(clean(b.candidateId, 40));
+    if (!c || !c.open_to_work) return send(res, 404, { error: 'Esa persona no está disponible' });
+    if (store.applicationByCandidate(c.id, job.id)) return send(res, 409, { error: 'Esa persona ya se postuló a esta oferta' });
+    if (store.invitation(job.id, c.id)) return send(res, 409, { error: 'Ya la invitaste a esta oferta' });
+    if (store.invitationsToday(me.company.id) >= INVITE_LIMIT) {
+      return send(res, 429, { error: `Llegaste al límite de ${INVITE_LIMIT} invitaciones por día` });
+    }
+    const id = uid('i');
+    store.insertInvitation({ id, companyId: me.company.id, jobId: job.id, candidateId: c.id, message: cleanMultiline(b.message, 400) });
+    tryNotify('candidate', c.id, {
+      kind: 'invitacion', title: `${job.companyName} te invitó a postularte`,
+      body: `Puesto: ${job.title}`, link: `/oferta/${job.id}`,
+    });
+    return send(res, 201, { ok: true, invitation: { id } });
+  }
+
+  /* ---------- CV Workuco y perfil público ---------- */
+  const cvData = p.match(/^\/api\/cv-data\/([a-z0-9]+)$/);
+  if (cvData && method === 'GET') {
+    if (!me) return send(res, 401, { error: 'Iniciá sesión' });
+    const c = store.candidate(cvData[1]);
+    if (!c) return send(res, 404, { error: 'Perfil no encontrado' });
+    const allowed = me.role === 'admin' || (me.role === 'candidate' && me.candidate.id === c.id)
+      || (me.role === 'company' && companyHasApplicant(me.company.id, c.id));
+    if (!allowed) return send(res, 403, { error: 'Sin permiso para ver este CV' });
+    return send(res, 200, { candidate: publicCandidate(c, { privateView: true }) });
+  }
+
+  const pubProfile = p.match(/^\/api\/public\/([a-z0-9-]+)(\/photo)?$/);
+  if (pubProfile && method === 'GET') {
+    const c = store.candidateBySlug(pubProfile[1]);
+    if (!c || !c.is_public) return send(res, 404, { error: 'Este perfil no es público' });
+    if (pubProfile[2]) {
+      if (!c.photo_file) return send(res, 404, { error: 'Sin foto' });
+      return serveFile(res, path.join(UP_DIR, path.basename(c.photo_file)), 'image/*', true);
+    }
+    /* nunca teléfono ni mail en el perfil público */
+    return send(res, 200, {
+      person: {
+        slug: c.public_slug, name: c.name, headline: c.headline || '', about: c.about || '',
+        locality: c.locality || '', skills: jparse(c.skills, []), categories: jparse(c.categories, []),
+        experience: c.experience || '', education: c.education || '', availability: c.availability || '',
+        openToWork: !!c.open_to_work, photo: c.photo_file ? `/api/public/${c.public_slug}/photo` : null,
+      },
+    });
   }
 
   /* ---------- admin ---------- */
@@ -1067,6 +1335,13 @@ async function handleApi(req, res, url) {
       Object.assign(patch, v.data);
     }
     const updated = store.updateJob(j.id, patch);
+    if (patch.status === 'approved' && j.status !== 'approved') announceJob(updated);
+    if (patch.status === 'rejected' && j.status !== 'rejected') {
+      tryNotify('company', j.companyId, {
+        kind: 'oferta', title: 'Tu aviso necesita cambios',
+        body: `${j.title}${updated.rejectReason ? ` — ${updated.rejectReason}` : ''}`, link: '/panel#ofertas',
+      });
+    }
     return send(res, 200, { job: updated });
   }
 
@@ -1168,6 +1443,15 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/buscar' && req.method === 'GET') {
       return renderPage(res, 'buscar.html', { active: '/buscar', title: 'Buscar empleo · Workuco' });
     }
+    if (url.pathname === '/changas' && req.method === 'GET') {
+      return renderPage(res, 'changas.html', { active: '/changas', title: 'Changas y trabajos por temporada · Workuco' });
+    }
+    if (/^\/cv\/[a-z0-9]+$/.test(url.pathname) && req.method === 'GET') {
+      return renderPage(res, 'cv.html', { title: 'CV · Workuco' });
+    }
+    if (/^\/p\/[a-z0-9-]+$/.test(url.pathname) && req.method === 'GET') {
+      return renderPage(res, 'perfil-publico.html', { title: 'Perfil · Workuco' });
+    }
     if (url.pathname === '/empresas' && req.method === 'GET') {
       return renderPage(res, 'empresas.html', { active: '/empresas', title: 'Empresas del Valle de Uco · Workuco' });
     }
@@ -1224,8 +1508,8 @@ const server = http.createServer(async (req, res) => {
 if (process.env.WORKUCO_DEMO === '1') {
   try {
     if (store.isEmpty()) {
-      const { companies, candidates, jobs, applications } = demo.build();
-      store.seedDemo({ companies, candidates, jobs, applications });
+      const { companies, candidates, jobs, applications, invitations, notifications } = demo.build();
+      store.seedDemo({ companies, candidates, jobs, applications, invitations, notifications });
       console.log(`Demo: ${jobs.length} ofertas, ${applications.length} postulaciones y ${(candidates || []).length} perfiles cargados`);
     }
   } catch (e) { console.error('Demo seed:', e.message); }
