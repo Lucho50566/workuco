@@ -1,0 +1,188 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-10T00:00:00Z",
+  "title": "Design System: Workuco",
+  "extensions": {
+    "colorMeta": {
+      "night": { "role": "neutral", "displayName": "Noche", "canonical": "#0b1612", "tonalRamp": ["#050b09", "#0b1612", "#12241d", "#1b3229", "#2a463d", "#4d6a5f", "#a9bcb1", "#e8efe9"] },
+      "night-2": { "role": "neutral", "displayName": "Noche 2", "canonical": "#12241d" },
+      "night-3": { "role": "neutral", "displayName": "Noche 3", "canonical": "#1b3229" },
+      "night-text": { "role": "neutral", "displayName": "Texto nocturno", "canonical": "#e8efe9" },
+      "night-muted": { "role": "neutral", "displayName": "Niebla", "canonical": "#a9bcb1" },
+      "lime": { "role": "primary", "displayName": "Lima Farol", "canonical": "#c8f560", "tonalRamp": ["#2f3d0c", "#4f6618", "#7a9b26", "#9fc63a", "#b3e24a", "#c8f560", "#d6fb7c", "#eefcd0"] },
+      "lime-2": { "role": "primary", "displayName": "Lima Farol profundo", "canonical": "#b3e24a" },
+      "malbec": { "role": "secondary", "displayName": "Malbec", "canonical": "#7a1f4d", "tonalRamp": ["#2a0f20", "#40122e", "#5e1639", "#7a1f4d", "#9a3a6a", "#c47ea0", "#ecc9d8", "#f5e6ee"] },
+      "malbec-2": { "role": "secondary", "displayName": "Malbec profundo", "canonical": "#5e1639" },
+      "malbec-soft": { "role": "secondary", "displayName": "Malbec suave", "canonical": "#f5e6ee" },
+      "brand-green": { "role": "primary", "displayName": "Verde Workuco", "canonical": "#0a8263", "tonalRamp": ["#043d2e", "#076a51", "#0a8263", "#12b98d", "#6fd4b6", "#b9ebdc", "#e6f7f0", "#f2fbf7"] },
+      "brand-green-dark": { "role": "primary", "displayName": "Verde Workuco oscuro", "canonical": "#076a51" },
+      "green-soft": { "role": "primary", "displayName": "Verde brote", "canonical": "#e6f7f0" },
+      "cream": { "role": "neutral", "displayName": "Crema", "canonical": "#f5f1e6", "tonalRamp": ["#56615a", "#b9ad94", "#cfc4ad", "#e3dbc9", "#e6dfcd", "#ece6d6", "#f5f1e6", "#fffdf8"] },
+      "cream-2": { "role": "neutral", "displayName": "Crema 2", "canonical": "#ece6d6" },
+      "bg-warm": { "role": "neutral", "displayName": "Crema tibia", "canonical": "#faf6ec" },
+      "surface": { "role": "neutral", "displayName": "Papel", "canonical": "#fffdf8" },
+      "surface-2": { "role": "neutral", "displayName": "Arena 2", "canonical": "#f0eadc" },
+      "surface-3": { "role": "neutral", "displayName": "Arena 3", "canonical": "#e6dfcd" },
+      "ink": { "role": "neutral", "displayName": "Tinta", "canonical": "#0f1a15" },
+      "text": { "role": "neutral", "displayName": "Texto", "canonical": "#1c2822" },
+      "muted": { "role": "neutral", "displayName": "Gris tierra", "canonical": "#56615a" },
+      "line": { "role": "neutral", "displayName": "Hilo", "canonical": "#e3dbc9" },
+      "line-strong": { "role": "neutral", "displayName": "Hilo fuerte", "canonical": "#cfc4ad" },
+      "amber": { "role": "status", "displayName": "Ámbar aviso", "canonical": "#a4690a" },
+      "amber-soft": { "role": "status", "displayName": "Ámbar suave", "canonical": "#fdf2df" },
+      "red": { "role": "status", "displayName": "Rojo error", "canonical": "#b3261e" },
+      "red-soft": { "role": "status", "displayName": "Rojo suave", "canonical": "#fdeceb" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Titular del hero y de bandas de noche; palabra clave en lima." },
+      "headline": { "displayName": "Headline", "purpose": "Encabezados de sección y banda de cierre." },
+      "title": { "displayName": "Title", "purpose": "Títulos de oferta, changa, talento y pasos." },
+      "figure": { "displayName": "Figure", "purpose": "Cifras de pago, siempre tabulares." },
+      "body": { "displayName": "Body", "purpose": "Párrafos y bajadas, 54-68ch." },
+      "label": { "displayName": "Label", "purpose": "Insignias, metadatos y rótulos de campo." }
+    },
+    "shadows": [
+      { "name": "search-float", "value": "0 18px 50px rgba(0, 0, 0, .35)", "purpose": "Buscador crema flotando sobre noche." },
+      { "name": "lime-button", "value": "0 6px 14px rgba(0, 0, 0, .22)", "purpose": "Asienta el botón lima sobre noche." },
+      { "name": "card-hover", "value": "0 18px 40px -18px rgba(15, 26, 21, .35)", "purpose": "Tarjeta de oferta o talento al hacer hover." },
+      { "name": "gig-hover", "value": "0 22px 40px -20px rgba(40, 6, 22, .55)", "purpose": "Changa al hacer hover, sombra teñida de vino." },
+      { "name": "popover", "value": "0 24px 60px -12px rgba(11, 22, 18, .45)", "purpose": "Panel de notificaciones." },
+      { "name": "input-focus", "value": "0 0 0 3px rgba(10, 130, 99, .13)", "purpose": "Halo de foco de campos." }
+    ],
+    "motion": [
+      { "name": "ease-out", "value": "cubic-bezier(.16, 1, .3, 1)", "purpose": "Ease-out exponencial para toda transición autoral." },
+      { "name": "hero-rise", "value": "rise .9s ease-out, escalonado de .08s", "purpose": "Entrada orquestada del hero; único momento de movimiento autoral." },
+      { "name": "role-thumb", "value": "transform .45s ease-out", "purpose": "Pulgar lima del interruptor de rol." },
+      { "name": "role-swap", "value": "clip-path inset(0 0 100% 0) a inset(0) en .5s", "purpose": "Entrada de bloques al cambiar de rol." },
+      { "name": "town-pulse", "value": "2.6s ease-out infinite", "purpose": "Pulso de las luces de los pueblos." },
+      { "name": "marquee", "value": "38s linear infinite", "purpose": "Cinta de rubros; pausa en hover." },
+      { "name": "card-lift", "value": "translateY(-4px) .35s ease-out", "purpose": "Elevación de tarjetas en hover." },
+      { "name": "reduced-motion", "value": "animation: none; transition: none", "purpose": "Todo apagado con prefers-reduced-motion." }
+    ],
+    "breakpoints": [
+      { "name": "nav-collapse", "value": "1080px" },
+      { "name": "single-column", "value": "900px" },
+      { "name": "mobile", "value": "760px" },
+      { "name": "small", "value": "560px" },
+      { "name": "narrow", "value": "430px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Botón lima",
+      "kind": "button",
+      "refersTo": "button-lime",
+      "description": "Acción primaria sobre noche: header, buscador del hero, cierre.",
+      "html": "<div class=\"ds-night-stage\"><button class=\"ds-btn-lime\">Buscar empleo</button></div>",
+      "css": ".ds-night-stage { background: #0b1612; padding: 24px; } .ds-btn-lime { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 18px; border: 1px solid transparent; border-radius: 12px; background: #c8f560; color: #0b1612; font: 650 14.5px/1 Inter, system-ui, sans-serif; box-shadow: 0 6px 14px rgba(0, 0, 0, .22); cursor: pointer; transition: background .15s, transform .06s; } .ds-btn-lime:hover { background: #d6fb7c; } .ds-btn-lime:active { transform: translateY(1px); } .ds-btn-lime:focus-visible { outline: 2px solid #c8f560; outline-offset: 3px; }"
+    },
+    {
+      "name": "Botón primario verde",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Acción primaria sobre crema.",
+      "html": "<button class=\"ds-btn-primary\">Postularme</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 18px; border: 1px solid transparent; border-radius: 12px; background: #0a8263; color: #fff; font: 650 14.5px/1 Inter, system-ui, sans-serif; box-shadow: 0 6px 16px rgba(10, 130, 99, .18); cursor: pointer; transition: background .15s, transform .06s; } .ds-btn-primary:hover { background: #076a51; } .ds-btn-primary:active { transform: translateY(1px); } .ds-btn-primary:focus-visible { outline: 2px solid #0a8263; outline-offset: 3px; }"
+    },
+    {
+      "name": "Botón outline",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Acción secundaria sobre crema.",
+      "html": "<button class=\"ds-btn-outline\">Ver todas</button>",
+      "css": ".ds-btn-outline { display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border: 1px solid #cfc4ad; border-radius: 12px; background: #fffdf8; color: #1c2822; font: 650 14.5px/1 Inter, system-ui, sans-serif; cursor: pointer; transition: background .15s, border-color .15s; } .ds-btn-outline:hover { background: #f0eadc; border-color: #b9c5bd; } .ds-btn-outline:focus-visible { outline: 2px solid #0a8263; outline-offset: 3px; }"
+    },
+    {
+      "name": "Campo de texto",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Campo estándar de formularios.",
+      "html": "<input class=\"ds-input\" placeholder=\"Puesto, empresa o palabra\">",
+      "css": ".ds-input { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid #cfc4ad; border-radius: 10px; background: #fffdf8; color: #0f1a15; font: 400 14.5px/1.4 Inter, system-ui, sans-serif; caret-color: #0a8263; transition: border-color .15s, box-shadow .15s; } .ds-input:focus { outline: none; border-color: #0a8263; box-shadow: 0 0 0 3px rgba(10, 130, 99, .13); }"
+    },
+    {
+      "name": "Navegación de noche",
+      "kind": "nav",
+      "refersTo": "nav",
+      "description": "Header pegajoso de noche con link activo subrayado en lima.",
+      "html": "<nav class=\"ds-nav\"><b class=\"ds-nav-brand\">Workuco</b><a class=\"ds-nav-link\" href=\"#\">Inicio</a><a class=\"ds-nav-link is-active\" href=\"#\">Changas</a><a class=\"ds-nav-link\" href=\"#\">Empresas</a></nav>",
+      "css": ".ds-nav { display: flex; align-items: center; gap: 4px; height: 70px; padding: 0 24px; background: rgba(11, 22, 18, .94); border-bottom: 1px solid rgba(200, 245, 96, .08); } .ds-nav-brand { color: #fff; font: 750 19.5px/1 'Bricolage Grotesque', Inter, sans-serif; letter-spacing: -.04em; margin-right: 22px; } .ds-nav-link { padding: 8px 12px; border-radius: 9px; color: #a9bcb1; font: 550 14.5px/1 Inter, system-ui, sans-serif; text-decoration: none; transition: color .15s, background .15s; } .ds-nav-link:hover, .ds-nav-link.is-active { color: #fff; background: rgba(255, 255, 255, .07); } .ds-nav-link.is-active { box-shadow: inset 0 -2px 0 #c8f560; border-radius: 8px 8px 2px 2px; } .ds-nav-link:focus-visible { outline: 2px solid #c8f560; outline-offset: 3px; }"
+    },
+    {
+      "name": "Chip de filtro sobre noche",
+      "kind": "chip",
+      "refersTo": "chip-filter-on",
+      "description": "Filtros de localidad en bandas de noche; activo en lima.",
+      "html": "<div class=\"ds-night-stage\"><button class=\"ds-chip is-on\">Toda la zona</button> <button class=\"ds-chip\">Tunuyán</button></div>",
+      "css": ".ds-night-stage { background: #0b1612; padding: 24px; display: flex; gap: 8px; } .ds-chip { min-height: 42px; padding: 9px 16px; border: 1px solid rgba(255, 255, 255, .22); border-radius: 999px; background: transparent; color: #fff; font: 600 15px/1 Inter, system-ui, sans-serif; cursor: pointer; transition: background .2s, border-color .2s, color .2s; } .ds-chip:hover { border-color: #c8f560; } .ds-chip.is-on { background: #c8f560; color: #0b1612; border-color: #c8f560; } .ds-chip:focus-visible { outline: 2px solid #c8f560; outline-offset: 3px; }"
+    },
+    {
+      "name": "Tarjeta de changa",
+      "kind": "card",
+      "refersTo": "gig-card",
+      "description": "Changa con pago grande en malbec, datos en dos columnas y CTA con flecha.",
+      "html": "<article class=\"ds-gig\"><div class=\"ds-gig-top\"><span class=\"ds-gig-when\">Empieza en 6 días</span><span class=\"ds-gig-spots\">12 cupos</span></div><div class=\"ds-gig-pay\">$ 32.000 por día</div><div class=\"ds-gig-title\">Cosechadores de uva para vendimia</div><div class=\"ds-gig-co\">Bodega Alto Uco · San Carlos</div><dl class=\"ds-gig-facts\"><div><dt>Inicio</dt><dd>lun, 16 nov</dd></div><div><dt>Duración</dt><dd>3 semanas</dd></div></dl><a class=\"ds-gig-cta\" href=\"#\">Postularme <svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><path d=\"M5 12h14M13 6l6 6-6 6\"/></svg></a></article>",
+      "css": ".ds-gig { display: flex; flex-direction: column; gap: 6px; max-width: 300px; padding: 20px; border-radius: 16px; background: #fffdf8; color: #1c2822; border: 1px solid rgba(122, 31, 77, .14); font-family: Inter, system-ui, sans-serif; transition: transform .35s cubic-bezier(.16, 1, .3, 1), box-shadow .35s cubic-bezier(.16, 1, .3, 1); } .ds-gig:hover { transform: translateY(-4px) rotate(-.4deg); box-shadow: 0 22px 40px -20px rgba(40, 6, 22, .55); } .ds-gig-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; } .ds-gig-when { background: #f5e6ee; color: #7a1f4d; font-weight: 700; font-size: 12.5px; border-radius: 999px; padding: 4px 10px; } .ds-gig-spots { color: #56615a; font-size: 12.5px; font-weight: 600; } .ds-gig-pay { font: 800 28px/1.05 'Bricolage Grotesque', Inter, sans-serif; letter-spacing: -.03em; color: #7a1f4d; font-variant-numeric: tabular-nums; } .ds-gig-title { font: 700 18px/1.2 'Bricolage Grotesque', Inter, sans-serif; letter-spacing: -.015em; color: #0f1a15; margin-top: 4px; } .ds-gig-co { color: #56615a; font-size: 13.5px; } .ds-gig-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0 14px; padding-top: 12px; border-top: 1px dashed #cfc4ad; } .ds-gig-facts dt { font-size: 11.5px; color: #56615a; font-weight: 600; } .ds-gig-facts dd { margin: 2px 0 0; font-weight: 650; font-size: 14px; } .ds-gig-cta { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: #7a1f4d; text-decoration: none; } .ds-gig-cta svg { transition: transform .3s cubic-bezier(.16, 1, .3, 1); } .ds-gig:hover .ds-gig-cta svg { transform: translateX(3px); } .ds-gig-cta:focus-visible { outline: 2px solid #0a8263; outline-offset: 3px; border-radius: 6px; }"
+    },
+    {
+      "name": "Píldora de compatibilidad",
+      "kind": "chip",
+      "refersTo": "match-pill",
+      "description": "Porcentaje de compatibilidad con anillo cónico en verde marca.",
+      "html": "<span class=\"ds-match\" style=\"--pct: 82\">82% compatible</span>",
+      "css": ".ds-match { --pct: 0; display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; font: 700 12.5px/1.2 Inter, system-ui, sans-serif; color: #0b1612; border-radius: 999px; padding: 4px 10px 4px 5px; background: #e8f7c4; font-variant-numeric: tabular-nums; } .ds-match::before { content: ''; width: 16px; height: 16px; border-radius: 50%; background: conic-gradient(#0a8263 calc(var(--pct) * 1%), rgba(10, 130, 99, .18) 0); -webkit-mask: radial-gradient(circle, transparent 4px, #000 4.5px); mask: radial-gradient(circle, transparent 4px, #000 4.5px); }"
+    },
+    {
+      "name": "Interruptor de rol",
+      "kind": "custom",
+      "refersTo": "role-toggle",
+      "description": "Firma del hero: pulgar lima que se desliza entre Busco trabajo y Quiero contratar.",
+      "html": "<div class=\"ds-night-stage\"><div class=\"ds-role\"><span class=\"ds-role-thumb\"></span><button aria-pressed=\"true\">Busco trabajo</button><button aria-pressed=\"false\">Quiero contratar</button></div></div>",
+      "css": ".ds-night-stage { background: #0b1612; padding: 24px; } .ds-role { position: relative; display: inline-grid; grid-template-columns: 1fr 1fr; padding: 5px; background: #12241d; border: 1px solid rgba(255, 255, 255, .08); border-radius: 999px; } .ds-role button { position: relative; z-index: 1; border: 0; background: none; color: #a9bcb1; font: 650 14.5px/1 Inter, system-ui, sans-serif; padding: 11px 20px; border-radius: 999px; min-height: 44px; cursor: pointer; transition: color .3s cubic-bezier(.16, 1, .3, 1); } .ds-role button[aria-pressed='true'] { color: #0b1612; } .ds-role button:focus-visible { outline: 2px solid #c8f560; outline-offset: 3px; } .ds-role-thumb { position: absolute; top: 5px; bottom: 5px; left: 5px; width: calc(50% - 5px); background: #c8f560; border-radius: 999px; transition: transform .45s cubic-bezier(.16, 1, .3, 1); } .ds-role:has(button:last-of-type[aria-pressed='true']) .ds-role-thumb { transform: translateX(100%); }"
+    },
+    {
+      "name": "Luz de pueblo",
+      "kind": "custom",
+      "refersTo": "town",
+      "description": "Firma del hero: pueblo con su conteo real y un punto lima que late.",
+      "html": "<div class=\"ds-night-stage\"><a class=\"ds-town\" href=\"#\"><span class=\"ds-town-label\"><b>Tunuyán</b><small>5 búsquedas</small></span><span class=\"ds-town-dot\"></span></a></div>",
+      "css": ".ds-night-stage { background: #12261f; padding: 28px; display: flex; justify-content: center; } .ds-town { display: inline-flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; color: #fff; text-decoration: none; } .ds-town-label { background: rgba(11, 22, 18, .88); border: 1px solid rgba(200, 245, 96, .22); border-radius: 12px; padding: 7px 12px 8px; line-height: 1.15; white-space: nowrap; transition: border-color .25s, transform .35s cubic-bezier(.16, 1, .3, 1); } .ds-town-label b { display: block; font: 700 15px/1.2 'Bricolage Grotesque', Inter, sans-serif; letter-spacing: -.01em; } .ds-town-label small { display: block; color: #c8f560; font: 600 12.5px/1.2 Inter, sans-serif; font-variant-numeric: tabular-nums; } .ds-town:hover .ds-town-label, .ds-town:focus-visible .ds-town-label { border-color: #c8f560; transform: translateY(-3px); } .ds-town:focus-visible { outline: none; } .ds-town-dot { position: relative; width: 12px; height: 12px; border-radius: 50%; background: #c8f560; box-shadow: 0 0 0 4px rgba(200, 245, 96, .18); } .ds-town-dot::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid #c8f560; animation: ds-pulse 2.6s cubic-bezier(.16, 1, .3, 1) infinite; } @keyframes ds-pulse { from { transform: scale(.6); opacity: .9; } to { transform: scale(3); opacity: 0; } } @media (prefers-reduced-motion: reduce) { .ds-town-dot::after { display: none; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "El Valle de noche",
+    "overview": "Workuco es el Valle de Uco visto de noche: bandas grandes de verde casi negro donde la cordillera se recorta en capas planas y los pueblos son luces lima encendidas con su número real de búsquedas. Entre esas bandas, el contenido se lee sobre crema cálida, nunca sobre blanco frío. La noche es el escenario; la crema es la mesa de trabajo.\n\nEl sistema alterna dos registros. Las bandas de noche (hero, cierre, footer, encabezado de /changas) son tipográficas y enormes: Bricolage Grotesque a 800 con interlineado apretado, una palabra o una cifra en lima. Las zonas crema son densas y prácticas: tarjetas de 16px de radio, chips en píldora, cifras tabulares. El malbec aparece como una banda entera para las changas, no como acento disperso.\n\nLa geometría es plana: siluetas de cordillera en tres capas de verde (`#17302a`, `#2a463d`, `#12261f`) que cierran sobre la crema, sin ilustración, sin degradados de brillo, sin fotos inventadas del Valle. El movimiento se concentra en la entrada del hero; el resto responde a interacción y se apaga con `prefers-reduced-motion`.",
+    "keyCharacteristics": [
+      "Bandas de noche a todo el ancho alternadas con crema; nunca fondo blanco puro.",
+      "Lima como luz: acción primaria sobre noche, números vivos, estado activo.",
+      "Malbec reservado a changas y a lo destacado.",
+      "Cordillera en capas planas como firma recurrente (hero, cierre, portadas sin foto).",
+      "Display enorme y apretado; cuerpo en Inter legible a 16px.",
+      "Sombras blandas desplazadas hacia abajo, sólo en hover o en objetos flotantes."
+    ],
+    "rules": [
+      { "name": "The Una Luz Rule", "body": "El lima es luz, no pintura: va sobre noche o como botón/estado. Nunca como texto sobre crema, donde no tiene contraste.", "section": "colors" },
+      { "name": "The Vino Para Changas Rule", "body": "El malbec identifica changas y destacados. Si algo no es changa ni destacado, no es malbec.", "section": "colors" },
+      { "name": "The Cartel Rule", "body": "Display siempre a 800 con tracking negativo (-0.03 a -0.035em) e interlineado menor a 1. Un display flojo o espaciado deja de ser del Valle.", "section": "typography" },
+      { "name": "The Cifra Tabular Rule", "body": "Sueldos, conteos y porcentajes van en display o tabular-nums; un número nunca baila.", "section": "typography" },
+      { "name": "The Plano En Reposo Rule", "body": "Las tarjetas descansan planas, con borde de 1px. La sombra llega con el hover (y un `translateY(-4px)`), no antes.", "section": "elevation" }
+    ],
+    "dos": [
+      "**Do** alternar bandas de noche y crema; cada página pública abre o cierra en noche.",
+      "**Do** usar lima como luz sobre noche (botón primario, palabra clave, números vivos) y verde Workuco como acción sobre crema.",
+      "**Do** reservar el malbec para changas, destacados y la franja de demostración.",
+      "**Do** componer titulares en Bricolage Grotesque 800 con tracking negativo e interlineado menor a 1.",
+      "**Do** mostrar cifras reales de la base en tabular-nums; si no hay dato, decirlo en texto gris, no inventar.",
+      "**Do** resolver imágenes ausentes con la cordillera plana sobre noche.",
+      "**Do** usar ease-out exponencial (cubic-bezier(.16, 1, .3, 1)) y apagar todo movimiento con `prefers-reduced-motion`."
+    ],
+    "donts": [
+      "**Don't** usar lima como color de texto sobre crema o papel.",
+      "**Don't** usar fondo blanco puro de página ni degradados de brillo o halos radiales.",
+      "**Don't** convertir la cordillera en ilustración detallada: picos rectos, capas planas, tres tonos de noche.",
+      "**Don't** poner sombras en tarjetas en reposo.",
+      "**Don't** usar fotos o ilustraciones inventadas del Valle.",
+      "**Don't** poner etiquetas en mayúsculas espaciadas encima de un titular (kickers); el titular display alcanza. Las mayúsculas espaciadas quedan para rótulos de columna (footer, Kanban, filtros, secciones del CV)."
+    ]
+  }
+}
