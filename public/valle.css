@@ -483,14 +483,20 @@ html { scrollbar-color: #b9ad94 var(--cream); }
 /* en el celular los pueblos tienen que entrar en el primer viewport */
 @media (max-width: 430px) {
   .vh-copy { padding-top: 18px; }
-  .vh-title { font-size: 38px; }
+  .vh-title { font-size: 44px; }
   .vh-title + .role-toggle { margin-top: 16px; }
   .vh-sub { font-size: 15px; margin: 12px 0 14px; }
-  .vh-search .input, .vh-search .btn { min-height: 46px; }
-  .vh-hint { margin-top: 10px; gap: 6px; }
-  .vh-hint a { padding: 4px 10px; }
-  .vh-valley { height: 190px; margin-top: -46px; }
+  .vh-search { padding: 4px; gap: 2px; }
+  .vh-search .input, .vh-search .btn { min-height: 44px; }
+  /* "Más buscados" en una sola fila que se desliza */
+  .vh-hint { margin-top: 10px; gap: 6px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-right: -16px; padding-right: 16px; }
+  .vh-hint::-webkit-scrollbar { display: none; }
+  .vh-hint a, .vh-hint span { padding: 4px 10px; white-space: nowrap; flex: 0 0 auto; }
+  .vh-hint span { padding-left: 0; }
+  .vh-valley { height: 215px; margin-top: -30px; }
   .demo-strip { font-size: 12px; padding: 5px 12px; }
 }
+.ds-short { display: none; }
+@media (max-width: 560px) { .ds-long { display: none; } .ds-short { display: inline; } }
 /* aviso de datos de demostración */
 .demo-strip { background: var(--malbec); color: #fbe9f1; font-size: 13px; font-weight: 600; text-align: center; padding: 7px 16px; }

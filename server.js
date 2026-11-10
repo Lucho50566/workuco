@@ -413,7 +413,7 @@ function navHtml(active) {
     ${NAV_ITEMS.map(([href, label]) => `<a href="${href}">${label}</a>`).join('')}
     <a href="/acceder" data-auth-mobile>Ingresar</a>
   </div>
-</header>${process.env.WORKUCO_DEMO === '1' ? '\n<div class="demo-strip" role="note">Modo demostración: las empresas, personas y ofertas que ves son ficticias.</div>' : ''}`;
+</header>${process.env.WORKUCO_DEMO === '1' ? '\n<div class="demo-strip" role="note"><span class="ds-long">Modo demostración: las empresas, personas y ofertas que ves son ficticias.</span><span class="ds-short">Demo: empresas y personas ficticias</span></div>' : ''}`;
 }
 
 function footerHtml() {
