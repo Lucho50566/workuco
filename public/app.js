@@ -123,6 +123,9 @@ const ICON_PATHS = {
   lock: '<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
   eye: '<path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
   inbox: '<path d="M4 4h16v16H4z"/><path d="M4 13h4l2 3h4l2-3h4"/>',
+  bell: '<path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9Z"/><path d="M10 20a2.2 2.2 0 0 0 4 0"/>',
+  send: '<path d="M21 3 10 14"/><path d="m21 3-7 18-4-7-7-4 18-7Z"/>',
+  share: '<circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="m8.3 10.7 7.4-4.3M8.3 13.3l7.4 4.3"/>',
 };
 const icon = (name, size = 18, cls = '') => `<svg class="icon ${cls}" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name] || ICON_PATHS.briefcase}</svg>`;
 const checkIcon = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg>`;
@@ -161,11 +164,11 @@ function paintAuth() {
   if (!slot) return;
   const u = state.user;
   if (u && u.role === 'company') {
-    slot.innerHTML = `<a class="btn btn-ghost btn-sm" href="/panel">${icon('chart', 16)} Mi panel</a>
+    slot.innerHTML = `${bellHtml()}<a class="btn btn-ghost btn-sm" href="/panel">${icon('chart', 16)} Mi panel</a>
       <a class="btn btn-primary btn-sm" href="/publicar">Publicar empleo</a>`;
     if (mobile) { mobile.textContent = 'Mi panel'; mobile.href = '/panel'; }
   } else if (u && u.role === 'candidate') {
-    slot.innerHTML = `<a class="btn btn-ghost btn-sm btn-avatar" href="/mi-perfil">${avatarHtml(u.candidate.name, u.candidate.photo, 'avatar-xs')} Mi perfil</a>
+    slot.innerHTML = `${bellHtml()}<a class="btn btn-ghost btn-sm btn-avatar" href="/mi-perfil">${avatarHtml(u.candidate.name, u.candidate.photo, 'avatar-xs')} Mi perfil</a>
       <a class="btn btn-primary btn-sm" href="/buscar">Buscar empleo</a>`;
     if (mobile) { mobile.textContent = 'Mi perfil'; mobile.href = '/mi-perfil'; }
   } else if (u && u.role === 'admin') {
@@ -175,12 +178,58 @@ function paintAuth() {
   }
 }
 
+/* ---------------- campanita de notificaciones ---------------- */
+const bellHtml = () => `<div class="bell-wrap"><button class="bell" type="button" aria-label="Notificaciones" aria-expanded="false" data-bell>
+  ${icon('bell', 19)}<span class="bell-count" data-bell-count hidden>0</span></button></div>`;
+
+async function initBell() {
+  const btn = $('[data-bell]');
+  if (!btn) return;
+  const wrap = btn.parentElement;
+  const count = $('[data-bell-count]', wrap);
+  let data = { items: [], unread: 0 };
+  const paintCount = () => {
+    count.hidden = !data.unread;
+    count.textContent = data.unread > 9 ? '9+' : String(data.unread);
+    btn.setAttribute('aria-label', data.unread ? `Notificaciones: ${data.unread} sin leer` : 'Notificaciones');
+  };
+  const close = () => { const p = $('.bell-panel', wrap); if (p) p.remove(); btn.setAttribute('aria-expanded', 'false'); };
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if ($('.bell-panel', wrap)) { close(); return; }
+    const panel = document.createElement('div');
+    panel.className = 'bell-panel';
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-label', 'Notificaciones');
+    panel.innerHTML = `<div class="bell-head"><b>Novedades</b>${data.unread ? '<button class="muted-link" type="button" data-bell-read>Marcar todo leído</button>' : ''}</div>
+      <div class="bell-list">${data.items.length ? data.items.map((n) => `<a class="bell-item${n.read ? '' : ' is-unread'}" href="${esc(n.link || '#')}" data-bell-item="${esc(n.id)}">
+        <div><strong>${esc(n.title)}</strong>${n.body ? `<span>${esc(n.body)}</span>` : ''}<time>${esc(timeAgo(n.createdAt))}</time></div></a>`).join('')
+        : '<div class="bell-empty">Todavía no tenés novedades. Cuando haya movimiento en tus búsquedas, aparece acá.</div>'}</div>`;
+    wrap.appendChild(panel);
+    btn.setAttribute('aria-expanded', 'true');
+    panel.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      if (ev.target.closest('[data-bell-read]')) {
+        await api('/api/notifications/read', { method: 'POST', body: {} }).catch(() => {});
+        data.unread = 0; data.items.forEach((n) => { n.read = true; }); paintCount(); close();
+        return;
+      }
+      const item = ev.target.closest('[data-bell-item]');
+      if (item) api('/api/notifications/read', { method: 'POST', body: { id: item.dataset.bellItem } }).catch(() => {});
+    });
+  });
+  document.addEventListener('click', close);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('.bell-panel', wrap)) { close(); btn.focus(); } });
+  try { data = await api('/api/notifications'); paintCount(); } catch (_) {}
+}
+
 async function loadMe() {
   try {
     const { user } = await api('/api/me');
     state.user = user;
   } catch (_) { state.user = null; }
   paintAuth();
+  initBell();
   return state.user;
 }
 
@@ -191,12 +240,26 @@ async function loadMeta() {
 }
 
 /* ---------------- componentes ---------------- */
+function matchPill(m) {
+  if (!m || m.score == null) return '';
+  const cls = m.score >= 70 ? '' : m.score >= 45 ? ' is-mid' : ' is-low';
+  return `<span class="match-pill${cls}" style="--pct:${Number(m.score)}" title="${esc((m.reasons || []).join(' · '))}">${Number(m.score)}% compatible</span>`;
+}
+const PERIOD_WORD = { mes: 'por mes', 'día': 'por día', hora: 'por hora' };
+function payHtml(j) {
+  if (j.salaryMin > 0) {
+    const label = String(j.salaryLabel || '').replace(/ por (mes|día|hora)$/, '');
+    return `<span class="job-pay"><b>${esc(label)}</b><small>${esc(PERIOD_WORD[j.salaryPeriod] || '')}</small></span>`;
+  }
+  return `<span class="job-pay"><span class="is-empty">${esc(j.salaryLabel || j.salary || 'Sueldo a convenir')}</span></span>`;
+}
+
 function jobCard(j) {
   const cover = (j.companyGallery || [])[0];
   return `<a class="job-card" href="/oferta/${j.id}">
     <div class="job-cover${cover ? ' has-img' : ''}"${cover ? ` style="background-image:url('${esc(cover)}')"` : ''}>
       <span class="job-cover-shade"></span>
-      ${j.featured ? '<span class="badge badge-featured">Destacada</span>' : ''}
+      ${j.gig ? '<span class="badge badge-gig">Changa</span>' : j.featured ? '<span class="badge badge-featured">Destacada</span>' : ''}
     </div>
     <div class="job-card-body">
       ${logoHtml(j.companyName, j.companyLogo, 'logo')}
@@ -209,7 +272,7 @@ function jobCard(j) {
         <span class="badge">${esc(j.modality)}</span>
         <span class="badge">${esc(j.category)}</span>
       </div>
-      <div class="job-foot"><span class="job-salary">${esc(j.salary || 'A convenir')}</span><span>${timeAgo(j.publishedAt)}</span></div>
+      <div class="job-foot">${payHtml(j)}${matchPill(j.match) || `<span>${timeAgo(j.publishedAt)}</span>`}</div>
     </div>
   </a>`;
 }
@@ -230,8 +293,9 @@ function jobRow(j, saved = false) {
         </div>
       </div>
       <div class="side">
-        <span class="job-salary">${esc(j.salary || 'A convenir')}</span>
-        <span class="date">${timeAgo(j.publishedAt)}</span>
+        ${payHtml(j)}
+        ${matchPill(j.match)}
+        <span class="date">${j.gig ? 'Changa · ' : ''}${timeAgo(j.publishedAt)}</span>
       </div>
     </a>
     ${state.user && state.user.role === 'candidate' ? `<button class="save-btn${saved ? ' is-on' : ''}" type="button" data-save="${j.id}" title="${saved ? 'Quitar de guardadas' : 'Guardar oferta'}">${icon('heart', 18)}</button>` : ''}
@@ -303,51 +367,98 @@ function setupCarousel(root) {
 /* HOME                                                               */
 /* ================================================================== */
 async function initHome() {
+  const root = $('main.home');
   const meta = await loadMeta();
-  const locSel = $('#home-loc');
-  if (locSel) {
-    locSel.innerHTML = `<option value="">Toda la zona</option>` +
-      meta.localities.map((l) => `<option value="${esc(l)}">${esc(l)}</option>`).join('');
+  const calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* rol: busco / contrato (se recuerda en este navegador) */
+  const setRole = (role, animate) => {
+    root.dataset.role = role;
+    $$('[data-set-role]').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.setRole === role)));
+    try { localStorage.setItem('wk_role', role); } catch (_) {}
+    if (animate && !calm) {
+      $$(`[data-for="${role}"]`, $('.vh-copy')).forEach((el) => { el.classList.remove('role-swap'); void el.offsetWidth; el.classList.add('role-swap'); });
+    }
+  };
+  let saved = '';
+  try { saved = localStorage.getItem('wk_role') || ''; } catch (_) {}
+  if (state.user && state.user.role === 'company') saved = 'employer';
+  if (state.user && state.user.role === 'candidate') saved = 'seeker';
+  setRole(saved === 'employer' ? 'employer' : 'seeker', false);
+  $$('[data-set-role]').forEach((x) => x.addEventListener('click', () => setRole(x.dataset.setRole, true)));
+
+  /* palabra rotativa */
+  if (!calm) {
+    $$('[data-rotate]').forEach((el) => {
+      const words = el.dataset.rotate.split(',');
+      let i = 0;
+      setInterval(() => {
+        if (document.hidden || el.offsetParent === null) return;
+        el.classList.remove('is-in'); el.classList.add('is-swapping');
+        setTimeout(() => {
+          i = (i + 1) % words.length; el.textContent = words[i];
+          el.classList.remove('is-swapping'); el.classList.add('is-in');
+        }, 320);
+      }, 2600);
+    });
   }
 
-  $('#categories-grid').innerHTML = meta.categories.map((c) =>
-    `<a class="cat-card" href="/buscar?category=${encodeURIComponent(c)}">
-      <span class="cat-icon">${icon(catIcon(c))}</span>
-      <span class="cat-name">${esc(c)}</span>
-      <span class="cat-arrow">${icon('arrow', 15)}</span>
-    </a>`).join('');
-
+  const locSel = $('#home-loc');
+  locSel.innerHTML = '<option value="">Todo el Valle</option>' + meta.localities.map((l) => `<option value="${esc(l)}">${esc(l)}</option>`).join('');
   $('#home-search').addEventListener('submit', (e) => {
     e.preventDefault();
     const p = new URLSearchParams();
     const qv = $('#home-q').value.trim();
     if (qv) p.set('q', qv);
-    if ($('#home-loc').value) p.set('locality', $('#home-loc').value);
+    if (locSel.value) p.set('locality', locSel.value);
     location.href = `/buscar${p.toString() ? '?' + p : ''}`;
   });
 
-  try {
-    const { jobs } = await api('/api/jobs?limit=6');
-    const grid = $('#featured-jobs');
-    if (grid) {
-      grid.innerHTML = jobs.length ? jobs.map(jobCard).join('')
-        : '<div class="empty" style="grid-column:1/-1"><h3>Todavía no hay ofertas publicadas</h3><p>Volvé pronto o publicá la primera búsqueda.</p></div>';
-    }
-  } catch (err) {
-    const grid = $('#featured-jobs');
-    if (grid) grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><h3>No pudimos cargar las ofertas</h3><p>${esc(err.message)}</p></div>`;
+  /* cinta de rubros (duplicada para el loop continuo) */
+  const cats = meta.categories.filter((c) => c !== 'Otros');
+  const links = cats.map((c) => `<a href="/buscar?category=${encodeURIComponent(c)}">${esc(c)}</a>`).join('');
+  $('#marquee').innerHTML = links + links.replace(/<a /g, '<a aria-hidden="true" tabindex="-1" ');
+
+  const counts = meta.counts || {};
+  const tl = $('[data-talent-line]');
+  if (tl && counts.candidates) tl.textContent = `${counts.candidates} personas del Valle ya tienen su perfil en Workuco.`;
+
+  /* pueblos: búsquedas abiertas reales por localidad */
+  $$('[data-town]').forEach(async (el) => {
+    const label = $('[data-town-count]', el);
+    try {
+      const { total } = await api(`/api/jobs?limit=3&locality=${encodeURIComponent(el.dataset.town)}`);
+      label.textContent = total === 1 ? '1 búsqueda' : `${total} búsquedas`;
+      el.setAttribute('aria-label', `${el.dataset.town}: ${total} búsquedas abiertas`);
+    } catch (_) { label.textContent = 'Ver búsquedas'; }
+  });
+
+  const fail = (el, err) => { if (el) el.innerHTML = `<div class="empty" style="grid-column:1/-1"><h3>No pudimos cargar esto</h3><p>${esc(err.message)}</p></div>`; };
+
+  if (state.user && state.user.role === 'candidate') {
+    api('/api/candidate/recommended').then(({ jobs }) => {
+      if (!jobs.length) return;
+      $('#rec-jobs').innerHTML = jobs.slice(0, 3).map(jobCard).join('');
+      $('#recomendadas').hidden = false;
+    }).catch(() => {});
   }
 
-  try {
-    const { companies } = await api('/api/companies');
-    const strip = $('#companies-strip');
-    if (strip) {
-      strip.innerHTML = companies.slice(0, 8).map((c) => `<a class="company-pill" href="/empresa/${c.id}">
-        ${logoHtml(c.name, c.logo, 'logo-sm')}
-        <span><strong>${esc(c.name)}</strong><small>${esc(c.locality || 'Valle de Uco')} · ${c.jobs} ${c.jobs === 1 ? 'búsqueda' : 'búsquedas'}</small></span>
-      </a>`).join('') || '<p class="muted">Las empresas del Valle van a aparecer acá.</p>';
-    }
-  } catch (_) {}
+  api('/api/jobs?limit=6&gig=0').then(({ jobs }) => {
+    $('#featured-jobs').innerHTML = jobs.length ? jobs.map(jobCard).join('')
+      : '<div class="empty" style="grid-column:1/-1"><h3>Todavía no hay ofertas publicadas</h3><p>Volvé pronto o publicá la primera búsqueda.</p></div>';
+  }).catch((err) => fail($('#featured-jobs'), err));
+
+  api('/api/jobs?limit=3&gig=1').then(({ jobs }) => {
+    if (!jobs.length) { $('#changas').hidden = true; return; }
+    $('#home-gigs').innerHTML = jobs.map(gigCard).join('');
+  }).catch((err) => fail($('#home-gigs'), err));
+
+  api('/api/companies').then(({ companies }) => {
+    $('#companies-strip').innerHTML = companies.slice(0, 8).map((c) => `<a class="company-pill" href="/empresa/${c.id}">
+      ${logoHtml(c.name, c.logo, 'logo-sm')}
+      <span><strong>${esc(c.name)}</strong><small>${esc(c.locality || 'Valle de Uco')} · ${c.jobs} ${c.jobs === 1 ? 'búsqueda' : 'búsquedas'}${c.response ? ` · responde el ${c.response.rate}%` : ''}</small></span>
+    </a>`).join('') || '<p class="muted">Las empresas del Valle van a aparecer acá.</p>';
+  }).catch(() => {});
 }
 
 function catIcon(c) {
@@ -1286,10 +1397,10 @@ async function initPublicProfile() {
     <div class="container pp-hero-inner">
       ${p.photo ? `<img class="pp-photo" src="${esc(p.photo)}" alt="">` : `<span class="pp-photo avatar-fallback">${esc(initials(p.name))}</span>`}
       <div>
-        ${p.openToWork ? '<span class="eyebrow eyebrow-lime">Disponible para trabajar</span>' : ''}
         <h1 class="display-sm">${esc(p.name)}</h1>
         ${p.headline ? `<p class="pp-headline">${esc(p.headline)}</p>` : ''}
         ${p.locality ? `<p class="pp-loc">${icon('pin', 16)} ${esc(p.locality)}, Valle de Uco</p>` : ''}
+        ${p.openToWork ? '<span class="status-pill">Disponible para trabajar</span>' : ''}
       </div>
     </div>
   </section>
@@ -1314,7 +1425,7 @@ async function initPublicProfile() {
 window.WK = {
   $, $$, api, esc, toast, showAlert, hideAlert, setFieldErrors, icon, logoHtml, avatarHtml,
   state, loadMe, loadMeta, fmtDate, timeAgo, initials, stageBadge, STAGE_LABEL, statusBadge,
-  jobCard, jobRow, gigCard, profileCompleteness, setupCarousel, fileToBase64, ready: null,
+  jobCard, jobRow, gigCard, matchPill, payHtml, profileCompleteness, setupCarousel, fileToBase64, ready: null,
 };
 
 document.addEventListener('DOMContentLoaded', async () => {

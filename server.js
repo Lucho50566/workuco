@@ -365,13 +365,30 @@ const NAV_ITEMS = [
   ['/publicar', 'Para empresas'],
 ];
 
+/* Logo de marca en SVG (se ve bien sobre fondo noche). */
+const brandMark = (id) => `<svg class="brand-svg" viewBox="0 0 40 40" width="28" height="28" aria-hidden="true">
+  <mask id="${id}">
+    <rect width="40" height="40" fill="#fff"/>
+    <path d="M4 21.5 12 27l5-3 3 2 3-2 5 3 8-5.5" fill="none" stroke="#000" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M19 13h2v9h-2z" fill="#000"/>
+  </mask>
+  <rect x="4" y="11" width="32" height="23" rx="5" fill="#12b98d" mask="url(#${id})"/>
+  <path d="M15 11V8.5A3.5 3.5 0 0 1 18.5 5h3A3.5 3.5 0 0 1 25 8.5V11" fill="none" stroke="#12b98d" stroke-width="3"/>
+</svg>`;
+
+const HEAD_EXTRA = `<link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/valle.css">`;
+
 function navHtml(active) {
   const links = NAV_ITEMS.map(([href, label]) =>
     `<a class="nav-link${active === href ? ' is-active' : ''}" href="${href}">${label}</a>`).join('');
   return `<header class="site-header">
   <div class="container header-inner">
     <a class="brand" href="/" aria-label="Workuco, inicio">
-      <img class="brand-logo" src="/logo-icon.png" alt="" width="30" height="30">
+      ${brandMark('wk-cut-h')}
       <span class="brand-name">Workuco</span>
     </a>
     <nav class="main-nav" aria-label="Principal">${links}</nav>
@@ -395,15 +412,7 @@ function footerHtml() {
   <div class="container footer-grid">
     <div class="footer-brand">
       <a class="brand" href="/">
-        <svg class="brand-svg" viewBox="0 0 40 40" width="27" height="27" aria-hidden="true">
-          <mask id="wk-cut">
-            <rect width="40" height="40" fill="#fff"/>
-            <path d="M4 21.5 12 27l5-3 3 2 3-2 5 3 8-5.5" fill="none" stroke="#000" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-            <path d="M19 13h2v9h-2z" fill="#000"/>
-          </mask>
-          <rect x="4" y="11" width="32" height="23" rx="5" fill="#0ba37c" mask="url(#wk-cut)"/>
-          <path d="M15 11V8.5A3.5 3.5 0 0 1 18.5 5h3A3.5 3.5 0 0 1 25 8.5V11" fill="none" stroke="#0ba37c" stroke-width="3"/>
-        </svg>
+        ${brandMark('wk-cut-f')}
         <span class="brand-name">Workuco</span>
       </a>
       <p>El portal de empleo del Valle de Uco. Conectamos talento local con empresas de San Carlos, Tunuyán y Tupungato.</p>
@@ -411,6 +420,7 @@ function footerHtml() {
     <div class="footer-col">
       <h4>Para personas</h4>
       <a href="/buscar">Buscar empleo</a>
+      <a href="/changas">Changas por día</a>
       <a href="/mi-perfil">Mi perfil y postulaciones</a>
       <a href="/acceder?rol=empleado">Crear cuenta</a>
     </div>
@@ -418,6 +428,7 @@ function footerHtml() {
       <h4>Para empresas</h4>
       <a href="/publicar">Publicar empleo</a>
       <a href="/panel">Panel de empresa</a>
+      <a href="/panel#talento">Base de talento</a>
       <a href="/empresas">Empresas del Valle</a>
     </div>
     <div class="footer-col">
@@ -442,6 +453,8 @@ function renderPage(res, file, { active = '', title = 'Workuco' } = {}) {
       .replace('{{TITLE}}', title)
       .replace('{{NAV}}', navHtml(active))
       .replace('{{FOOTER}}', footerHtml())
+      .replace('<link rel="stylesheet" href="/styles.css">', HEAD_EXTRA)
+      .replace(/<meta name="theme-color" content="[^"]*">/, '<meta name="theme-color" content="#0b1612">')
       .replace(/\{\{ICON_([A-Z]+)\}\}/g, (_, name) => pageIcon(name));
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
     res.end(out);
