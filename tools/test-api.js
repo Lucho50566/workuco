@@ -74,7 +74,7 @@ async function main() {
     check('meta con 9 categorías', meta.data.categories.length === 9);
 
     const list = await pub.get('/api/jobs?limit=50');
-    check('lista solo ofertas aprobadas', list.status === 200 && list.data.total === 12, `total=${list.data.total}`);
+    check('lista solo ofertas aprobadas', list.status === 200 && list.data.total === 16, `total=${list.data.total}`);
     check('no expone emails de contacto en la lista', !JSON.stringify(list.data.jobs).includes('contactEmail'));
     check('ordenadas con destacadas primero', list.data.jobs[0].featured === true);
 

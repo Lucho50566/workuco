@@ -30,6 +30,7 @@
         <button type="button" class="panel-nav-item is-active" data-tab="overview">{{ICON_CHART}}<span>Resumen</span></button>
         <button type="button" class="panel-nav-item" data-tab="jobs">{{ICON_BAG}}<span>Ofertas</span></button>
         <button type="button" class="panel-nav-item" data-tab="applicants">{{ICON_USERS}}<span>Postulantes</span></button>
+        <button type="button" class="panel-nav-item" data-tab="talent">{{ICON_SEARCH}}<span>Talento</span></button>
         <button type="button" class="panel-nav-item" data-tab="company">{{ICON_BUILDING}}<span>Mi empresa</span></button>
         <button type="button" class="panel-nav-item" data-tab="ai">{{ICON_SPARKLES}}<span>IA</span></button>
       </nav>
@@ -45,7 +46,7 @@
       <div data-panel="overview">
         <header class="panel-head">
           <div>
-            <span class="kicker">Tu espacio de trabajo</span>
+            
             <h1>Resumen</h1>
             <p>Todo lo que pasó con tus búsquedas, de un vistazo.</p>
           </div>
@@ -86,7 +87,7 @@
       <!-- OFERTAS -->
       <div data-panel="jobs" hidden>
         <header class="panel-head">
-          <div><span class="kicker">Publicaciones</span><h1>Tus ofertas</h1><p id="jobs-count">—</p></div>
+          <div><h1>Tus ofertas</h1><p id="jobs-count">—</p></div>
           <a class="btn btn-primary" href="/publicar">{{ICON_PLUS}} Nueva oferta</a>
         </header>
         <div class="toolbar">
@@ -105,7 +106,7 @@
       <!-- POSTULANTES -->
       <div data-panel="applicants" hidden>
         <header class="panel-head">
-          <div><span class="kicker">Selección</span><h1>Postulantes</h1><p>Abrí una tarjeta para ver el perfil, la IA y moverla de etapa.</p></div>
+          <div><h1>Postulantes</h1><p>Abrí una tarjeta para ver el perfil, la IA y moverla de etapa.</p></div>
           <div class="head-actions">
             <a class="btn btn-ghost" href="/api/company/applications.csv" download>{{ICON_FILE}} Exportar CSV</a>
             <button class="btn btn-outline" type="button" id="manual-open">{{ICON_PLUS}} Cargar postulante</button>
@@ -119,10 +120,25 @@
         <p class="kanban-hint">{{ICON_ARROW}} Deslizá para ver todas las etapas. Podés mover con el botón de cada tarjeta o desde la ficha.</p>
       </div>
 
+      <!-- TALENTO -->
+      <div data-panel="talent" hidden>
+        <header class="panel-head">
+          <div><h1>Gente disponible</h1><p>Personas del Valle que marcaron "estoy disponible". Elegí una búsqueda para ordenarlas por compatibilidad e invitalas a postularse. Ves su contacto cuando se postulan.</p></div>
+          <div class="head-actions"><span class="invites-left" id="invites-left"></span></div>
+        </header>
+        <div class="toolbar talent-toolbar">
+          <select class="input input-sm toolbar-select" id="talent-job" aria-label="Búsqueda para comparar"><option value="">Elegí una búsqueda publicada…</option></select>
+          <select class="input input-sm toolbar-select" id="talent-loc" aria-label="Localidad"><option value="">Todo el Valle</option></select>
+          <select class="input input-sm toolbar-select" id="talent-cat" aria-label="Rubro"><option value="">Todos los rubros</option></select>
+          <input class="input input-sm toolbar-search" id="talent-q" placeholder="Buscar por habilidad: tractor, Excel, barista…" aria-label="Buscar por habilidad">
+        </div>
+        <div class="talent-grid" id="talent-list" aria-live="polite"></div>
+      </div>
+
       <!-- EMPRESA -->
       <div data-panel="company" hidden>
         <header class="panel-head">
-          <div><span class="kicker">Perfil público</span><h1>Mi empresa</h1><p>Así te ven las personas que buscan trabajo.</p></div>
+          <div><h1>Mi empresa</h1><p>Así te ven las personas que buscan trabajo.</p></div>
           <a class="btn btn-ghost btn-sm" id="panel-public-link-2" href="#" target="_blank" rel="noopener">{{ICON_EYE}} Ver página</a>
         </header>
 
@@ -166,7 +182,7 @@
       <!-- IA -->
       <div data-panel="ai" hidden>
         <header class="panel-head">
-          <div><span class="kicker">Opcional</span><h1>Análisis con IA</h1><p>Conectá tu propia API para resumir CV y ordenar postulantes.</p></div>
+          <div><h1>Análisis con IA</h1><p>Conectá tu propia API para resumir CV y ordenar postulantes.</p></div>
           <div id="ai-status" class="ai-status"></div>
         </header>
 

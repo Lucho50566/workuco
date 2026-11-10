@@ -16,7 +16,7 @@
 <main class="container search-page">
   <div class="search-page-head">
     <div>
-      <span class="kicker">Búsquedas del Valle</span>
+      
       <h1>Encontrá tu próximo trabajo</h1>
       <p class="results-count" id="results-count">Cargando ofertas…</p>
     </div>
@@ -24,6 +24,8 @@
       <label for="f-sort" class="sr-only">Ordenar</label>
       <select class="input" id="f-sort">
         <option value="recent">Más recientes primero</option>
+        <option value="match" data-candidate-only hidden>Más compatibles conmigo</option>
+        <option value="salary">Mejor pagas primero</option>
         <option value="old">Más antiguas primero</option>
       </select>
     </div>
@@ -55,7 +57,15 @@
       <span class="filter-label">Tipo</span>
       <div class="filter-chips" id="chips-type"></div>
     </div>
-    <button class="btn btn-ghost btn-sm" type="button" id="clear-filters">Limpiar filtros</button>
+    <div class="filter-row">
+      <span class="filter-label">Además</span>
+      <div class="filter-chips" id="chips-extra"></div>
+    </div>
+    <div class="filter-foot">
+      <button class="btn btn-ghost btn-sm" type="button" id="clear-filters">Limpiar filtros</button>
+      <button class="btn btn-night btn-sm" type="button" id="save-alert" hidden>{{ICON_CLOCK}} Avisarme de búsquedas como esta</button>
+      <a class="btn btn-outline btn-sm" href="/acceder?rol=empleado&amp;next=/buscar" id="alert-login" hidden>Ingresá para crear una alerta</a>
+    </div>
   </div>
 
   <div class="results-list" id="results" aria-live="polite"></div>

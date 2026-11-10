@@ -123,6 +123,9 @@ const ICON_PATHS = {
   lock: '<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
   eye: '<path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
   inbox: '<path d="M4 4h16v16H4z"/><path d="M4 13h4l2 3h4l2-3h4"/>',
+  bell: '<path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9Z"/><path d="M10 20a2.2 2.2 0 0 0 4 0"/>',
+  send: '<path d="M21 3 10 14"/><path d="m21 3-7 18-4-7-7-4 18-7Z"/>',
+  share: '<circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="m8.3 10.7 7.4-4.3M8.3 13.3l7.4 4.3"/>',
 };
 const icon = (name, size = 18, cls = '') => `<svg class="icon ${cls}" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name] || ICON_PATHS.briefcase}</svg>`;
 const checkIcon = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg>`;
@@ -161,11 +164,11 @@ function paintAuth() {
   if (!slot) return;
   const u = state.user;
   if (u && u.role === 'company') {
-    slot.innerHTML = `<a class="btn btn-ghost btn-sm" href="/panel">${icon('chart', 16)} Mi panel</a>
+    slot.innerHTML = `${bellHtml()}<a class="btn btn-ghost btn-sm" href="/panel">${icon('chart', 16)} Mi panel</a>
       <a class="btn btn-primary btn-sm" href="/publicar">Publicar empleo</a>`;
     if (mobile) { mobile.textContent = 'Mi panel'; mobile.href = '/panel'; }
   } else if (u && u.role === 'candidate') {
-    slot.innerHTML = `<a class="btn btn-ghost btn-sm btn-avatar" href="/mi-perfil">${avatarHtml(u.candidate.name, u.candidate.photo, 'avatar-xs')} Mi perfil</a>
+    slot.innerHTML = `${bellHtml()}<a class="btn btn-ghost btn-sm btn-avatar" href="/mi-perfil">${avatarHtml(u.candidate.name, u.candidate.photo, 'avatar-xs')} Mi perfil</a>
       <a class="btn btn-primary btn-sm" href="/buscar">Buscar empleo</a>`;
     if (mobile) { mobile.textContent = 'Mi perfil'; mobile.href = '/mi-perfil'; }
   } else if (u && u.role === 'admin') {
@@ -175,12 +178,58 @@ function paintAuth() {
   }
 }
 
+/* ---------------- campanita de notificaciones ---------------- */
+const bellHtml = () => `<div class="bell-wrap"><button class="bell" type="button" aria-label="Notificaciones" aria-expanded="false" data-bell>
+  ${icon('bell', 19)}<span class="bell-count" data-bell-count hidden>0</span></button></div>`;
+
+async function initBell() {
+  const btn = $('[data-bell]');
+  if (!btn) return;
+  const wrap = btn.parentElement;
+  const count = $('[data-bell-count]', wrap);
+  let data = { items: [], unread: 0 };
+  const paintCount = () => {
+    count.hidden = !data.unread;
+    count.textContent = data.unread > 9 ? '9+' : String(data.unread);
+    btn.setAttribute('aria-label', data.unread ? `Notificaciones: ${data.unread} sin leer` : 'Notificaciones');
+  };
+  const close = () => { const p = $('.bell-panel', wrap); if (p) p.remove(); btn.setAttribute('aria-expanded', 'false'); };
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if ($('.bell-panel', wrap)) { close(); return; }
+    const panel = document.createElement('div');
+    panel.className = 'bell-panel';
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-label', 'Notificaciones');
+    panel.innerHTML = `<div class="bell-head"><b>Novedades</b>${data.unread ? '<button class="muted-link" type="button" data-bell-read>Marcar todo leído</button>' : ''}</div>
+      <div class="bell-list">${data.items.length ? data.items.map((n) => `<a class="bell-item${n.read ? '' : ' is-unread'}" href="${esc(n.link || '#')}" data-bell-item="${esc(n.id)}">
+        <div><strong>${esc(n.title)}</strong>${n.body ? `<span>${esc(n.body)}</span>` : ''}<time>${esc(timeAgo(n.createdAt))}</time></div></a>`).join('')
+        : '<div class="bell-empty">Todavía no tenés novedades. Cuando haya movimiento en tus búsquedas, aparece acá.</div>'}</div>`;
+    wrap.appendChild(panel);
+    btn.setAttribute('aria-expanded', 'true');
+    panel.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      if (ev.target.closest('[data-bell-read]')) {
+        await api('/api/notifications/read', { method: 'POST', body: {} }).catch(() => {});
+        data.unread = 0; data.items.forEach((n) => { n.read = true; }); paintCount(); close();
+        return;
+      }
+      const item = ev.target.closest('[data-bell-item]');
+      if (item) api('/api/notifications/read', { method: 'POST', body: { id: item.dataset.bellItem } }).catch(() => {});
+    });
+  });
+  document.addEventListener('click', close);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('.bell-panel', wrap)) { close(); btn.focus(); } });
+  try { data = await api('/api/notifications'); paintCount(); } catch (_) {}
+}
+
 async function loadMe() {
   try {
     const { user } = await api('/api/me');
     state.user = user;
   } catch (_) { state.user = null; }
   paintAuth();
+  initBell();
   return state.user;
 }
 
@@ -191,12 +240,28 @@ async function loadMeta() {
 }
 
 /* ---------------- componentes ---------------- */
+function matchPill(m) {
+  if (!m || m.score == null) return '';
+  const cls = m.score >= 70 ? '' : m.score >= 45 ? ' is-mid' : ' is-low';
+  return `<span class="match-pill${cls}" style="--pct:${Number(m.score)}" title="${esc((m.reasons || []).join(' · '))}">${Number(m.score)}% compatible</span>`;
+}
+const PERIOD_WORD = { mes: 'por mes', 'día': 'por día', hora: 'por hora' };
+/* "$ 900.000" nunca se parte entre el signo y el número */
+const nbMoney = (t) => String(t).replace(/\$ /g, '$\u00a0');
+function payHtml(j) {
+  if (j.salaryMin > 0) {
+    const label = nbMoney(String(j.salaryLabel || '').replace(/ por (mes|día|hora)$/, ''));
+    return `<span class="job-pay"><b>${esc(label)}</b><small>${esc(PERIOD_WORD[j.salaryPeriod] || '')}</small></span>`;
+  }
+  return `<span class="job-pay"><span class="is-empty">${esc(j.salaryLabel || j.salary || 'Sueldo a convenir')}</span></span>`;
+}
+
 function jobCard(j) {
   const cover = (j.companyGallery || [])[0];
   return `<a class="job-card" href="/oferta/${j.id}">
     <div class="job-cover${cover ? ' has-img' : ''}"${cover ? ` style="background-image:url('${esc(cover)}')"` : ''}>
       <span class="job-cover-shade"></span>
-      ${j.featured ? '<span class="badge badge-featured">Destacada</span>' : ''}
+      ${j.gig ? '<span class="badge badge-gig">Changa</span>' : j.featured ? '<span class="badge badge-featured">Destacada</span>' : ''}
     </div>
     <div class="job-card-body">
       ${logoHtml(j.companyName, j.companyLogo, 'logo')}
@@ -209,7 +274,7 @@ function jobCard(j) {
         <span class="badge">${esc(j.modality)}</span>
         <span class="badge">${esc(j.category)}</span>
       </div>
-      <div class="job-foot"><span class="job-salary">${esc(j.salary || 'A convenir')}</span><span>${timeAgo(j.publishedAt)}</span></div>
+      <div class="job-foot">${payHtml(j)}${matchPill(j.match) || `<span>${timeAgo(j.publishedAt)}</span>`}</div>
     </div>
   </a>`;
 }
@@ -230,8 +295,9 @@ function jobRow(j, saved = false) {
         </div>
       </div>
       <div class="side">
-        <span class="job-salary">${esc(j.salary || 'A convenir')}</span>
-        <span class="date">${timeAgo(j.publishedAt)}</span>
+        ${payHtml(j)}
+        ${matchPill(j.match)}
+        <span class="date">${j.gig ? 'Changa · ' : ''}${timeAgo(j.publishedAt)}</span>
       </div>
     </a>
     ${state.user && state.user.role === 'candidate' ? `<button class="save-btn${saved ? ' is-on' : ''}" type="button" data-save="${j.id}" title="${saved ? 'Quitar de guardadas' : 'Guardar oferta'}">${icon('heart', 18)}</button>` : ''}
@@ -254,7 +320,7 @@ function profileCompleteness(c) {
   if (!c) return 0;
   const checks = [
     !!c.name, !!c.phone, !!c.locality, !!c.headline, !!c.about,
-    (c.skills || []).length > 0, !!c.experience, !!c.education, !!c.photo, c.hasCv,
+    (c.skills || []).length > 0, !!c.experience, !!c.education, !!c.photo,
   ];
   return Math.round(checks.filter(Boolean).length / checks.length * 100);
 }
@@ -303,51 +369,98 @@ function setupCarousel(root) {
 /* HOME                                                               */
 /* ================================================================== */
 async function initHome() {
+  const root = $('main.home');
   const meta = await loadMeta();
-  const locSel = $('#home-loc');
-  if (locSel) {
-    locSel.innerHTML = `<option value="">Toda la zona</option>` +
-      meta.localities.map((l) => `<option value="${esc(l)}">${esc(l)}</option>`).join('');
+  const calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* rol: busco / contrato (se recuerda en este navegador) */
+  const setRole = (role, animate) => {
+    root.dataset.role = role;
+    $$('[data-set-role]').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.setRole === role)));
+    try { localStorage.setItem('wk_role', role); } catch (_) {}
+    if (animate && !calm) {
+      $$(`[data-for="${role}"]`, $('.vh-copy')).forEach((el) => { el.classList.remove('role-swap'); void el.offsetWidth; el.classList.add('role-swap'); });
+    }
+  };
+  let saved = '';
+  try { saved = localStorage.getItem('wk_role') || ''; } catch (_) {}
+  if (state.user && state.user.role === 'company') saved = 'employer';
+  if (state.user && state.user.role === 'candidate') saved = 'seeker';
+  setRole(saved === 'employer' ? 'employer' : 'seeker', false);
+  $$('[data-set-role]').forEach((x) => x.addEventListener('click', () => setRole(x.dataset.setRole, true)));
+
+  /* palabra rotativa */
+  if (!calm) {
+    $$('[data-rotate]').forEach((el) => {
+      const words = el.dataset.rotate.split(',');
+      let i = 0;
+      setInterval(() => {
+        if (document.hidden || el.offsetParent === null) return;
+        el.classList.remove('is-in'); el.classList.add('is-swapping');
+        setTimeout(() => {
+          i = (i + 1) % words.length; el.textContent = words[i];
+          el.classList.remove('is-swapping'); el.classList.add('is-in');
+        }, 320);
+      }, 2600);
+    });
   }
 
-  $('#categories-grid').innerHTML = meta.categories.map((c) =>
-    `<a class="cat-card" href="/buscar?category=${encodeURIComponent(c)}">
-      <span class="cat-icon">${icon(catIcon(c))}</span>
-      <span class="cat-name">${esc(c)}</span>
-      <span class="cat-arrow">${icon('arrow', 15)}</span>
-    </a>`).join('');
-
+  const locSel = $('#home-loc');
+  locSel.innerHTML = '<option value="">Todo el Valle</option>' + meta.localities.map((l) => `<option value="${esc(l)}">${esc(l)}</option>`).join('');
   $('#home-search').addEventListener('submit', (e) => {
     e.preventDefault();
     const p = new URLSearchParams();
     const qv = $('#home-q').value.trim();
     if (qv) p.set('q', qv);
-    if ($('#home-loc').value) p.set('locality', $('#home-loc').value);
+    if (locSel.value) p.set('locality', locSel.value);
     location.href = `/buscar${p.toString() ? '?' + p : ''}`;
   });
 
-  try {
-    const { jobs } = await api('/api/jobs?limit=6');
-    const grid = $('#featured-jobs');
-    if (grid) {
-      grid.innerHTML = jobs.length ? jobs.map(jobCard).join('')
-        : '<div class="empty" style="grid-column:1/-1"><h3>Todavía no hay ofertas publicadas</h3><p>Volvé pronto o publicá la primera búsqueda.</p></div>';
-    }
-  } catch (err) {
-    const grid = $('#featured-jobs');
-    if (grid) grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><h3>No pudimos cargar las ofertas</h3><p>${esc(err.message)}</p></div>`;
+  /* cinta de rubros (duplicada para el loop continuo) */
+  const cats = meta.categories.filter((c) => c !== 'Otros');
+  const links = cats.map((c) => `<a href="/buscar?category=${encodeURIComponent(c)}">${esc(c)}</a>`).join('');
+  $('#marquee').innerHTML = links + links.replace(/<a /g, '<a aria-hidden="true" tabindex="-1" ');
+
+  const counts = meta.counts || {};
+  const tl = $('[data-talent-line]');
+  if (tl && counts.candidates) tl.textContent = `${counts.candidates} personas del Valle ya tienen su perfil en Workuco.`;
+
+  /* pueblos: búsquedas abiertas reales por localidad */
+  $$('[data-town]').forEach(async (el) => {
+    const label = $('[data-town-count]', el);
+    try {
+      const { total } = await api(`/api/jobs?limit=3&locality=${encodeURIComponent(el.dataset.town)}`);
+      label.textContent = total === 1 ? '1 búsqueda' : `${total} búsquedas`;
+      el.setAttribute('aria-label', `${el.dataset.town}: ${total} búsquedas abiertas`);
+    } catch (_) { label.textContent = 'Ver búsquedas'; }
+  });
+
+  const fail = (el, err) => { if (el) el.innerHTML = `<div class="empty" style="grid-column:1/-1"><h3>No pudimos cargar esto</h3><p>${esc(err.message)}</p></div>`; };
+
+  if (state.user && state.user.role === 'candidate') {
+    api('/api/candidate/recommended').then(({ jobs }) => {
+      if (!jobs.length) return;
+      $('#rec-jobs').innerHTML = jobs.slice(0, 3).map(jobCard).join('');
+      $('#recomendadas').hidden = false;
+    }).catch(() => {});
   }
 
-  try {
-    const { companies } = await api('/api/companies');
-    const strip = $('#companies-strip');
-    if (strip) {
-      strip.innerHTML = companies.slice(0, 8).map((c) => `<a class="company-pill" href="/empresa/${c.id}">
-        ${logoHtml(c.name, c.logo, 'logo-sm')}
-        <span><strong>${esc(c.name)}</strong><small>${esc(c.locality || 'Valle de Uco')} · ${c.jobs} ${c.jobs === 1 ? 'búsqueda' : 'búsquedas'}</small></span>
-      </a>`).join('') || '<p class="muted">Las empresas del Valle van a aparecer acá.</p>';
-    }
-  } catch (_) {}
+  api('/api/jobs?limit=6&gig=0').then(({ jobs }) => {
+    $('#featured-jobs').innerHTML = jobs.length ? jobs.map(jobCard).join('')
+      : '<div class="empty" style="grid-column:1/-1"><h3>Todavía no hay ofertas publicadas</h3><p>Volvé pronto o publicá la primera búsqueda.</p></div>';
+  }).catch((err) => fail($('#featured-jobs'), err));
+
+  api('/api/jobs?limit=3&gig=1').then(({ jobs }) => {
+    if (!jobs.length) { $('#changas').hidden = true; return; }
+    $('#home-gigs').innerHTML = jobs.map(gigCard).join('');
+  }).catch((err) => fail($('#home-gigs'), err));
+
+  api('/api/companies').then(({ companies }) => {
+    $('#companies-strip').innerHTML = companies.slice(0, 8).map((c) => `<a class="company-pill" href="/empresa/${c.id}">
+      ${logoHtml(c.name, c.logo, 'logo-sm')}
+      <span><strong>${esc(c.name)}</strong><small>${esc(c.locality || 'Valle de Uco')} · ${c.jobs} ${c.jobs === 1 ? 'búsqueda' : 'búsquedas'}${c.response ? ` · responde el ${c.response.rate}%` : ''}</small></span>
+    </a>`).join('') || '<p class="muted">Las empresas del Valle van a aparecer acá.</p>';
+  }).catch(() => {});
 }
 
 function catIcon(c) {
@@ -366,8 +479,15 @@ async function initSearch() {
     category: params.get('category') || '',
     type: params.get('type') || '',
     modality: params.get('modality') || '',
-    sort: params.get('sort') === 'old' ? 'old' : 'recent',
+    sort: ['old', 'salary', 'match'].includes(params.get('sort')) ? params.get('sort') : 'recent',
+    withSalary: params.get('withSalary') === '1' ? '1' : '',
+    gig: params.get('gig') === '1' ? '1' : '',
   };
+  const isCand = !!(state.user && state.user.role === 'candidate');
+  $$('[data-candidate-only]').forEach((o) => { o.hidden = !isCand; });
+  if (f.sort === 'match' && !isCand) f.sort = 'recent';
+  $('#save-alert').hidden = !isCand;
+  $('#alert-login').hidden = isCand || !!state.user;
   $('#f-q').value = f.q;
   $('#f-sort').value = f.sort;
 
@@ -381,6 +501,8 @@ async function initSearch() {
       meta.modalities.map((m) => chip('modality', m, m, f.modality === m)).join('');
     $('#chips-type').innerHTML = chip('type', '', 'Todos', !f.type) +
       meta.types.map((t) => chip('type', t, t, f.type === t)).join('');
+    $('#chips-extra').innerHTML = chip('withSalary', f.withSalary ? '' : '1', 'Con sueldo publicado', !!f.withSalary) +
+      chip('gig', f.gig ? '' : '1', 'Solo changas', !!f.gig);
     $$('[data-filter]').forEach((b) => b.addEventListener('click', () => {
       f[b.dataset.filter] = b.dataset.value;
       renderChips();
@@ -398,7 +520,8 @@ async function initSearch() {
       results.innerHTML = '<div class="skeleton" style="height:120px"></div><div class="skeleton" style="height:120px;margin-top:12px"></div>';
     }
     const p = new URLSearchParams();
-    for (const [k, v] of Object.entries({ q: f.q, locality: f.locality, category: f.category, type: f.type, modality: f.modality, sort: f.sort })) if (v) p.set(k, v);
+    for (const [k, v] of Object.entries({ q: f.q, locality: f.locality, category: f.category, type: f.type, modality: f.modality, withSalary: f.withSalary, gig: f.gig })) if (v) p.set(k, v);
+    if (f.sort !== 'recent') p.set('sort', f.sort);
     p.set('page', String(page)); p.set('limit', '8');
     try {
       const data = await api(`/api/jobs?${p}`);
@@ -435,17 +558,57 @@ async function initSearch() {
   $('#f-q').addEventListener('search', () => { f.q = $('#f-q').value.trim(); load(true); });
   $('#f-sort').addEventListener('change', () => { f.sort = $('#f-sort').value; load(true); });
   $('#clear-filters')?.addEventListener('click', () => {
-    Object.assign(f, { q: '', locality: '', category: '', type: '', modality: '', sort: 'recent' });
+    Object.assign(f, { q: '', locality: '', category: '', type: '', modality: '', sort: 'recent', withSalary: '', gig: '' });
     $('#f-q').value = ''; $('#f-sort').value = 'recent';
     renderChips(); load(true);
   });
   $('#load-more')?.addEventListener('click', () => { page += 1; load(false); });
+  $('#save-alert')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    try {
+      const { alert } = await api('/api/candidate/alerts', { method: 'POST', body: { q: f.q, locality: f.locality, category: f.category, type: f.type, modality: f.modality, gig: !!f.gig } });
+      toast(`Alerta creada: ${alert.label}. Te avisamos en la campanita.`, 'ok');
+      btn.disabled = true;
+    } catch (err) { toast(err.message, 'err'); }
+  });
   await load(true);
 }
 
 /* ================================================================== */
 /* DETALLE DE OFERTA                                                  */
 /* ================================================================== */
+/* sueldo grande arriba del botón de postulación */
+function detailPayHtml(job) {
+  if (job.salaryMin > 0) {
+    const label = nbMoney(String(job.salaryLabel || '').replace(/ por (mes|día|hora)$/, ''));
+    return `<div class="detail-pay"><b>${esc(label)}</b><span>${esc(PERIOD_WORD[job.salaryPeriod] || '')}${job.gig ? ' · changa' : ''}</span></div>`;
+  }
+  return job.salaryLabel || job.salary ? `<div class="detail-pay is-text"><span>Remuneración</span><b>${esc(job.salaryLabel || job.salary)}</b></div>` : '';
+}
+
+/* compatibilidad explicada (sólo personas logueadas) */
+function matchBoxHtml(job) {
+  const u = state.user;
+  if (!u) return '<p class="match-box is-guest"><a href="/acceder?rol=empleado">Ingresá</a> para ver qué tan compatible sos con este puesto.</p>';
+  if (u.role !== 'candidate') return '';
+  const m = job.match;
+  if (!m) return '<p class="match-box is-guest">Completá tus habilidades y tu localidad en <a href="/mi-perfil">tu perfil</a> para ver qué tan compatible sos.</p>';
+  return `<div class="match-box">
+    <div class="match-box-head">${matchPill(m)}</div>
+    ${m.reasons.length ? `<ul class="match-why">${m.reasons.map((r) => `<li>${icon('check', 14)}<span>${esc(r)}</span></li>`).join('')}</ul>` : ''}
+    ${m.missing.length ? `<p class="match-missing">Te faltaría: ${m.missing.map((x) => `<span>${esc(x)}</span>`).join('')}</p>` : ''}
+  </div>`;
+}
+
+/* qué tan rápido responde la empresa */
+function responseHtml(r) {
+  if (!r) return '';
+  const slow = r.rate < 50 || r.days > 7;
+  if (!r.rate) return '<p class="response-line"><span class="response-badge is-slow">Todavía no respondió postulaciones</span></p>';
+  const days = r.days <= 1 ? 'en 1 día' : `en ${r.days} días`;
+  return `<p class="response-line"><span class="response-badge${slow ? ' is-slow' : ''}">Responde el ${r.rate}%</span> <span class="muted">Suele responder ${days}</span></p>`;
+}
+
 async function initJob() {
   const id = location.pathname.split('/').pop();
   const view = $('#job-view');
@@ -475,7 +638,7 @@ async function initJob() {
             ${logoHtml(job.companyName, job.companyLogo, 'logo-xl')}
             <div class="detail-head-info">
               <div class="job-meta">
-                ${job.featured ? '<span class="badge badge-featured">Destacada</span>' : ''}
+                ${job.gig ? '<span class="badge badge-gig">Changa</span>' : job.featured ? '<span class="badge badge-featured">Destacada</span>' : ''}
                 <span class="badge badge-green">${esc(job.category)}</span>
                 <span class="badge">${esc(job.locality)}</span>
                 <span class="badge">${esc(job.modality)}</span>
@@ -506,6 +669,7 @@ async function initJob() {
 
       <aside class="detail-aside">
         <div class="aside-card apply-card">
+          ${detailPayHtml(job)}
           ${!canApply
             ? '<div class="alert alert-info">Esta búsqueda ya cerró. Podés ver otras ofertas disponibles.</div><a class="btn btn-outline btn-block" href="/buscar" style="margin-top:12px">Ver otras ofertas</a>'
             : applied
@@ -514,6 +678,8 @@ async function initJob() {
               : `<button class="btn btn-primary btn-block btn-lg" type="button" id="open-apply">Postularme ${icon('arrow', 17)}</button>
                  <p class="aside-note">Postulación directa a la empresa.<br>Sin intermediarios.</p>
                  ${state.user && state.user.role === 'candidate' ? `<p class="profile-hint">Perfil completo al <strong>${profileCompleteness(state.user.candidate)}%</strong></p>` : ''}`}
+          ${matchBoxHtml(job)}
+          ${responseHtml(job.companyResponse)}
           <div class="aside-actions">
             ${state.user && state.user.role === 'candidate' ? `<button class="btn btn-ghost btn-sm${saved ? ' is-on' : ''}" type="button" id="save-job">${icon('heart', 16)} ${saved ? 'Guardada' : 'Guardar'}</button>` : ''}
             <button class="btn btn-ghost btn-sm" type="button" id="share-job">${icon('external', 16)} Compartir</button>
@@ -526,12 +692,13 @@ async function initJob() {
           <div class="kv"><span>Modalidad</span><span>${esc(job.modality)}</span></div>
           <div class="kv"><span>Jornada</span><span>${esc(job.schedule || 'A convenir')}</span></div>
           <div class="kv"><span>Experiencia</span><span>${esc(job.experience || 'No excluyente')}</span></div>
-          <div class="kv"><span>Remuneración</span><span>${esc(job.salary || 'A convenir')}</span></div>
+          <div class="kv"><span>Remuneración</span><span>${esc(job.salaryLabel || job.salary || 'A convenir')}</span></div>
+          ${job.gig ? `<div class="kv"><span>Empieza</span><span>${esc(fmtDay(job.startDate) || 'A coordinar')}</span></div><div class="kv"><span>Duración</span><span>${esc(job.duration || 'A coordinar')}</span></div>` : ''}
           ${job.positions > 1 ? `<div class="kv"><span>Puestos</span><span>${job.positions}</span></div>` : ''}
           <div class="kv"><span>Publicada</span><span>${fmtDate(job.publishedAt)}</span></div>
           ${job.closesAt ? `<div class="kv"><span>Cierra</span><span>${fmtDate(job.closesAt + 'T12:00:00')}</span></div>` : ''}
         </div>
-        ${job.companyDescription ? `<div class="aside-card"><h3>Sobre la empresa</h3><p class="soft-text">${esc(job.companyDescription)}</p><a class="link-arrow" href="/empresa/${job.companyId}">Ver perfil de la empresa →</a></div>` : ''}
+        ${job.companyDescription ? `<div class="aside-card"><h3>Sobre la empresa</h3><p class="soft-text">${esc(job.companyDescription)}</p><a class="link-arrow" href="/empresa/${job.companyId}">Ver perfil de la empresa ${icon('arrow', 15)}</a></div>` : ''}
       </aside>
     </div>`;
 
@@ -701,6 +868,13 @@ async function initPublish() {
     salary: editing ? (editing.salary || '') : '',
     benefits: editing ? (editing.benefits || []) : [],
     closesAt: editing ? (editing.closesAt || '') : '',
+    salaryMin: editing ? (editing.salaryMin || 0) : 0,
+    salaryMax: editing ? (editing.salaryMax || 0) : 0,
+    salaryPeriod: editing ? (editing.salaryPeriod || 'mes') : 'mes',
+    skills: editing ? [...(editing.skills || [])] : [],
+    gig: editing ? !!editing.gig : false,
+    startDate: editing ? (editing.startDate || '') : '',
+    duration: editing ? (editing.duration || '') : '',
     contactEmail: editing ? (editing.contactEmail || user.company.email) : user.company.email,
     contactPhone: editing ? (editing.contactPhone || '') : (user.company.phone || ''),
   };
@@ -713,6 +887,71 @@ async function initPublish() {
   $('#j-contact-email').value = s.contactEmail;
   $('#j-contact-phone').value = s.contactPhone;
   $('#j-positions').textContent = String(s.positions);
+
+  /* --- v3: changa, sueldo estructurado, habilidades y plantillas del Valle --- */
+  const readMoney = (sel) => Math.max(0, Number(String($(sel).value).replace(/\D/g, '')) || 0);
+  const wizardPay = () => {
+    const min = readMoney('#j-salary-min'); const max = readMoney('#j-salary-max'); const period = $('#j-salary-period').value;
+    const money = (n) => `$ ${n.toLocaleString('es-AR')}`;
+    const lo = min || max;
+    return {
+      salaryMin: lo, salaryMax: max, salaryPeriod: period,
+      salaryLabel: lo ? `${max > lo ? `${money(lo)} a ${money(max)}` : money(lo)} por ${period}` : ($('#j-salary').value.trim() || 'Sueldo a convenir'),
+    };
+  };
+  $('#j-gig').checked = s.gig;
+  $('#j-start').value = s.startDate;
+  $('#j-duration').value = s.duration;
+  $('#gig-fields').hidden = !s.gig;
+  $('#j-gig').addEventListener('change', () => { $('#gig-fields').hidden = !$('#j-gig').checked; });
+  $('#j-salary-min').value = s.salaryMin || '';
+  $('#j-salary-max').value = s.salaryMax || '';
+  $('#j-salary-period').value = s.salaryPeriod;
+  const nudge = () => { $('#salary-nudge').hidden = readMoney('#j-salary-min') > 0 || readMoney('#j-salary-max') > 0; };
+  ['#j-salary-min', '#j-salary-max'].forEach((sel) => $(sel).addEventListener('input', nudge));
+  nudge();
+
+  const renderJobSkills = () => {
+    $('#jskills-list').innerHTML = s.skills.length
+      ? s.skills.map((k, i) => `<span class="tag">${esc(k)}<button type="button" data-rm-jskill="${i}" aria-label="Quitar ${esc(k)}">${icon('x', 11)}</button></span>`).join('')
+      : '<span class="muted">Sumá las habilidades clave del puesto.</span>';
+    $$('[data-rm-jskill]').forEach((b) => b.addEventListener('click', () => { s.skills.splice(Number(b.dataset.rmJskill), 1); renderJobSkills(); }));
+  };
+  const addJobSkill = () => {
+    const v = $('#jskill-input').value.trim().slice(0, 30);
+    if (!v) return;
+    if (s.skills.length >= 8) { toast('Hasta 8 habilidades por aviso', 'err'); return; }
+    if (!s.skills.some((x) => x.toLowerCase() === v.toLowerCase())) s.skills.push(v);
+    $('#jskill-input').value = '';
+    renderJobSkills();
+  };
+  $('#jskill-add').addEventListener('click', addJobSkill);
+  $('#jskill-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addJobSkill(); } });
+  renderJobSkills();
+
+  const splitLines = (t) => String(t || '').split('\n').map((x) => x.replace(/^[•\-*]\s*/, '').trim()).filter(Boolean);
+  $('#tpl-strip').innerHTML = (meta.templates || []).map((t) =>
+    `<button type="button" class="tpl-card${t.gig ? ' is-gig' : ''}" data-tpl="${esc(t.id)}"><strong>${esc(t.label)}</strong><small>${esc(t.category)} · ${esc(t.type)}</small></button>`).join('');
+  $$('[data-tpl]').forEach((b) => b.addEventListener('click', () => {
+    const t = (meta.templates || []).find((x) => x.id === b.dataset.tpl);
+    if (!t) return;
+    const hasText = $('#j-description').value.trim().length > 0;
+    if (hasText && !confirm('La plantilla reemplaza la descripción, tareas y requisitos que escribiste. ¿Seguimos?')) return;
+    s.title = t.title; $('#j-title').value = t.title;
+    s.category = t.category; s.type = t.type;
+    s.description = t.description; $('#j-description').value = t.description;
+    s.responsibilities.splice(0, s.responsibilities.length, ...splitLines(t.responsibilities));
+    s.requirements.splice(0, s.requirements.length, ...splitLines(t.requirements));
+    s.skills = [...t.skills].slice(0, 8);
+    s.benefits = [...t.benefits];
+    $('#j-gig').checked = !!t.gig; $('#gig-fields').hidden = !t.gig;
+    if (t.gig) $('#j-salary-period').value = 'día';
+    $$('[data-tpl]').forEach((x) => x.classList.toggle('is-active', x === b));
+    renderJobSkills();
+    renderResp(); renderReq();
+    rerender();
+    toast(`Plantilla "${t.label}" aplicada: ajustala a tu gusto.`, 'ok');
+  }));
 
   /* --- render de opciones visuales --- */
   $('#cat-tiles').innerHTML = meta.categories.map((c) =>
@@ -730,8 +969,6 @@ async function initPublish() {
     .map((x) => `<button type="button" class="filter-chip${s.experience === x ? ' is-active' : ''}" data-exp="${esc(x)}">${esc(x)}</button>`).join('');
   $('#sched-chips').innerHTML = ['Lunes a viernes 8 a 17 h', 'Lunes a sábado', 'Turnos rotativos', 'Medio tiempo', 'Fines de semana', 'Horario flexible']
     .map((x) => `<button type="button" class="filter-chip${s.schedule === x ? ' is-active' : ''}" data-sched="${esc(x)}">${esc(x)}</button>`).join('');
-  $('#salary-chips').innerHTML = ['A convenir', '$ 500.000', '$ 800.000', '$ 1.000.000', 'Según experiencia']
-    .map((x) => `<button type="button" class="filter-chip" data-salary="${esc(x)}">${esc(x)}</button>`).join('');
   $('#benefit-chips').innerHTML = meta.benefits.map((b) =>
     `<button type="button" class="filter-chip${s.benefits.includes(b) ? ' is-active' : ''}" data-benefit="${esc(b)}">${icon('plus', 13)} ${esc(b)}</button>`).join('');
 
@@ -857,6 +1094,19 @@ async function initPublish() {
         return false;
       }
     }
+    if (s.step === 1 && $('#j-gig').checked && !$('#j-start').value) {
+      showAlert($('#publish-alert'), 'Contá cuándo empieza la changa: es lo primero que mira quien busca.', 'error');
+      $('#j-start').focus();
+      return false;
+    }
+    if (s.step === 3) {
+      const min = readMoney('#j-salary-min'); const max = readMoney('#j-salary-max');
+      if (max && min && max < min) {
+        showAlert($('#publish-alert'), 'El sueldo "hasta" no puede ser menor que el "desde".', 'error');
+        $('#j-salary-max').focus();
+        return false;
+      }
+    }
     if (s.step === 2) {
       s.description = $('#j-description').value.trim();
       if (s.description.length < 60) {
@@ -893,7 +1143,8 @@ async function initPublish() {
         <div><div class="job-title">${esc(s.title)}</div><div class="job-company">${esc(user.company.name)} ${user.company.verified ? `<span class="verified">${checkIcon}</span>` : ''}</div></div>
         <div class="job-meta"><span class="badge">${esc(s.locality)}</span><span class="badge">${esc(s.modality)}</span><span class="badge">${esc(s.category)}</span></div>
         <p class="preview-desc">${esc(s.description).slice(0, 240)}${s.description.length > 240 ? '…' : ''}</p>
-        <div class="job-foot"><span class="job-salary">${esc(s.salary || 'A convenir')}</span><span>${s.positions > 1 ? `${s.positions} puestos` : '1 puesto'}</span></div>
+        <div class="job-foot">${payHtml(wizardPay())}<span>${$('#j-gig').checked ? 'Changa · ' : ''}${s.positions > 1 ? `${s.positions} puestos` : '1 puesto'}</span></div>
+        ${s.skills.length ? `<div class="chips">${s.skills.map((k) => `<span class="badge">${esc(k)}</span>`).join('')}</div>` : ''}
       </div>
     </div>`;
   }
@@ -910,6 +1161,9 @@ async function initPublish() {
       salary: $('#j-salary').value.trim(), contactEmail: s.contactEmail,
       contactPhone: s.contactPhone, closesAt: $('#j-closes').value,
       benefits: s.benefits, positions: s.positions,
+      salaryMin: readMoney('#j-salary-min'), salaryMax: readMoney('#j-salary-max'), salaryPeriod: $('#j-salary-period').value,
+      skills: s.skills, gig: $('#j-gig').checked,
+      startDate: $('#j-gig').checked ? $('#j-start').value : '', duration: $('#j-gig').checked ? $('#j-duration').value.trim() : '',
     };
     btn.disabled = true; btn.textContent = 'Guardando…';
     try {
@@ -1162,12 +1416,159 @@ function initInfo() {
 }
 
 /* ================================================================== */
+/* CHANGAS                                                            */
+/* ================================================================== */
+const fmtDay = (iso) => {
+  if (!iso) return '';
+  const d = new Date(`${iso}T12:00:00`);
+  return d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' });
+};
+const daysUntil = (iso) => (iso ? Math.round((new Date(`${iso}T12:00:00`) - Date.now()) / 86400000) : null);
+
+function gigCard(j) {
+  const n = daysUntil(j.startDate);
+  const when = n == null ? '' : n <= 0 ? 'Empieza ya' : n === 1 ? 'Empieza mañana' : `Empieza en ${n} días`;
+  return `<a class="gig-card" href="/oferta/${j.id}">
+    <div class="gig-top">
+      <span class="gig-when">${esc(when)}</span>
+      ${j.positions > 1 ? `<span class="gig-spots">${j.positions} cupos</span>` : ''}
+    </div>
+    <div class="gig-pay">${esc(j.salaryLabel || 'Pago a convenir')}</div>
+    <h3 class="gig-title">${esc(j.title)}</h3>
+    <div class="gig-company">${esc(j.companyName)} · ${esc(j.locality)}</div>
+    <dl class="gig-facts">
+      <div><dt>Inicio</dt><dd>${esc(fmtDay(j.startDate) || 'A coordinar')}</dd></div>
+      <div><dt>Duración</dt><dd>${esc(j.duration || 'A coordinar')}</dd></div>
+    </dl>
+    <span class="gig-cta">Postularme ${icon('arrow', 16)}</span>
+  </a>`;
+}
+
+async function initGigs() {
+  const list = $('#gig-list');
+  let loc = '';
+  const load = async () => {
+    try {
+      const qs = new URLSearchParams({ gig: '1', limit: '30' });
+      if (loc) qs.set('locality', loc);
+      const { jobs, total } = await api(`/api/jobs?${qs}`);
+      jobs.sort((a, b) => String(a.startDate || '9').localeCompare(String(b.startDate || '9')));
+      $('[data-gig-count]').textContent = total === 1 ? '1 changa abierta' : `${total} changas abiertas`;
+      list.innerHTML = jobs.length ? jobs.map(gigCard).join('')
+        : `<div class="empty" style="grid-column:1/-1"><h3>No hay changas abiertas${loc ? ` en ${esc(loc)}` : ''}</h3><p>Activá una alerta y te avisamos apenas se publique una.</p></div>`;
+    } catch (err) {
+      list.innerHTML = `<div class="empty" style="grid-column:1/-1"><h3>No pudimos cargar las changas</h3><p>${esc(err.message)}</p></div>`;
+    }
+  };
+  $$('[data-gig-loc]').forEach((b) => b.addEventListener('click', () => {
+    $$('[data-gig-loc]').forEach((x) => x.classList.toggle('is-on', x === b));
+    loc = b.dataset.gigLoc;
+    load();
+  }));
+  const alertBtn = $('[data-gig-alert]');
+  if (alertBtn && state.user && state.user.role === 'candidate') {
+    alertBtn.hidden = false;
+    alertBtn.addEventListener('click', async () => {
+      try {
+        await api('/api/candidate/alerts', { method: 'POST', body: { gig: true, locality: loc } });
+        toast('Listo: te avisamos cuando haya changas nuevas', 'ok');
+        alertBtn.disabled = true;
+      } catch (err) { toast(err.message, 'err'); }
+    });
+  }
+  await load();
+}
+
+/* ================================================================== */
+/* CV WORKUCO                                                         */
+/* ================================================================== */
+async function initCv() {
+  const root = $('#cv-root');
+  const id = location.pathname.split('/').pop();
+  $('[data-print]').addEventListener('click', () => window.print());
+  let c;
+  try {
+    ({ candidate: c } = await api(`/api/cv-data/${encodeURIComponent(id)}`));
+  } catch (err) {
+    root.innerHTML = `<div class="empty"><h3>${err.status === 401 ? 'Iniciá sesión para ver este CV' : 'No podés ver este CV'}</h3>
+      <p>Solo lo ven la persona, las empresas a las que se postuló y la administración.</p>
+      ${err.status === 401 ? '<a class="btn btn-primary" href="/acceder">Ingresar</a>' : ''}</div>`;
+    return;
+  }
+  document.title = `CV de ${c.name} · Workuco`;
+  const block = (title, text) => (text ? `<section><h2>${esc(title)}</h2><p>${esc(text)}</p></section>` : '');
+  root.innerHTML = `<article class="cv-sheet">
+    <aside class="cv-side">
+      ${c.photo ? `<img class="cv-photo" src="${esc(c.photo)}" alt="">` : `<span class="cv-photo cv-photo-fallback">${esc(initials(c.name))}</span>`}
+      <div><h3>Contacto</h3><ul>
+        ${c.phone ? `<li>${esc(c.phone)}</li>` : ''}
+        ${c.email ? `<li>${esc(c.email)}</li>` : ''}
+        ${c.locality ? `<li>${esc(c.locality)}, Mendoza</li>` : ''}
+        ${c.linkedin ? `<li>${esc(c.linkedin.replace(/^https?:\/\/(www\.)?/, ''))}</li>` : ''}
+      </ul></div>
+      ${(c.skills || []).length ? `<div><h3>Habilidades</h3>${c.skills.map((s) => `<span class="cv-skill">${esc(s)}</span>`).join('')}</div>` : ''}
+      ${c.availability ? `<div><h3>Disponibilidad</h3><p>${esc(c.availability)}</p></div>` : ''}
+    </aside>
+    <div class="cv-main">
+      <header><h1 class="cv-name">${esc(c.name)}</h1>${c.headline ? `<div class="cv-headline">${esc(c.headline)}</div>` : ''}</header>
+      ${block('Sobre mí', c.about)}
+      ${block('Experiencia', c.experience)}
+      ${block('Formación', c.education)}
+      <div class="cv-foot">CV generado con Workuco · el portal de empleo del Valle de Uco</div>
+    </div>
+  </article>`;
+}
+
+/* ================================================================== */
+/* PERFIL PÚBLICO                                                     */
+/* ================================================================== */
+async function initPublicProfile() {
+  const root = $('#public-root');
+  const slug = location.pathname.split('/').pop();
+  let p;
+  try {
+    ({ person: p } = await api(`/api/public/${encodeURIComponent(slug)}`));
+  } catch (_) {
+    root.innerHTML = `<div class="container section"><div class="empty"><h3>Este perfil no es público</h3>
+      <p>La persona puede haberlo ocultado. Igual podés buscar empleo o talento en Workuco.</p>
+      <a class="btn btn-primary" href="/">Ir al inicio</a></div></div>`;
+    return;
+  }
+  document.title = `${p.name} · Workuco`;
+  const block = (title, text) => (text ? `<section class="pp-block"><h2>${esc(title)}</h2><p>${esc(text)}</p></section>` : '');
+  root.innerHTML = `<section class="band-night pp-hero">
+    <div class="container pp-hero-inner">
+      ${p.photo ? `<img class="pp-photo" src="${esc(p.photo)}" alt="">` : `<span class="pp-photo avatar-fallback">${esc(initials(p.name))}</span>`}
+      <div>
+        <h1 class="display-sm">${esc(p.name)}</h1>
+        ${p.headline ? `<p class="pp-headline">${esc(p.headline)}</p>` : ''}
+        ${p.locality ? `<p class="pp-loc">${icon('pin', 16)} ${esc(p.locality)}, Valle de Uco</p>` : ''}
+        ${p.openToWork ? '<span class="status-pill">Disponible para trabajar</span>' : ''}
+      </div>
+    </div>
+  </section>
+  <section class="section"><div class="container pp-grid">
+    <div class="pp-main">
+      ${block('Sobre mí', p.about)}
+      ${block('Experiencia', p.experience)}
+      ${block('Formación', p.education)}
+    </div>
+    <aside class="pp-side card">
+      ${(p.skills || []).length ? `<h3>Habilidades</h3><div class="chips">${p.skills.map((s) => `<span class="chip">${esc(s)}</span>`).join('')}</div>` : ''}
+      ${p.availability ? `<h3>Disponibilidad</h3><p>${esc(p.availability)}</p>` : ''}
+      <p class="muted">¿Tenés una empresa en el Valle? Invitá a ${esc(p.name.split(' ')[0])} desde la base de talento de tu panel.</p>
+      <a class="btn btn-primary btn-block" href="/panel#talento">Ir a mi panel</a>
+    </aside>
+  </div></section>`;
+}
+
+/* ================================================================== */
 /* ARRANQUE                                                           */
 /* ================================================================== */
 window.WK = {
   $, $$, api, esc, toast, showAlert, hideAlert, setFieldErrors, icon, logoHtml, avatarHtml,
   state, loadMe, loadMeta, fmtDate, timeAgo, initials, stageBadge, STAGE_LABEL, statusBadge,
-  jobCard, jobRow, profileCompleteness, setupCarousel, fileToBase64, ready: null,
+  jobCard, jobRow, gigCard, matchPill, payHtml, responseHtml, profileCompleteness, setupCarousel, fileToBase64, ready: null,
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -1189,6 +1590,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       case 'companies': await initCompanies(); break;
       case 'company': await initCompanyPage(); break;
       case 'info': initInfo(); break;
+      case 'gigs': await initGigs(); break;
+      case 'cv': await initCv(); break;
+      case 'public-profile': await initPublicProfile(); break;
       default: break;
     }
   } catch (err) {

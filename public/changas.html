@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{TITLE}}</title>
+  <meta name="description" content="Changas y trabajos por temporada en el Valle de Uco: cosecha, poda, eventos y obra, con pago por día.">
+  <meta name="theme-color" content="#0b1612">
+  <link rel="icon" href="/favicon.png" type="image/png" sizes="64x64">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body data-page="gigs">
+{{NAV}}
+<main>
+  <section class="band-night gigs-hero">
+    <div class="container">
+
+      <h1 class="display">Trabajá esta semana.<br><span class="lime">Cobrá por jornada.</span></h1>
+      <p class="hero-sub">Cosecha, poda, eventos y obra en el Valle de Uco. Fecha de inicio, duración y pago claros desde el principio.</p>
+      <div class="gig-filters" role="group" aria-label="Filtrar por localidad">
+        <button class="chip-filter is-on" type="button" data-gig-loc="">Toda la zona</button>
+        <button class="chip-filter" type="button" data-gig-loc="San Carlos">San Carlos</button>
+        <button class="chip-filter" type="button" data-gig-loc="Tunuyán">Tunuyán</button>
+        <button class="chip-filter" type="button" data-gig-loc="Tupungato">Tupungato</button>
+      </div>
+    </div>
+  </section>
+  <section class="section">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <h2 data-gig-count>Changas abiertas</h2>
+          <p class="soft-text">Ordenadas por fecha de inicio: las que empiezan antes, primero.</p>
+        </div>
+        <button class="btn btn-outline btn-sm" type="button" data-gig-alert hidden>Avisarme de nuevas changas</button>
+      </div>
+      <div class="gig-grid" id="gig-list">
+        <div class="skeleton" style="height:220px"></div>
+        <div class="skeleton" style="height:220px"></div>
+        <div class="skeleton" style="height:220px"></div>
+      </div>
+    </div>
+  </section>
+</main>
+{{FOOTER}}
+<script src="/app.js"></script>
+</body>
+</html>

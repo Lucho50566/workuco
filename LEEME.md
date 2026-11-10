@@ -5,7 +5,10 @@ Aplicación real y funcional: sin dependencias, sin build, con base de datos pro
 
 - **Stack**: Node.js 24 (`node:sqlite`) + frontend vanilla (HTML/CSS/JS).
 - **Puerto**: 4250.
-- **Diseño**: minimalista, blanco/gris/negro + verde `#0a8263`, responsive (mobile primero).
+- **Diseño** (v3, "el Valle de noche"): bandas verde noche `#0b1612`, base crema `#f5f1e6`, lima `#c8f560`
+  para la acción, malbec `#7a1f4d` para changas, verde de marca `#0a8263`. Títulos en Bricolage Grotesque,
+  texto en Inter. La home es el Valle de noche: cordillera en capas con San Carlos, Tunuyán y Tupungato
+  marcados con sus búsquedas abiertas reales. Responsive (mobile primero) y respeta `prefers-reduced-motion`.
 - **Dos lados**: quien busca trabajo (**empleado**) y quien contrata (**empleador**), cada uno
   con su propio recorrido y su propio panel.
 
@@ -28,15 +31,23 @@ Abre `http://localhost:4250`. Desde el celular en la misma WiFi: `http://IP-DE-L
 Cualquier empresa demo sirve para probar el panel: `finca@`, `cafe@`, `posada@`, `obras@`,
 `estudio@`, `tienda@demo.workuco` (misma contraseña). Son empresas y personas **ficticias**.
 
-Con `WORKUCO_DEMO=1` la base se siembra sola si está vacía: 14 ofertas (12 aprobadas y 2
-pendientes), 7 empresas con fotos, 8 personas y postulaciones repartidas en todas las etapas.
+Con `WORKUCO_DEMO=1` la base se siembra sola si está vacía: 18 ofertas (16 aprobadas, de las cuales 4
+son changas, y 2 pendientes) con sueldo y habilidades, 7 empresas con fotos, 8 personas (7 disponibles
+para la base de talento, 3 con perfil público), postulaciones en todas las etapas, invitaciones y avisos.
+
+> Si ya tenías una base local de v2, la migración agrega las columnas y tablas nuevas sin borrar nada,
+> pero los datos demo viejos no tienen changas ni sueldos estructurados. Para ver la demo v3 completa,
+> arrancá con una carpeta de datos vacía (`WORKUCO_DATA=otra-carpeta`) o borrá `data/` a mano.
 
 ## Páginas
 
 | Ruta | Qué hace |
 |---|---|
-| `/` | Home: hero con doble camino (busco / contrato), buscador, ofertas y empresas |
-| `/buscar` | Búsqueda con filtros por palabra, localidad, categoría, tipo, modalidad y orden |
+| `/` | Home: interruptor busco / contrato, buscador, mapa del Valle con búsquedas por pueblo, recomendadas, changas, empresas |
+| `/buscar` | Búsqueda con filtros por palabra, localidad, categoría, tipo, modalidad, sueldo publicado y changas; orden por fecha, sueldo o compatibilidad; botón de alerta |
+| `/changas` | Trabajos por día o temporada: pago por jornada, inicio, duración y cupos |
+| `/cv/:id` | CV Workuco imprimible (A4) armado desde el perfil; "Descargar PDF" con la impresión del navegador |
+| `/p/:slug` | Perfil público opcional de la persona, sin teléfono ni mail |
 | `/oferta/:id` | Detalle con carrusel de fotos de la empresa, resumen, beneficios y postulación |
 | `/empresas` | Directorio de empresas del Valle |
 | `/empresa/:id` | Ficha pública: carrusel, descripción, datos y búsquedas abiertas |
@@ -48,6 +59,31 @@ pendientes), 7 empresas con fotos, 8 personas y postulaciones repartidas en toda
 | `/acerca`, `/contacto`, `/faq`, `/terminos`, `/privacidad` | Páginas institucionales |
 
 ## Funcionalidades
+
+### Nuevo en v3
+
+**Quien busca trabajo**
+- **Compatibilidad** con cada oferta (0 a 100) y el porqué: habilidades, localidad, rubro, disponibilidad y
+  sueldo. Cálculo propio (`lib/match.js`), sin IA. Ordená por "Más compatibles conmigo".
+- **Recomendadas para vos** en la home y en *Mi perfil → Para vos*.
+- **Alertas de búsqueda** (hasta 10): cuando se aprueba una oferta que coincide, llega una notificación.
+- **Campanita** de notificaciones: cambios de etapa (incluido el descarte), invitaciones y alertas.
+- **"Estoy disponible"**, rubros de interés y sueldo pretendido: te suman a la base de talento.
+- **CV Workuco** automático e imprimible, y **perfil público** con botón para compartir por WhatsApp.
+- **Sueldo estructurado** (desde/hasta, por mes/día/hora): filtro "con sueldo publicado" y orden por sueldo.
+- **Changas**: sección propia con inicio, duración, cupos y pago por jornada.
+
+**Empresas**
+- **Base de talento** (*Panel → Talento*): gente disponible del Valle, ordenada por compatibilidad con tu
+  búsqueda, sin datos de contacto. **Invitá a postularse** (20 invitaciones por día).
+- **8 plantillas del Valle** en el wizard: cosecha, bodega, mozo, cocina, ventas, administración, obra, turismo.
+- Wizard con **changa** (inicio y duración), **habilidades buscadas** y **sueldo estructurado**.
+- Ficha del postulante con **compatibilidad**, **CV Workuco** y **mensajes rápidos de WhatsApp** (citar a
+  entrevista, pedir datos, avisar que no sigue).
+- **Insignia de respuesta**: qué % de postulaciones responde la empresa y en cuántos días (desde 3
+  postulaciones). La ven las personas en la oferta y en la ficha de la empresa.
+
+### Desde v2
 
 **Quien busca trabajo**
 - Perfil con **foto**, **CV en PDF**, titular, resumen, habilidades, experiencia, formación y
@@ -87,15 +123,22 @@ workuco/
   lib/demo.js        datos de demostración (empresas y personas ficticias)
   lib/ai.js          proveedores de IA (OpenAI compatible, Gemini, Anthropic)
   lib/cvtext.js      extracción de texto de CV en PDF
+  lib/match.js       compatibilidad perfil ↔ oferta (0 a 100 y motivos), función pura
+  lib/templates.js   8 plantillas de aviso por rubro del Valle
   public/
     index.html · buscar.html · oferta.html · empresas.html · empresa.html
     acceso.html · mi-perfil.html · publicar.html · panel.html · admin.html · info.html
+    changas.html · cv.html (+ cv.css) · perfil-publico.html
     app.js           lógica de las páginas públicas y del perfil
     panel.js         lógica del panel de empresa
-    styles.css       sistema visual
+    styles.css       estilos base y tokens
+    valle.css        sistema visual v3 "el Valle de noche" (se carga después de styles.css)
     demo/            fotos y logos de las empresas de ejemplo
   tools/
+    test-match.js    pruebas del motor de compatibilidad
     test-api.js      82 pruebas end-to-end de la API
+    test-v3.js       86 pruebas de las funciones v3 (sueldo, changas, match, avisos, talento, CV)
+    test-ui-v3.mjs   prueba en Chrome: publicar y editar una changa, y HTML escapado en invitaciones
     test-ai.js       pruebas del armado de prompts y parseo de respuestas
     test-ui.mjs      prueba de UI con dos navegadores
     check-layout.mjs chequeo de desbordes en 320/390/768/1366
@@ -107,19 +150,25 @@ workuco/
 
 ## API
 
-Público: `GET /api/meta`, `GET /api/jobs` (q, locality, category, type, modality, sort, page),
+Público: `GET /api/meta` (incluye conteos y plantillas), `GET /api/jobs` (q, locality, category, type,
+modality, withSalary, gig, sort=recent|old|salary|match, page),
 `GET /api/jobs/:id`, `POST /api/jobs/:id/apply`, `GET /api/companies`, `GET /api/companies/:id`,
-`GET /api/me`.
+`GET /api/me`, `GET /api/public/:slug` (perfil público, sin contacto).
+
+Personas y empresas: `GET /api/notifications`, `POST /api/notifications/read`.
 
 Persona: `GET/PATCH /api/candidate/profile`, `GET /api/candidate/applications`,
-`GET/POST /api/candidate/saved[/:jobId]`, `GET /api/photo/c/:id`, `GET /api/cv/c/:id`.
+`GET/POST /api/candidate/saved[/:jobId]`, `GET /api/photo/c/:id`, `GET /api/cv/c/:id`,
+`GET /api/candidate/recommended`, `GET/POST /api/candidate/alerts`, `DELETE /api/candidate/alerts/:id`,
+`GET /api/candidate/invitations`, `GET /api/cv-data/:id` (CV Workuco; también empresa con postulación y admin).
 
 Empresa: `POST /api/auth/register|login|logout`, `GET/POST /api/company/jobs`,
 `PUT/DELETE /api/company/jobs/:id`, `GET /api/company/applications`,
 `PATCH /api/company/applications/:id`, `GET /api/company/applications.csv`,
 `GET /api/company/cv/:id`, `PATCH /api/company/profile`, `POST/DELETE /api/company/gallery`,
 `GET/PATCH /api/company/ai`, `POST /api/company/ai/test`, `POST /api/company/ai/describe`,
-`GET /api/company/dashboard`.
+`GET /api/company/dashboard`, `GET /api/company/talent` (jobId, q, locality, category; sin contacto),
+`POST /api/company/invitations` (20 por día, configurable con `WORKUCO_INVITE_LIMIT`).
 
 Admin: `POST /api/admin/login`, `GET /api/admin/stats|jobs|applications|companies`,
 `PATCH/DELETE /api/admin/jobs/:id`, `PATCH /api/admin/companies/:id`.
@@ -134,11 +183,15 @@ Admin: `POST /api/admin/login`, `GET /api/admin/stats|jobs|applications|companie
 - CVs y fotos solo accesibles para la empresa dueña de la oferta/postulación y el administrador.
 - Validación real de PDF (firma `%PDF-`), límite de 4 MB y de 8 fotos por empresa.
 - La API key de IA se guarda por empresa, nunca se envía al navegador (solo enmascarada).
+- Base de talento y perfil público nunca exponen teléfono ni mail: el contacto llega cuando la persona se postula.
+- Todo texto de usuario nuevo (habilidades, alertas, mensajes de invitación, avisos) se escapa al mostrarse.
 
 ## Pruebas
 
 ```
+npm test                     # match + API (82) + v3 (86), cada uno con su servidor temporal
 node tools/test-api.js       # 82 pruebas (servidor temporal + datos demo)
+WK_BASE=http://localhost:4250 node tools/test-ui-v3.mjs   # con un servidor con demo fresca
 node tools/test-ai.js        # prompts y parseo de la IA
 node tools/check-layout.mjs http://localhost:4250/ 320 390 768 1366
 node tools/shots.mjs http://localhost:4250          # capturas en shots/
