@@ -1014,7 +1014,7 @@
   async function initAdmin() {
     const user = W.state.user;
     if (!user || user.role !== 'admin') { $('#admin-gate').hidden = false; }
-    else { $('#admin-gate').hidden = true; $('#admin-app').hidden = false; await adminData(); }
+    else { $('#admin-gate').hidden = true; $('#admin-app').hidden = false; await adminData(); initImport(); }
 
     $('#admin-login-form').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -1033,6 +1033,149 @@
       $$('[data-panel]').forEach((p) => { p.hidden = p.dataset.panel !== tab.dataset.tab; });
     }));
     $('#jobs-filter').addEventListener('change', () => adminJobs($('#jobs-filter').value));
+  }
+
+  /* ================================================================== */
+  /* ADMIN · IMPORTAR AVISOS                                            */
+  /* ================================================================== */
+  async function initImport() {
+    if (!$('[data-panel="import"]')) return;
+    const meta = await W.loadMeta();
+    let drafts = [];
+    let images = [];
+    const SOURCE_KEY = 'wk_import_source';
+    try { $('#imp-source').value = localStorage.getItem(SOURCE_KEY) || ''; } catch (_) {}
+    $('#imp-source').addEventListener('change', () => { try { localStorage.setItem(SOURCE_KEY, $('#imp-source').value.trim()); } catch (_) {} });
+    $('#imp-text').addEventListener('input', () => { $('#imp-count').textContent = `${$('#imp-text').value.length.toLocaleString('es-AR')} / 20.000`; });
+
+    try {
+      const cfg = await api('/api/admin/import/config');
+      $('#imp-ai-note').innerHTML = cfg.aiReady ? ''
+        : `<div class="alert alert-info">La IA del importador no está configurada: podés cargar los avisos a mano. Para leer texto e imágenes automáticamente, configurá <code>WORKUCO_IMPORT_AI_PROVIDER</code> y <code>WORKUCO_IMPORT_AI_KEY</code> en el servidor.</div>`;
+    } catch (_) {}
+
+    const renderThumbs = () => {
+      $('#imp-thumbs').innerHTML = images.map((img, i) => `<span class="imp-thumb"><img src="${esc(img.dataUrl)}" alt="Captura ${i + 1}"><button type="button" data-rm-img="${i}" aria-label="Quitar captura ${i + 1}">${icon('x', 12)}</button></span>`).join('');
+      $$('[data-rm-img]').forEach((b) => b.addEventListener('click', () => { images.splice(Number(b.dataset.rmImg), 1); renderThumbs(); }));
+    };
+    $('#imp-images').addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files || []);
+      for (const f of files) {
+        if (images.length >= 6) { toast('Hasta 6 imágenes por vez', 'err'); break; }
+        try { images.push({ dataUrl: await shrinkImage(f, 1600, 0.85) }); } catch (_) { toast(`No pudimos leer ${f.name}`, 'err'); }
+      }
+      e.target.value = '';
+      renderThumbs();
+    });
+
+    const opts = (list, val) => list.map((x) => `<option${x === val ? ' selected' : ''}>${esc(x)}</option>`).join('');
+    const empty = () => ({ title: '', companyName: '', locality: '', category: 'Otros', type: 'Tiempo completo', modality: 'Presencial', description: '', requirements: '', salaryMin: 0, salaryMax: 0, salaryPeriod: 'mes', gig: false, startDate: '', duration: '', positions: 1, contactPhone: '', contactEmail: '', skills: [], warnings: [] });
+
+    function renderDrafts() {
+      $('#imp-drafts').innerHTML = drafts.map((d, i) => `<article class="card imp-draft" data-draft="${i}">
+        <div class="imp-draft-head"><h3>Borrador ${i + 1}${d.title ? `: ${esc(d.title)}` : ''}</h3>
+          ${(d.warnings || []).map((w) => `<span class="badge badge-amber">${esc(w)}</span>`).join('')}</div>
+        <div class="form-grid">
+          <div class="field"><label>Puesto</label><input class="input" data-f="title" value="${esc(d.title)}" maxlength="120"><span class="error-text" data-error="title" hidden></span></div>
+          <div class="field"><label>Empresa</label><input class="input" data-f="companyName" value="${esc(d.companyName)}" maxlength="120"><span class="error-text" data-error="companyName" hidden></span></div>
+          <div class="field"><label>Localidad</label><select class="input" data-f="locality"><option value="">Elegí…</option>${opts(meta.localities, d.locality)}</select><span class="error-text" data-error="locality" hidden></span></div>
+          <div class="field"><label>Rubro</label><select class="input" data-f="category">${opts(meta.categories, d.category)}</select></div>
+          <div class="field"><label>Tipo</label><select class="input" data-f="type">${opts(meta.types, d.type)}</select></div>
+          <div class="field"><label>Modalidad</label><select class="input" data-f="modality">${opts(meta.modalities, d.modality)}</select></div>
+          <div class="field span-2"><label>Descripción</label><textarea class="input" data-f="description" rows="4" maxlength="8000">${esc(d.description)}</textarea><span class="error-text" data-error="description" hidden></span></div>
+          <div class="field"><label>Sueldo desde</label><input class="input" data-f="salaryMin" inputmode="numeric" value="${d.salaryMin || ''}"></div>
+          <div class="field"><label>Hasta / por</label><div class="imp-inline"><input class="input" data-f="salaryMax" inputmode="numeric" value="${d.salaryMax || ''}"><select class="input" data-f="salaryPeriod">${opts(meta.salaryPeriods || ['mes', 'día', 'hora'], d.salaryPeriod)}</select></div></div>
+          <div class="field"><label>Teléfono de contacto</label><input class="input" data-f="contactPhone" value="${esc(d.contactPhone)}" maxlength="60"></div>
+          <div class="field"><label>Email de contacto</label><input class="input" data-f="contactEmail" value="${esc(d.contactEmail)}" maxlength="160"></div>
+          <div class="field"><label class="imp-check"><input type="checkbox" data-f="gig"${d.gig ? ' checked' : ''}> Es una changa</label></div>
+          <div class="field"><label>Empieza / dura</label><div class="imp-inline"><input class="input" type="date" data-f="startDate" value="${esc(d.startDate)}"><input class="input" data-f="duration" value="${esc(d.duration)}" placeholder="3 semanas" maxlength="60"></div></div>
+        </div>
+        <div class="imp-draft-foot">
+          <button class="btn btn-ghost btn-sm" type="button" data-discard="${i}">Descartar</button>
+          <button class="btn btn-primary btn-sm" type="button" data-publish="${i}">Publicar</button>
+        </div>
+      </article>`).join('');
+      $$('[data-discard]').forEach((b) => b.addEventListener('click', () => { drafts.splice(Number(b.dataset.discard), 1); renderDrafts(); }));
+      $$('[data-publish]').forEach((b) => b.addEventListener('click', () => publish(Number(b.dataset.publish), b)));
+    }
+
+    function readDraft(i) {
+      const card = $(`[data-draft="${i}"]`);
+      const d = { ...drafts[i] };
+      $$('[data-f]', card).forEach((el) => {
+        const k = el.dataset.f;
+        d[k] = el.type === 'checkbox' ? el.checked : (['salaryMin', 'salaryMax'].includes(k) ? Number(String(el.value).replace(/\D/g, '')) || 0 : el.value.trim());
+      });
+      return d;
+    }
+
+    async function publish(i, btn, force = false) {
+      const card = $(`[data-draft="${i}"]`);
+      const draft = readDraft(i);
+      setFieldErrors(card, null);
+      btn.disabled = true;
+      try {
+        await api('/api/admin/import/publish', { method: 'POST', body: { draft, sourceName: $('#imp-source').value.trim(), sourceText: $('#imp-text').value, force } });
+        toast(`Publicado: ${draft.title}`, 'ok');
+        drafts.splice(i, 1);
+        renderDrafts();
+        loadList();
+        /* sin borradores pendientes: limpiar para no volver a leer lo mismo */
+        if (!drafts.length) { $('#imp-text').value = ''; $('#imp-count').textContent = '0 / 20.000'; images = []; renderThumbs(); }
+      } catch (err) {
+        btn.disabled = false;
+        if (err.status === 409 && /igual/.test(err.message)) {
+          if (confirm(`${err.message}. ¿Publicar igual?`)) publish(i, btn, true);
+        } else {
+          toast(err.message, 'err');
+          if (err.fields) setFieldErrors(card, err.fields);
+        }
+      }
+    }
+
+    $('#imp-read').addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      const text = $('#imp-text').value;
+      if (!text.trim() && !images.length) { toast('Pegá mensajes o subí capturas', 'err'); return; }
+      btn.disabled = true; const old = btn.innerHTML; btn.innerHTML = `${icon('sparkles', 16)} Leyendo…`;
+      try {
+        const body = { text, images: images.map((x) => ({ mime: 'image/jpeg', base64: x.dataUrl.split(',')[1] })) };
+        const r = await api('/api/admin/import/parse', { method: 'POST', body });
+        drafts = drafts.concat(r.drafts);
+        renderDrafts();
+        toast(r.drafts.length ? `Encontramos ${r.drafts.length} aviso${r.drafts.length === 1 ? '' : 's'}: revisalos antes de publicar` : 'No encontramos avisos en ese texto', r.drafts.length ? 'ok' : 'err');
+      } catch (err) { toast(err.message, 'err'); }
+      finally { btn.disabled = false; btn.innerHTML = old; }
+    });
+    $('#imp-manual').addEventListener('click', () => { drafts.push(empty()); renderDrafts(); });
+
+    const STATUS = { sin_avisar: ['Sin avisar', 'badge-amber'], avisado: ['Avisada', 'badge'], reclamado: ['Reclamada', 'badge-green'] };
+    async function loadList() {
+      try {
+        const { companies, removed } = await api('/api/admin/import');
+        $('#imp-list').innerHTML = (companies.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Empresa</th><th>Avisos</th><th>Postulantes</th><th>Estado</th><th></th></tr></thead><tbody>
+          ${companies.map((c) => {
+            const st = STATUS[c.claimed ? 'reclamado' : c.notifyStatus] || STATUS.sin_avisar;
+            return `<tr>
+              <td><strong>${esc(c.name)}</strong><div class="muted">${esc(c.locality || '—')} · ${esc(c.phone || 'sin teléfono')}</div></td>
+              <td>${c.jobs.map((j) => `<div>${esc(j.title)}</div>`).join('')}</td>
+              <td>${c.applications}</td>
+              <td><span class="badge ${st[1]}">${st[0]}</span></td>
+              <td class="imp-row-actions">${c.claimed ? '' : `${c.waUrl ? `<a class="btn btn-primary btn-sm" href="${esc(c.waUrl)}" target="_blank" rel="noopener" data-notify="${esc(c.id)}">${icon('whatsapp', 15)} Avisar por WhatsApp</a>` : '<span class="muted">Sin teléfono</span>'}
+                <button class="btn btn-ghost btn-sm" type="button" data-copy="${esc(c.claimUrl)}">${icon('copy', 15)} Copiar link</button>
+                <button class="btn btn-ghost btn-sm" type="button" data-del-co="${esc(c.id)}" data-name="${esc(c.name)}">${icon('trash', 15)} Borrar</button>`}</td>
+            </tr>`;
+          }).join('')}</tbody></table></div>` : '<p class="muted">Todavía no importaste avisos.</p>')
+          + (removed.length ? `<p class="muted imp-removed">Pidieron no aparecer: ${removed.map((r) => esc(r.name)).join(', ')}.</p>` : '');
+        $$('[data-notify]').forEach((a) => a.addEventListener('click', () => { api(`/api/admin/import/companies/${a.dataset.notify}/notified`, { method: 'POST' }).then(loadList).catch(() => {}); }));
+        $$('[data-copy]').forEach((b) => b.addEventListener('click', async () => { try { await navigator.clipboard.writeText(b.dataset.copy); toast('Link copiado', 'ok'); } catch (_) { toast('No pudimos copiar', 'err'); } }));
+        $$('[data-del-co]').forEach((b) => b.addEventListener('click', async () => {
+          if (!confirm(`¿Borrar la ficha de ${b.dataset.name} y sus avisos? Se pierden sus postulaciones.`)) return;
+          try { await api(`/api/admin/import/companies/${b.dataset.delCo}`, { method: 'DELETE' }); toast('Ficha borrada', 'ok'); loadList(); } catch (err) { toast(err.message, 'err'); }
+        }));
+      } catch (err) { $('#imp-list').innerHTML = `<p class="muted">${esc(err.message)}</p>`; }
+    }
+    loadList();
   }
 
   async function adminData() {

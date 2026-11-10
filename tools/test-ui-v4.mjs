@@ -1,0 +1,109 @@
+// Prueba en Chrome headless del flujo de avisos importados (v4).
+// Requiere un servidor con datos demo frescos y la IA simulada:
+//   WORKUCO_DEMO=1 WORKUCO_IMPORT_AI_FAKE=1 WORKUCO_CONTACT_WA="2622 400000" node server.js
+//   WK_BASE=http://localhost:4250 node tools/test-ui-v4.mjs [carpeta-para-capturas]
+import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const BASE = process.env.WK_BASE || 'http://localhost:4250';
+const SHOTS = process.argv[2] || '';
+const PORT = 9955 + Math.floor(Math.random() * 40);
+const CHROME = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const proc = spawn(CHROME, ['--headless=new', '--disable-gpu', `--remote-debugging-port=${PORT}`,
+  `--user-data-dir=${process.env.TEMP}\\cdp-v4-${PORT}-${Date.now()}`, '--no-first-run', 'about:blank'], { stdio: 'ignore' });
+let ws;
+for (let i = 0; i < 60 && !ws; i++) {
+  try { const l = await (await fetch(`http://127.0.0.1:${PORT}/json/list`)).json(); const t = l.find((x) => x.type === 'page'); if (t) ws = new WebSocket(t.webSocketDebuggerUrl); } catch (_) { await sleep(250); }
+}
+await new Promise((r) => { ws.onopen = r; });
+let id = 0; const pend = new Map(); const errors = [];
+ws.onmessage = (m) => {
+  const msg = JSON.parse(m.data);
+  if (msg.id && pend.has(msg.id)) { pend.get(msg.id)(msg); pend.delete(msg.id); }
+  if (msg.method === 'Runtime.exceptionThrown') errors.push(msg.params.exceptionDetails.exception?.description);
+  if (msg.method === 'Page.javascriptDialogOpening') send('Page.handleJavaScriptDialog', { accept: true });
+};
+const send = (method, params = {}) => new Promise((r) => { const i = ++id; pend.set(i, r); ws.send(JSON.stringify({ id: i, method, params })); });
+const ev = async (expression) => {
+  const r = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
+  if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description || 'eval error');
+  return r.result?.result?.value;
+};
+await send('Page.enable'); await send('Runtime.enable'); await send('Network.enable');
+await send('Network.setCacheDisabled', { cacheDisabled: true });
+const size = async (w) => send('Emulation.setDeviceMetricsOverride', { width: w, height: w < 800 ? 844 : 900, deviceScaleFactor: 1, mobile: w < 800 });
+await size(1440);
+const go = async (p) => { await send('Page.navigate', { url: BASE + p }); await sleep(1600); };
+const shot = async (name) => {
+  if (!SHOTS) return;
+  await ev(`(() => { const s = document.createElement('style'); s.textContent = '*,*::before,*::after{animation:none!important;transition:none!important}'; document.head.appendChild(s); })()`);
+  const h = Math.min(await ev('document.documentElement.scrollHeight'), 9000);
+  const w = await ev('innerWidth');
+  const r = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width: w, height: h, scale: 1 } });
+  fs.mkdirSync(SHOTS, { recursive: true });
+  fs.writeFileSync(path.join(SHOTS, `${name}.png`), Buffer.from(r.result.data, 'base64'));
+};
+let ok = 0; let fail = 0;
+const check = (name, cond, extra = '') => { if (cond) { ok++; console.log(`  ok  ${name}`); } else { fail++; console.log(`FAIL  ${name} ${extra}`); } };
+const click = (sel) => ev(`(() => { const el = document.querySelector(${JSON.stringify(sel)}); if (!el) throw new Error('no ${sel}'); el.click(); return true; })()`);
+const setVal = (sel, v) => ev(`(() => { const el = document.querySelector(${JSON.stringify(sel)}); el.value = ${JSON.stringify(v)}; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
+const noOverflow = async () => ev('document.documentElement.scrollWidth <= innerWidth + 1');
+
+/* 1. el admin importa */
+await go('/');
+await ev(`fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:'admin@workuco.com.ar',password:'workuco2026'})}).then(r=>r.status)`);
+await go('/admin');
+await click('[data-tab="import"]'); await sleep(400);
+check('la pestaña Importar está visible', await ev(`!document.querySelector('[data-panel="import"]').hidden`));
+await setVal('#imp-source', 'Empleos Tunuyán (WhatsApp)');
+await setVal('#imp-text', 'SE BUSCA MOZO para Resto El Álamo, Tunuyán, turno noche. Escribir al 2622 15-555123.\n---\nFinca Las Pircas busca cosechadores de manzana, $30.000 por día. +54 9 2622 444777');
+await click('#imp-read'); await sleep(1500);
+check('aparecen 2 borradores', (await ev(`document.querySelectorAll('[data-draft]').length`)) === 2);
+await shot('admin-borradores');
+await click('[data-publish="0"]'); await sleep(1200);
+await click('[data-publish="0"]'); await sleep(1500);
+check('se publicaron los dos', (await ev(`document.querySelectorAll('[data-draft]').length`)) === 0);
+check('la tabla muestra las dos fichas sin avisar', (await ev(`[...document.querySelectorAll('#imp-list tbody tr')].filter(r => /Sin avisar/.test(r.textContent)).length`)) === 2);
+check('cada ficha tiene botón de WhatsApp', (await ev(`document.querySelectorAll('#imp-list [data-notify]').length`)) === 2);
+await shot('admin-importados');
+const list = await ev(`fetch('/api/admin/import').then(r=>r.json())`);
+const resto = list.companies.find((c) => c.name === 'Resto El Álamo');
+const finca = list.companies.find((c) => c.name === 'Finca Las Pircas');
+
+/* 2. lo que ve la gente */
+await send('Network.clearBrowserCookies');
+await go(`/oferta/${resto.jobs[0].id}`);
+check('el detalle dice de qué canal salió', /Aviso tomado de Empleos Tunuyán/.test(await ev('document.body.innerText')));
+check('el detalle ofrece escribir a Workuco por WhatsApp', await ev(`!!document.querySelector('.claim-hint a[href^="https://wa.me/5492622400000"]')`));
+await shot('oferta-importada');
+await go(`/empresa/${resto.id}`);
+check('la ficha avisa que no está reclamada', /Ficha armada por Workuco/.test(await ev('document.body.innerText')));
+await go('/buscar');
+check('la tarjeta muestra "Tomado de un canal"', /Tomado de un canal/.test(await ev('document.body.innerText')));
+
+/* 3. una empresa borra su ficha */
+const tokFinca = finca.claimUrl.split('/').pop();
+await go(`/reclamar/${tokFinca}`);
+check('la página de reclamo muestra la empresa', /Finca Las Pircas ya está en Workuco/.test(await ev('document.body.innerText')));
+await shot('reclamar');
+await size(390); await go(`/reclamar/${tokFinca}`);
+check('reclamo sin desbordes en el celular', await noOverflow());
+await shot('reclamar-movil');
+await size(1440); await go(`/reclamar/${tokFinca}`);
+await click('[data-claim-open="delete"]'); await sleep(300);
+await click('#claim-delete'); await sleep(1000);
+check('la empresa borró su ficha', /Listo, la borramos/.test(await ev('document.body.innerText')));
+
+/* 4. otra empresa reclama la suya */
+const tokResto = resto.claimUrl.split('/').pop();
+await go(`/reclamar/${tokResto}`);
+await click('[data-claim-open="mine"]'); await sleep(300);
+await setVal('#cl-email', `elalamo${Date.now()}@test.workuco`);
+await setVal('#cl-pass', 'clave12345');
+await click('#claim-form [type=submit]'); await sleep(2000);
+check('reclamar lleva al panel de la empresa', (await ev('location.pathname')) === '/panel');
+check('sin errores de JS', errors.length === 0, JSON.stringify(errors.slice(0, 2)));
+console.log(`\n${ok} ok · ${fail} fail`);
+ws.close(); proc.kill(); process.exit(fail ? 1 : 0);

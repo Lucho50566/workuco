@@ -500,3 +500,40 @@ html { scrollbar-color: #b9ad94 var(--cream); }
 @media (max-width: 560px) { .ds-long { display: none; } .ds-short { display: inline; } }
 /* aviso de datos de demostración */
 .demo-strip { background: var(--malbec); color: #fbe9f1; font-size: 13px; font-weight: 600; text-align: center; padding: 7px 16px; }
+
+/* =====================================================================
+   v4 · AVISOS IMPORTADOS
+   ===================================================================== */
+.src-tag { align-self: flex-start; font-size: 12px; font-weight: 600; color: var(--malbec); background: var(--malbec-soft); border-radius: 999px; padding: 3px 10px; }
+.claim-hint { border-color: rgba(122, 31, 77, .3); }
+.unclaimed-note { margin-top: 10px; font-size: 14px; color: var(--malbec); background: var(--malbec-soft); border-radius: 10px; padding: 8px 12px; max-width: 60ch; }
+.import-card .form-grid { margin-top: 12px; }
+.imp-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.imp-thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.imp-thumb { position: relative; width: 84px; height: 84px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); }
+.imp-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.imp-thumb button { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: var(--night); color: #fff; display: grid; place-items: center; }
+.imp-drafts { display: grid; gap: 14px; margin: 14px 0; }
+.imp-draft-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.imp-draft-head h3 { font-size: 17px; margin-right: auto; }
+.imp-draft-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.imp-inline { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.imp-check { display: flex; align-items: center; gap: 8px; margin-top: 28px; font-weight: 600; }
+.imp-row-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.imp-removed { margin-top: 12px; }
+.claim-hero { padding: clamp(40px, 6vw, 76px) 0; }
+.claim-hero .hero-sub { max-width: 62ch; margin: 16px 0 24px; font-size: clamp(16px, 1.5vw, 18px); }
+.claim-hero .hero-sub strong { color: var(--lime); }
+.claim-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 10px; max-width: 920px; }
+.claim-choice { text-align: left; border: 1px solid rgba(255, 255, 255, .18); background: var(--night-2); color: #fff; border-radius: 14px; padding: 16px; transition: border-color .2s, transform .3s var(--ease-out); }
+.claim-choice strong { display: block; font: 700 17px/1.2 var(--font-display); }
+.claim-choice span { display: block; color: var(--night-muted); font-size: 13.5px; margin-top: 4px; }
+.claim-choice:hover { border-color: var(--lime); transform: translateY(-2px); }
+.claim-choice.is-main { background: var(--lime); color: var(--night); border-color: var(--lime); }
+.claim-choice.is-main span { color: #2c3f12; }
+.claim-choice.is-danger:hover { border-color: #f1a7c4; }
+.claim-grid { display: grid; grid-template-columns: 1fr 360px; gap: 24px; align-items: start; }
+.claim-grid h2 { font-size: clamp(24px, 3vw, 34px); margin-bottom: 14px; }
+.claim-panel h3 { font-size: 19px; margin-bottom: 8px; }
+.claim-panel .field { margin-top: 12px; }
+@media (max-width: 900px) { .claim-grid { grid-template-columns: 1fr; } .claim-panel { order: -1; } }

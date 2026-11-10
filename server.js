@@ -566,6 +566,7 @@ async function handleApi(req, res, url) {
       benefits: BENEFITS, stages: STAGES.map((id) => ({ id, label: STAGE_LABEL[id] })),
       aiProviders: ai.PROVIDERS,
       salaryPeriods: SALARY_PERIODS, templates: TEMPLATES, counts: store.publicCounts(), contactWa: CONTACT_WA,
+      contactWaUrl: normPhone(CONTACT_WA) ? `https://wa.me/549${normPhone(CONTACT_WA)}` : '',
     });
   }
 

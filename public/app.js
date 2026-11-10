@@ -274,6 +274,7 @@ function jobCard(j) {
         <span class="badge">${esc(j.modality)}</span>
         <span class="badge">${esc(j.category)}</span>
       </div>
+      ${j.sourceKind === 'importado' ? `<span class="src-tag">Tomado de ${esc(j.sourceName || 'un canal de empleo')}</span>` : ''}
       <div class="job-foot">${payHtml(j)}${matchPill(j.match) || `<span>${timeAgo(j.publishedAt)}</span>`}</div>
     </div>
   </a>`;
@@ -297,7 +298,7 @@ function jobRow(j, saved = false) {
       <div class="side">
         ${payHtml(j)}
         ${matchPill(j.match)}
-        <span class="date">${j.gig ? 'Changa · ' : ''}${timeAgo(j.publishedAt)}</span>
+        <span class="date">${j.sourceKind === 'importado' ? 'Tomado de un canal · ' : j.gig ? 'Changa · ' : ''}${timeAgo(j.publishedAt)}</span>
       </div>
     </a>
     ${state.user && state.user.role === 'candidate' ? `<button class="save-btn${saved ? ' is-on' : ''}" type="button" data-save="${j.id}" title="${saved ? 'Quitar de guardadas' : 'Guardar oferta'}">${icon('heart', 18)}</button>` : ''}
@@ -614,6 +615,7 @@ async function initJob() {
   const view = $('#job-view');
   try {
     const { job, canApply, applied, saved } = await api(`/api/jobs/${id}`);
+    const contactWaUrl = job.sourceKind === 'importado' ? ((await loadMeta().catch(() => ({}))).contactWaUrl || '') : '';
     document.title = `${job.title} · Workuco`;
     $('#crumb-job').textContent = job.title;
     const list = (txt) => String(txt || '').split('\n').map((s) => s.replace(/^[•\-*]\s*/, '').trim()).filter(Boolean);
@@ -698,6 +700,9 @@ async function initJob() {
           <div class="kv"><span>Publicada</span><span>${fmtDate(job.publishedAt)}</span></div>
           ${job.closesAt ? `<div class="kv"><span>Cierra</span><span>${fmtDate(job.closesAt + 'T12:00:00')}</span></div>` : ''}
         </div>
+        ${job.sourceKind === 'importado' ? `<div class="aside-card claim-hint"><h3>Aviso tomado de ${esc(job.sourceName || 'un canal de empleo')}</h3>
+          <p class="soft-text">Lo publicamos para que llegue a más gente del Valle. Para postularte usá el botón o el contacto del aviso.</p>
+          <p class="soft-text"><strong>¿Es tu empresa?</strong> ${contactWaUrl ? `<a class="link-inline" href="${esc(contactWaUrl)}?text=${encodeURIComponent(`Hola, soy de la empresa del aviso "${job.title}" en Workuco`)}" target="_blank" rel="noopener">Escribinos</a>` : '<a class="link-inline" href="/contacto">Escribinos</a>'} y lo administrás vos o lo borramos.</p></div>` : ''}
         ${job.companyDescription ? `<div class="aside-card"><h3>Sobre la empresa</h3><p class="soft-text">${esc(job.companyDescription)}</p><a class="link-arrow" href="/empresa/${job.companyId}">Ver perfil de la empresa ${icon('arrow', 15)}</a></div>` : ''}
       </aside>
     </div>`;
@@ -1345,6 +1350,7 @@ async function initCompanyPage() {
           <div>
             <h1>${esc(company.name)} ${company.verified ? `<span class="verified">${checkIcon}</span>` : ''}</h1>
             <div class="company-meta">${icon('pin', 15)} ${esc(company.locality || 'Valle de Uco')} · ${jobs.length} ${jobs.length === 1 ? 'búsqueda abierta' : 'búsquedas abiertas'}</div>
+            ${company.claimed === false ? '<p class="unclaimed-note">Ficha armada por Workuco con búsquedas públicas. ¿Es tu empresa? Reclamala gratis desde el link que te enviamos o escribinos.</p>' : ''}
           </div>
         </div>
       </div>
@@ -1563,6 +1569,92 @@ async function initPublicProfile() {
 }
 
 /* ================================================================== */
+/* RECLAMAR UNA FICHA IMPORTADA                                       */
+/* ================================================================== */
+async function initClaim() {
+  const root = $('#claim-root');
+  const token = location.pathname.split('/').pop();
+  let data;
+  try {
+    data = await api(`/api/claim/${encodeURIComponent(token)}`);
+  } catch (err) {
+    root.innerHTML = `<section class="section"><div class="container"><div class="empty">
+      <h3>${err.status === 429 ? 'Demasiados intentos' : 'Este link ya se usó o no existe'}</h3>
+      <p>${err.status === 429 ? esc(err.message) : 'Si tu empresa ya reclamó su ficha, ingresá con tu cuenta. Si necesitás ayuda, escribinos.'}</p>
+      <a class="btn btn-primary" href="/acceder?rol=empresa&next=/panel">Ingresar</a></div></div></section>`;
+    return;
+  }
+  const { company, jobs, applicationsCount } = data;
+  document.title = `${company.name} en Workuco`;
+  const n = applicationsCount;
+  root.innerHTML = `<section class="band-night claim-hero">
+    <div class="container">
+      <h1 class="display-sm">${esc(company.name)} ya está en Workuco.</h1>
+      <p class="hero-sub">Publicamos ${jobs.length === 1 ? 'su búsqueda' : `sus ${jobs.length} búsquedas`} de canales de empleo de la zona para que llegue${jobs.length === 1 ? '' : 'n'} a más gente del Valle.
+        ${n ? `<strong>${n} ${n === 1 ? 'persona ya se postuló' : 'personas ya se postularon'}.</strong>` : ''} Ustedes deciden qué hacemos con esto.</p>
+      <div class="claim-choices">
+        <button class="claim-choice is-main" type="button" data-claim-open="mine"><strong>Es nuestra: la quiero administrar</strong><span>Gratis. Ves postulantes, editás avisos y publicás nuevos.</span></button>
+        <button class="claim-choice" type="button" data-claim-open="fix"><strong>Corregir datos</strong><span>Reclamala y editá el aviso desde tu panel.</span></button>
+        <button class="claim-choice is-danger" type="button" data-claim-open="delete"><strong>Borrarla de Workuco</strong><span>Se elimina ya y no la volvemos a publicar.</span></button>
+      </div>
+    </div>
+  </section>
+  <section class="section">
+    <div class="container claim-grid">
+      <div>
+        <h2>Así se ve hoy</h2>
+        <div class="jobs-grid jobs-grid-2">${jobs.map(jobCard).join('')}</div>
+      </div>
+      <aside class="card claim-panel" id="claim-panel" hidden></aside>
+    </div>
+  </section>`;
+
+  const panel = $('#claim-panel');
+  const openForm = (mode) => {
+    panel.hidden = false;
+    if (mode === 'delete') {
+      panel.innerHTML = `<h3>¿Borramos la ficha de ${esc(company.name)}?</h3>
+        <p class="soft-text">Se eliminan la ficha, ${jobs.length === 1 ? 'el aviso' : 'los avisos'} y ${n === 1 ? 'la postulación recibida' : 'las postulaciones recibidas'}. A quienes se postularon les avisamos que la búsqueda se retiró. No la volvemos a importar.</p>
+        <div class="gate-actions"><button class="btn btn-danger" type="button" id="claim-delete">Sí, borrar</button><button class="btn btn-ghost" type="button" data-claim-cancel>Cancelar</button></div>`;
+      $('#claim-delete').addEventListener('click', async (e) => {
+        e.currentTarget.disabled = true;
+        try {
+          await api(`/api/claim/${encodeURIComponent(token)}/delete`, { method: 'POST' });
+          root.innerHTML = '<section class="section"><div class="container"><div class="empty"><h3>Listo, la borramos</h3><p>Su empresa ya no aparece en Workuco y no la vamos a volver a publicar. Gracias por avisarnos.</p><a class="btn btn-outline" href="/">Ir al inicio</a></div></div></section>';
+        } catch (err) { toast(err.message, 'err'); e.currentTarget.disabled = false; }
+      });
+    } else {
+      panel.innerHTML = `<h3>${mode === 'fix' ? 'Reclamá la ficha para corregirla' : 'Creá tu acceso'}</h3>
+        <p class="soft-text">Con este email y contraseña vas a entrar a tu panel de empresa.</p>
+        <div id="claim-alert" hidden></div>
+        <form id="claim-form" novalidate>
+          <div class="field"><label for="cl-email">Email</label><input class="input" id="cl-email" name="email" type="email" autocomplete="email" required><span class="error-text" data-error="email" hidden></span></div>
+          <div class="field"><label for="cl-pass">Contraseña <span class="hint">(mínimo 8)</span></label><input class="input" id="cl-pass" name="password" type="password" autocomplete="new-password" minlength="8" required><span class="error-text" data-error="password" hidden></span></div>
+          <div class="gate-actions"><button class="btn btn-primary" type="submit">Es nuestra, entrar al panel</button><button class="btn btn-ghost" type="button" data-claim-cancel>Cancelar</button></div>
+        </form>`;
+      $('#claim-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        hideAlert($('#claim-alert'));
+        const btn = $('#claim-form [type=submit]');
+        btn.disabled = true;
+        try {
+          await api(`/api/claim/${encodeURIComponent(token)}/accept`, { method: 'POST', body: { email: $('#cl-email').value.trim(), password: $('#cl-pass').value } });
+          location.href = mode === 'fix' ? '/panel#ofertas' : '/panel';
+        } catch (err) {
+          btn.disabled = false;
+          showAlert($('#claim-alert'), err.message, 'error');
+          setFieldErrors($('#claim-form'), err.fields);
+        }
+      });
+      $('#cl-email').focus();
+    }
+    $$('[data-claim-cancel]', panel).forEach((b) => b.addEventListener('click', () => { panel.hidden = true; }));
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  $$('[data-claim-open]').forEach((b) => b.addEventListener('click', () => openForm(b.dataset.claimOpen)));
+}
+
+/* ================================================================== */
 /* ARRANQUE                                                           */
 /* ================================================================== */
 window.WK = {
@@ -1593,6 +1685,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       case 'gigs': await initGigs(); break;
       case 'cv': await initCv(); break;
       case 'public-profile': await initPublicProfile(); break;
+      case 'claim': await initClaim(); break;
       default: break;
     }
   } catch (err) {

@@ -55,6 +55,7 @@
       <button class="tab is-active" data-tab="jobs" type="button">Ofertas</button>
       <button class="tab" data-tab="apps" type="button">Postulaciones</button>
       <button class="tab" data-tab="companies" type="button">Empresas</button>
+      <button class="tab" data-tab="import" type="button">Importar</button>
     </div>
 
     <section data-panel="jobs">
@@ -90,6 +91,41 @@
         <div id="admin-companies"></div>
       </div>
     </section>
+    <section data-panel="import" hidden>
+      <div class="card import-card">
+        <h2>Importar avisos de canales</h2>
+        <p class="sub">Pegá mensajes o subí capturas de canales de WhatsApp de la zona. Revisá cada borrador antes de publicarlo y después avisale a la empresa con un toque: puede reclamar su ficha o pedir que la borremos.</p>
+        <div id="imp-ai-note"></div>
+        <div class="form-grid">
+          <div class="field span-2">
+            <label for="imp-source">Canal de origen</label>
+            <input class="input" id="imp-source" maxlength="80" placeholder="Ej.: Empleos Tunuyán (WhatsApp)">
+          </div>
+          <div class="field span-2">
+            <label for="imp-text">Mensajes</label>
+            <textarea class="input" id="imp-text" rows="7" maxlength="20000" placeholder="Pegá acá uno o varios avisos tal cual vienen del canal…"></textarea>
+            <span class="hint" id="imp-count">0 / 20.000</span>
+          </div>
+          <div class="field span-2">
+            <span class="field-label">Capturas o flyers <span class="hint">(hasta 6)</span></span>
+            <label class="btn btn-outline btn-sm" for="imp-images">{{ICON_UPLOAD}} Subir imágenes</label>
+            <input class="sr-only" id="imp-images" type="file" accept="image/jpeg,image/png,image/webp" multiple>
+            <div class="imp-thumbs" id="imp-thumbs"></div>
+          </div>
+        </div>
+        <div class="imp-actions">
+          <button class="btn btn-primary" id="imp-read" type="button">{{ICON_SPARKLES}} Leer avisos</button>
+          <button class="btn btn-ghost" id="imp-manual" type="button">{{ICON_PLUS}} Cargar uno a mano</button>
+        </div>
+      </div>
+      <div id="imp-drafts" class="imp-drafts" aria-live="polite"></div>
+      <div class="card">
+        <h2>Fichas importadas</h2>
+        <p class="sub">Cada empresa recibe un link privado para reclamar o borrar. Mandalo desde tu WhatsApp.</p>
+        <div id="imp-list"></div>
+      </div>
+    </section>
+
   </div>
 </main>
 
