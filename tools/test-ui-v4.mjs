@@ -125,6 +125,20 @@ if (process.env.WK_FLYER) {
   check('con flyer avanza con una descripción corta', (await ev(`document.querySelector('.wizard-step:not([hidden])').dataset.step`)) === '3');
   await click('#wizard-next'); await sleep(300);
   check('la vista previa usa el flyer', await ev(`!!document.querySelector('.preview-cover.has-flyer')`));
+  check('en el último paso se ve el botón de enviar', await ev(`(() => { const b = document.querySelector('#job-submit'); return !b.hidden && b.offsetParent !== null && getComputedStyle(b).visibility !== 'hidden'; })()`));
+  await ev('window.scrollTo(0, 0)'); await sleep(250);
+  check('sin scroll, la barra de pasos va arriba de la tarjeta y no tapa el título', await ev(`(() => {
+    const bar = document.querySelector('.wizard-top').getBoundingClientRect();
+    const card = document.querySelector('.wizard').getBoundingClientRect();
+    const head = document.querySelector('.wizard-step:not([hidden]) .wizard-step-head').getBoundingClientRect();
+    return Math.abs(bar.top - card.top) < 3 && head.top >= bar.bottom - 1;
+  })()`));
+  await ev('window.scrollTo(0, 600)'); await sleep(250);
+  check('con scroll, la barra se pega debajo del encabezado', await ev(`(() => {
+    const bar = document.querySelector('.wizard-top').getBoundingClientRect();
+    const header = document.querySelector('.site-header').getBoundingClientRect();
+    return Math.abs(bar.top - header.bottom) < 3;
+  })()`));
   await click('#job-submit'); await sleep(1200);
   const mine = await ev(`fetch('/api/company/jobs').then(r=>r.json()).then(d=>d.jobs.find(j=>j.flyer))`);
   check('el aviso se guardó con flyer', !!mine && /^\/media\/flyer-/.test(mine.flyer));

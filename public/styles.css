@@ -558,7 +558,7 @@ select.input { appearance: none; padding-right: 34px;
 /* ---------- publicar / wizard ---------- */
 .publish-wrap { max-width: 900px; padding: 38px 24px 80px; }
 .publish-head { margin-bottom: 18px; }
-.wizard { background: var(--surface); border: 1px solid var(--line); border-radius: 22px; box-shadow: var(--shadow); overflow: hidden; }
+.wizard { background: var(--surface); border: 1px solid var(--line); border-radius: 22px; box-shadow: var(--shadow); overflow: clip; } /* clip, no hidden: con hidden la barra sticky se pega a la tarjeta y no a la pantalla */
 .wizard-top { padding: 20px 26px 0; border-bottom: 1px solid var(--line); background: var(--surface); position: sticky; top: 70px; z-index: 10; }
 .wizard-dots { display: flex; gap: 6px; justify-content: space-between; }
 .wizard-dot { border: 0; background: none; display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 650; color: var(--muted); padding: 3px 0 12px; }

@@ -1163,6 +1163,7 @@ async function initPublish() {
     $('#step-label').textContent = $('.wizard-step:not([hidden]) .wizard-step-title')?.textContent || '';
     $('#wizard-back').hidden = s.step === 1;
     $('#wizard-next').hidden = s.step === steps.length;
+    $('#job-submit').hidden = s.step !== steps.length; // el botón de enviar sólo en el último paso
     window.scrollTo({ top: $('#publish-app').offsetTop - 90, behavior: 'smooth' });
     if (s.step === steps.length) renderPreview();
   };
