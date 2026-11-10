@@ -422,6 +422,20 @@ html { scrollbar-color: #b9ad94 var(--cream); }
 .footer-bottom { border-top-color: rgba(255, 255, 255, .08); }
 
 /* ---------- responsive ---------- */
+/* el menú completo no entra con 5 links + campanita: hamburguesa antes */
+@media (max-width: 1080px) {
+  .site-header .main-nav { display: none; }
+  .site-header .menu-toggle { display: grid; place-items: center; margin-left: 0; }
+  .site-header .header-actions { margin-left: auto; }
+  .mobile-menu[hidden] { display: none !important; }
+}
+/* en el celular la campanita queda siempre a mano; el resto va al menú */
+@media (max-width: 760px) {
+  .site-header .header-actions { display: flex; }
+  .site-header .header-actions > :not(.bell-wrap) { display: none; }
+}
+.tabs { overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
 @media (max-width: 900px) {
   .steps-split, .close-band .container, .pp-grid { grid-template-columns: 1fr; }
   .promises { grid-template-columns: 1fr; }
