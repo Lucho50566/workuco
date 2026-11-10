@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{TITLE}}</title>
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#0b1612">
+  <link rel="icon" href="/favicon.png" type="image/png" sizes="64x64">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/cv.css">
+</head>
+<body data-page="cv" class="cv-page">
+<div class="cv-toolbar no-print">
+  <a class="btn btn-ghost btn-sm" href="javascript:history.back()">← Volver</a>
+  <span class="cv-toolbar-title">CV Workuco</span>
+  <button class="btn btn-lime btn-sm" type="button" data-print>Descargar PDF</button>
+</div>
+<main class="cv-wrap" id="cv-root">
+  <div class="cv-sheet"><div class="skeleton" style="height:100%;min-height:600px"></div></div>
+</main>
+<p class="cv-hint no-print">Para guardarlo como PDF elegí <strong>“Guardar como PDF”</strong> en la ventana de impresión.</p>
+<script src="/app.js"></script>
+</body>
+</html>
