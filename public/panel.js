@@ -143,7 +143,7 @@
       const tasks = [];
       if (k.newApplications) tasks.push({ icon: 'users', text: `Tenés ${k.newApplications} postulante${k.newApplications === 1 ? '' : 's'} nuevo${k.newApplications === 1 ? '' : 's'} sin revisar`, action: 'applicants', cta: 'Revisar' });
       const r = data.response;
-      if (r && (r.rate < 80 || r.days > 3)) tasks.push({ icon: 'clock', text: `Respondés el ${r.rate}% de las postulaciones, en ${r.days} día${r.days === 1 ? '' : 's'}. Esa insignia la ve quien se postula: moverlas de etapa la mejora.`, action: 'applicants', cta: 'Responder' });
+      if (r && (r.rate < 80 || r.days > 3)) tasks.push({ icon: 'clock', text: r.rate ? `Respondés el ${r.rate}% de las postulaciones, en ${r.days} día${r.days === 1 ? '' : 's'}. Esa insignia la ve quien se postula: moverlas de etapa la mejora.` : 'Todavía no respondiste postulaciones y quien se postula lo ve en tu insignia. Mové a tus postulantes de etapa.', action: 'applicants', cta: 'Responder' });
       if (k.published) tasks.push({ icon: 'users', text: 'Mirá quién está disponible en el Valle e invitalo a tu búsqueda', action: 'talent', cta: 'Ver talento' });
       if (k.pending) tasks.push({ icon: 'clock', text: `${k.pending} publicación${k.pending === 1 ? '' : 'es'} esperando aprobación`, action: 'jobs', cta: 'Ver estado' });
       if (!(data.company.gallery || []).length) tasks.push({ icon: 'image', text: 'Sumá fotos de tu empresa: los avisos con imágenes reciben más postulaciones', action: 'company', cta: 'Subir fotos' });
@@ -778,7 +778,8 @@
     /* las notificaciones abren la pestaña justa: /mi-perfil?tab=postulaciones */
     const TAB_ALIAS = { postulaciones: 'apps', alertas: 'alerts', invitaciones: 'foryou', guardadas: 'saved' };
     const wanted = new URLSearchParams(location.search).get('tab');
-    if (wanted && $(`[data-panel="${TAB_ALIAS[wanted] || wanted}"]`)) showTab(TAB_ALIAS[wanted] || wanted);
+    const tabName = TAB_ALIAS[wanted] || (['profile', 'foryou', 'apps', 'alerts', 'saved'].includes(wanted) ? wanted : '');
+    if (tabName) showTab(tabName);
 
     async function load() {
       try {

@@ -604,6 +604,7 @@ function matchBoxHtml(job) {
 function responseHtml(r) {
   if (!r) return '';
   const slow = r.rate < 50 || r.days > 7;
+  if (!r.rate) return '<p class="response-line"><span class="response-badge is-slow">Todavía no respondió postulaciones</span></p>';
   const days = r.days <= 1 ? 'en 1 día' : `en ${r.days} días`;
   return `<p class="response-line"><span class="response-badge${slow ? ' is-slow' : ''}">Responde el ${r.rate}%</span> <span class="muted">Suele responder ${days}</span></p>`;
 }
@@ -697,7 +698,7 @@ async function initJob() {
           <div class="kv"><span>Publicada</span><span>${fmtDate(job.publishedAt)}</span></div>
           ${job.closesAt ? `<div class="kv"><span>Cierra</span><span>${fmtDate(job.closesAt + 'T12:00:00')}</span></div>` : ''}
         </div>
-        ${job.companyDescription ? `<div class="aside-card"><h3>Sobre la empresa</h3><p class="soft-text">${esc(job.companyDescription)}</p><a class="link-arrow" href="/empresa/${job.companyId}">Ver perfil de la empresa →</a></div>` : ''}
+        ${job.companyDescription ? `<div class="aside-card"><h3>Sobre la empresa</h3><p class="soft-text">${esc(job.companyDescription)}</p><a class="link-arrow" href="/empresa/${job.companyId}">Ver perfil de la empresa ${icon('arrow', 15)}</a></div>` : ''}
       </aside>
     </div>`;
 
@@ -1142,7 +1143,7 @@ async function initPublish() {
         <div><div class="job-title">${esc(s.title)}</div><div class="job-company">${esc(user.company.name)} ${user.company.verified ? `<span class="verified">${checkIcon}</span>` : ''}</div></div>
         <div class="job-meta"><span class="badge">${esc(s.locality)}</span><span class="badge">${esc(s.modality)}</span><span class="badge">${esc(s.category)}</span></div>
         <p class="preview-desc">${esc(s.description).slice(0, 240)}${s.description.length > 240 ? '…' : ''}</p>
-        <div class="job-foot">${payHtml(wizardPay())}<span>${s.gig ? 'Changa · ' : ''}${s.positions > 1 ? `${s.positions} puestos` : '1 puesto'}</span></div>
+        <div class="job-foot">${payHtml(wizardPay())}<span>${$('#j-gig').checked ? 'Changa · ' : ''}${s.positions > 1 ? `${s.positions} puestos` : '1 puesto'}</span></div>
         ${s.skills.length ? `<div class="chips">${s.skills.map((k) => `<span class="badge">${esc(k)}</span>`).join('')}</div>` : ''}
       </div>
     </div>`;

@@ -1,35 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" role="img" aria-label="Viñedo al atardecer">
-  <defs>
-    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#f7c9a3"/><stop offset=".55" stop-color="#fbe3cd"/><stop offset="1" stop-color="#fdf3e6"/>
-    </linearGradient>
-    <linearGradient id="hill1" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#7d8f6a"/><stop offset="1" stop-color="#55684c"/>
-    </linearGradient>
-    <linearGradient id="hill2" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#4c5f45"/><stop offset="1" stop-color="#31402f"/>
-    </linearGradient>
-  </defs>
-  <rect width="1200" height="675" fill="url(#sky)"/>
-  <circle cx="880" cy="200" r="86" fill="#f6a35c" opacity=".85"/>
-  <circle cx="880" cy="200" r="130" fill="#f6a35c" opacity=".18"/>
-  <path d="M0 330 Q220 210 430 320 T760 300 Q980 220 1200 320 V675 H0Z" fill="url(#hill1)" opacity=".6"/>
-  <path d="M0 400 Q260 300 520 390 T900 370 Q1060 330 1200 390 V675 H0Z" fill="url(#hill2)"/>
-  <g stroke="#2c3a2a" stroke-width="7" opacity=".55" fill="none">
-    <path d="M-40 690 L360 430"/><path d="M120 700 L470 440"/><path d="M300 705 L590 452"/>
-    <path d="M500 710 L720 468"/><path d="M720 715 L860 486"/><path d="M950 720 L1010 505"/>
-  </g>
-  <g fill="#24331f" opacity=".85">
-    <circle cx="330" cy="470" r="18"/><circle cx="420" cy="455" r="16"/><circle cx="510" cy="462" r="17"/>
-    <circle cx="610" cy="480" r="15"/><circle cx="700" cy="495" r="14"/><circle cx="790" cy="512" r="13"/>
-  </g>
-  <g transform="translate(150 300)">
-    <rect x="0" y="60" width="170" height="110" rx="6" fill="#5b3a2e"/>
-    <path d="M-18 66 85 6l103 60Z" fill="#74483a"/>
-    <rect x="30" y="100" width="44" height="70" fill="#3d261f"/>
-    <rect x="96" y="96" width="40" height="34" rx="3" fill="#f6c17b"/>
-    <rect x="180" y="90" width="26" height="80" rx="12" fill="#8a5a3f"/>
-    <rect x="212" y="90" width="26" height="80" rx="12" fill="#8a5a3f"/>
-  </g>
-  <path d="M0 640 Q300 600 600 630 T1200 620 V675 H0Z" fill="#1f2b1d" opacity=".55"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" role="img" aria-label="Cordillera sobre hileras de viñedo, de noche">
+<rect width="1200" height="675" fill="#0b1612"/>
+<path d="M0 257 L0 257 L100 213 L200 240 L300 255 L400 230 L500 302 L600 226 L700 309 L800 228 L900 262 L1000 238 L1100 219 L1200 254 L1200 675 L0 675Z" fill="#1b3229"/>
+<path d="M0 404 L0 404 L133 315 L267 420 L400 310 L533 423 L667 313 L800 406 L933 324 L1067 391 L1200 343 L1200 675 L0 675Z" fill="#12241d"/>
+<path d="M440 470 L-440 675" stroke="#c8f560" stroke-width="5" opacity=".55"/><path d="M480 470 L-180 675" stroke="#c8f560" stroke-width="5" opacity=".55"/><path d="M520 470 L80 675" stroke="#c8f560" stroke-width="5" opacity=".55"/><path d="M560 470 L340 675" stroke="#c8f560" stroke-width="5" opacity=".55"/><path d="M600 470 L600 675" stroke="#c8f560" stroke-width="5" opacity=".55"/><path d="M640 470 L860 675" stroke="#c8f560" stroke-width="5" opacity=".55"/><path d="M680 470 L1120 675" stroke="#c8f560" stroke-width="5" opacity=".55"/><path d="M720 470 L1380 675" stroke="#c8f560" stroke-width="5" opacity=".55"/><path d="M760 470 L1640 675" stroke="#c8f560" stroke-width="5" opacity=".55"/>
+<path d="M0 597 L0 597 L200 560 L400 598 L600 561 L800 592 L1000 565 L1200 587 L1200 675 L0 675Z" fill="#7a1f4d"/>
 </svg>

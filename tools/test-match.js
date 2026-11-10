@@ -84,6 +84,13 @@ test('reasons explica las habilidades', () => {
   assert.ok(m.reasons.includes('Tenés 3 de las 4 habilidades'), JSON.stringify(m.reasons));
 });
 
+test('para la empresa los motivos van en tercera persona', () => {
+  const m = matchScore(cand({ skills: ['fraccionamiento', 'bpm', 'trabajo en equipo'] }), job(), { audience: 'company' });
+  assert.ok(m.reasons.includes('Tiene 3 de las 4 habilidades'), JSON.stringify(m.reasons));
+  assert.ok(m.reasons.includes('Vive en San Carlos'), JSON.stringify(m.reasons));
+  assert.ok(!m.reasons.some((r) => /Tenés|vivís|Tu disponibilidad|Te interesa|buscás/.test(r)), JSON.stringify(m.reasons));
+});
+
 test('rubro sin categories: lo toma del titular', () => {
   const con = matchScore(cand({ categories: [], headline: 'Peón de agricultura' }), job());
   const sin = matchScore(cand({ categories: [], headline: 'Cajera' }), job());

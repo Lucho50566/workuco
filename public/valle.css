@@ -24,7 +24,7 @@ html { scrollbar-color: #b9ad94 var(--cream); }
 .site-header .nav-link.is-active { box-shadow: inset 0 -2px 0 var(--lime); border-radius: 8px 8px 2px 2px; }
 .site-header .btn-ghost { color: #dbe6df; }
 .site-header .btn-ghost:hover { color: #fff; background: rgba(255, 255, 255, .08); }
-.site-header .btn-primary { background: var(--lime); color: var(--night); box-shadow: 0 6px 18px rgba(200, 245, 96, .16); }
+.site-header .btn-primary { background: var(--lime); color: var(--night); box-shadow: 0 4px 10px rgba(0, 0, 0, .28); }
 .site-header .btn-primary:hover { background: #d6fb7c; }
 .site-header .btn-outline { background: transparent; color: #fff; border-color: rgba(255, 255, 255, .25); }
 .menu-toggle { color: #fff; }
@@ -34,7 +34,7 @@ html { scrollbar-color: #b9ad94 var(--cream); }
 
 /* ---------- botones ---------- */
 .btn { border-radius: 12px; font-weight: 650; }
-.btn-lime { background: var(--lime); color: var(--night); box-shadow: 0 8px 22px rgba(200, 245, 96, .18); }
+.btn-lime { background: var(--lime); color: var(--night); box-shadow: 0 6px 14px rgba(0, 0, 0, .22); }
 .btn-lime:hover { background: #d6fb7c; }
 .btn-primary { background: var(--green); }
 .btn-night { background: var(--night); color: #fff; }
@@ -183,8 +183,8 @@ html { scrollbar-color: #b9ad94 var(--cream); }
 .job-pay b { font: 700 16px/1.15 var(--font-display); color: var(--ink); letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
 .job-pay small { color: var(--muted); font-size: 12px; }
 .job-pay .is-empty { color: var(--muted); font-weight: 600; font-family: var(--font); font-size: 13.5px; }
-.badge-featured { background: var(--lime); color: var(--night); font-weight: 700; }
-.badge-gig { background: var(--malbec); color: #fff; font-weight: 700; }
+.badge.badge-featured { background: var(--malbec); color: #fff; font-weight: 700; }
+.badge.badge-gig { background: var(--night); color: var(--lime); font-weight: 700; }
 .badge { background: var(--surface-2); color: #3d4842; font-size: 12.5px; }
 
 .match-pill {
@@ -454,7 +454,8 @@ html { scrollbar-color: #b9ad94 var(--cream); }
   .vh-actions .btn { flex: 1 1 100%; }
 }
 @media (max-width: 430px) {
-  .town-label small { display: none; }
+  .town-label { padding: 4px 8px 5px; }
+  .town-label small { font-size: 11px; }
   .vh-valley { height: 210px; }
 }
 
@@ -465,3 +466,16 @@ html { scrollbar-color: #b9ad94 var(--cream); }
 @media print {
   .site-header, .site-footer { display: none; }
 }
+
+/* ---------- ajustes de la revisión final ---------- */
+/* logo de la empresa por encima de la portada en el detalle */
+.detail-head .logo-xl { position: relative; z-index: 2; }
+/* iniciales sin foto: siempre sobre un disco legible */
+.avatar-fallback { background: var(--surface-3); color: var(--green-dark); border-radius: 50%; display: grid; place-items: center; font-weight: 700; flex: 0 0 auto; }
+.avatar-xs.avatar-fallback { width: 26px; height: 26px; font-size: 10px; }
+.site-header .avatar-fallback { background: var(--lime); color: var(--night); }
+.talent-top .avatar-fallback { background: var(--night); color: var(--lime); }
+/* portada sin fotos: la cordillera en lugar de una losa vacía */
+.job-cover:not(.has-img) { background: url('/demo/cover-default.svg') center bottom / cover no-repeat, var(--night); }
+/* aviso de datos de demostración */
+.demo-strip { background: var(--malbec); color: #fbe9f1; font-size: 13px; font-weight: 600; text-align: center; padding: 7px 16px; }

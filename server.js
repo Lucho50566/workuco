@@ -298,13 +298,13 @@ function jobSummary(j) {
 }
 
 /* Compatibilidad entre una persona (fila de la base) y una oferta. null si el perfil está vacío. */
-function matchFor(c, j) {
+function matchFor(c, j, audience = 'candidate') {
   if (!c || !j) return null;
   const f = MONTH_FACTOR[j.salaryPeriod] || 1;
   const m = matchScore({
     skills: jparse(c.skills, []), locality: c.locality, headline: c.headline, experience: c.experience,
     availability: c.availability, categories: jparse(c.categories, []), salaryMin: c.salary_min || 0,
-  }, { ...j, salaryMin: j.salaryMin * f, salaryMax: j.salaryMax * f });
+  }, { ...j, salaryMin: j.salaryMin * f, salaryMax: j.salaryMax * f }, { audience });
   return m.score == null ? null : m;
 }
 const byMatchDesc = (a, b) => ((b.match ? b.match.score : -1) - (a.match ? a.match.score : -1));
@@ -314,7 +314,7 @@ function withMatch(applications) {
   const jobs = new Map();
   const jobOf = (id) => { if (!jobs.has(id)) jobs.set(id, store.job(id)); return jobs.get(id); };
   return applications.map((a) => (a.candidateId
-    ? { ...a, match: matchFor(store.candidate(a.candidateId), jobOf(a.jobId)) } : a));
+    ? { ...a, match: matchFor(store.candidate(a.candidateId), jobOf(a.jobId), 'company') } : a));
 }
 
 /* Las notificaciones nunca pueden hacer fallar la acción que las origina. */
@@ -345,6 +345,7 @@ function alertMatches(a, j) {
 /* Al publicarse una oferta: avisa a la empresa y a cada persona con una alerta que coincide (una vez). */
 function announceJob(j) {
   tryNotify('company', j.companyId, { kind: 'oferta', title: 'Tu aviso ya está publicado', body: j.title, link: `/oferta/${j.id}` });
+  if (!store.claimAnnouncement(j.id)) return; // ya se avisó a las alertas: no repetir al reaprobar
   try {
     const seen = new Set();
     for (const a of store.allAlerts()) {
@@ -412,7 +413,7 @@ function navHtml(active) {
     ${NAV_ITEMS.map(([href, label]) => `<a href="${href}">${label}</a>`).join('')}
     <a href="/acceder" data-auth-mobile>Ingresar</a>
   </div>
-</header>`;
+</header>${process.env.WORKUCO_DEMO === '1' ? '\n<div class="demo-strip" role="note">Modo demostración: las empresas, personas y ofertas que ves son ficticias.</div>' : ''}`;
 }
 
 function footerHtml() {
@@ -948,7 +949,7 @@ async function handleApi(req, res, url) {
       fs.writeFileSync(path.join(UP_DIR, cvFile), buf);
     }
     const app = store.insertApplication({
-      id: uid('a'), jobId: job.id, name, email, phone,
+      id: uid('a'), jobId: job.id, name, email, phone, manual: true,
       message: cleanMultiline(b.message, 2000), cvFile, cvName, createdAt: now(),
     });
     return send(res, 201, { application: store.applicationDetail(app.id) });
@@ -1245,7 +1246,7 @@ async function handleApi(req, res, url) {
       headline: c.headline || '', about: c.about || '', locality: c.locality || '',
       skills: jparse(c.skills, []), categories: jparse(c.categories, []),
       availability: c.availability || '', experience: c.experience || '',
-      match: job ? matchFor(c, job) : null,
+      match: job ? matchFor(c, job, 'company') : null,
       invited: marks ? marks.invited.has(c.id) : false,
       applied: marks ? marks.applied.has(c.id) : false,
     }));
@@ -1260,6 +1261,7 @@ async function handleApi(req, res, url) {
     if (!job) return send(res, 404, { error: 'Oferta no encontrada' });
     if (job.companyId !== me.company.id) return send(res, 403, { error: 'Esa oferta no es de tu empresa' });
     if (job.status !== 'approved') return send(res, 400, { error: 'Sólo podés invitar a ofertas publicadas' });
+    if (job.closesAt && job.closesAt < todayAR()) return send(res, 400, { error: 'Esa búsqueda ya cerró: extendé la fecha de cierre para invitar' });
     const c = store.candidate(clean(b.candidateId, 40));
     if (!c || !c.open_to_work) return send(res, 404, { error: 'Esa persona no está disponible' });
     if (store.applicationByCandidate(c.id, job.id)) return send(res, 409, { error: 'Esa persona ya se postuló a esta oferta' });
@@ -1285,7 +1287,9 @@ async function handleApi(req, res, url) {
     const allowed = me.role === 'admin' || (me.role === 'candidate' && me.candidate.id === c.id)
       || (me.role === 'company' && companyHasApplicant(me.company.id, c.id));
     if (!allowed) return send(res, 403, { error: 'Sin permiso para ver este CV' });
-    return send(res, 200, { candidate: publicCandidate(c, { privateView: true }) });
+    const out = publicCandidate(c, { privateView: true });
+    if (me.role === 'company') { delete out.salaryMin; delete out.isPublic; delete out.publicSlug; }
+    return send(res, 200, { candidate: out });
   }
 
   const pubProfile = p.match(/^\/api\/public\/([a-z0-9-]+)(\/photo)?$/);

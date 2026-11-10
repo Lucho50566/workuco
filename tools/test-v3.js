@@ -275,6 +275,39 @@ async function main() {
       const page = await pub.get(url);
       check(`página de ${name} responde HTML`, page.status === 200 && page.type.includes('text/html') && !page.text.includes('{{NAV}}') && !page.text.includes('{{TITLE}}'));
     }
+
+    /* ------------------------------------------------------------ */
+    console.log('\n— Revisión final: privacidad, avisos repetidos, insignia y vencidos —');
+    const leaks = (txt) => /"salaryMin":800000|"isPublic"|"publicSlug"|sueldo llega/i.test(txt);
+    const dashTxt = JSON.stringify((await bodega.get('/api/company/dashboard')).data.applications.map((a) => a.candidate && a.match ? { c: a.candidate, m: a.match } : null));
+    check('el tablero no muestra el sueldo pretendido ni datos del perfil público', !leaks(dashTxt));
+    check('las postulaciones de empresa no lo muestran', !leaks(JSON.stringify((await bodega.get('/api/company/applications')).data)));
+    check('el CV para la empresa no lo muestra', !leaks((await bodega.get('/api/cv-data/udemo01')).text));
+    check('la persona sí ve su sueldo pretendido', (await martina.get('/api/cv-data/udemo01')).data.candidate.salaryMin === 800000);
+    check('el talento no muestra el motivo de sueldo', !/sueldo llega/i.test((await bodega.get('/api/company/talent?jobId=jdemo001')).text));
+
+    const rj = await finca.post('/api/company/jobs', validJob({ title: 'Mozo de fin de semana', category: 'Gastronomía' }));
+    await admin.patch(`/api/admin/jobs/${rj.data.job.id}`, { status: 'approved' });
+    const afterFirst = (await martina.get('/api/notifications')).data.items.filter((n) => n.kind === 'alerta').length;
+    await finca.patch(`/api/company/jobs/${rj.data.job.id}`, { status: 'closed' });
+    await admin.patch(`/api/admin/jobs/${rj.data.job.id}`, { status: 'approved' });
+    const afterSecond = (await martina.get('/api/notifications')).data.items.filter((n) => n.kind === 'alerta').length;
+    check('reaprobar un aviso no vuelve a avisar a las alertas', afterSecond === afterFirst, `${afterFirst} -> ${afterSecond}`);
+
+    const fakeCo = client();
+    await fakeCo.post('/api/auth/register', { role: 'company', name: 'Empresa Inflada', email: 'inflada@test.workuco', password: 'clave12345', phone: '2622 400402' });
+    const fj = await fakeCo.post('/api/company/jobs', validJob({ title: 'Puesto para inflar' }));
+    await admin.patch(`/api/admin/jobs/${fj.data.job.id}`, { status: 'approved' });
+    for (let i = 0; i < 3; i++) {
+      const m = await fakeCo.post('/api/company/applications', { jobId: fj.data.job.id, name: `Falso ${i} Test`, email: `falso${i}@test.workuco`, phone: '2622 400999' });
+      await fakeCo.patch(`/api/company/applications/${m.data.application.id}`, { stage: 'entrevista' });
+    }
+    const fakeMe = await fakeCo.get('/api/me');
+    check('los postulantes cargados a mano no inflan la insignia', (await pub.get(`/api/companies/${fakeMe.data.user.company.id}`)).data.company.response === null);
+
+    const exp = await bodega.post('/api/company/jobs', validJob({ title: 'Aviso que ya venció', closesAt: '2020-01-01' }));
+    await admin.patch(`/api/admin/jobs/${exp.data.job.id}`, { status: 'approved' });
+    check('no se puede invitar a un aviso vencido', (await bodega.post('/api/company/invitations', { jobId: exp.data.job.id, candidateId: 'udemo07' })).status === 400);
   } catch (e) {
     fail++; console.error('ERROR en las pruebas:', e);
   } finally {
