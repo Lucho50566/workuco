@@ -117,5 +117,19 @@ test('habilidades acotadas a 8 y fechas inválidas descartadas', () => {
   assert.equal(d.gig, true);
 });
 
+test('imageIndex: válido se respeta, inválido queda en -1', () => {
+  const { drafts } = normalizeDrafts({ avisos: [aviso({ imageIndex: 1 }), aviso({ imageIndex: 7 }), aviso({ imageIndex: 'x' }), aviso()] }, meta, '', 2);
+  assert.deepEqual(drafts.map((d) => d.imageIndex), [1, -1, -1, -1]);
+});
+
+test('una sola imagen y un solo aviso: el aviso usa esa imagen', () => {
+  const { drafts } = normalizeDrafts({ avisos: [aviso()] }, meta, '', 1);
+  assert.equal(drafts[0].imageIndex, 0);
+});
+
+test('el prompt pide imageIndex', () => {
+  assert.ok(buildImportPrompt(meta).system.includes('imageIndex'));
+});
+
 console.log(`\n${ok} ok, ${fail} fallas`);
 process.exit(fail ? 1 : 0);

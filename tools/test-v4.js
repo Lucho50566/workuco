@@ -39,7 +39,7 @@ function client() {
     try { data = JSON.parse(text); } catch (_) {}
     return { status: res.status, data: data || {}, text, type: res.headers.get('content-type') || '' };
   }
-  return { get: (p) => req(p), post: (p, b = {}) => req(p, { method: 'POST', body: b }), patch: (p, b) => req(p, { method: 'PATCH', body: b }), del: (p) => req(p, { method: 'DELETE' }) };
+  return { get: (p) => req(p), post: (p, b = {}) => req(p, { method: 'POST', body: b }), patch: (p, b) => req(p, { method: 'PATCH', body: b }), put: (p, b) => req(p, { method: 'PUT', body: b }), del: (p) => req(p, { method: 'DELETE' }) };
 }
 async function waitServer() {
   for (let i = 0; i < 60; i++) {
@@ -178,6 +178,29 @@ async function main() {
       client().post(`/api/claim/${tok4}/accept`, { email: 'esquina2@test.workuco', password: 'clave12345' }),
     ]);
     check('dos reclamos a la vez: sólo uno gana', [r1.status, r2.status].filter((s) => s === 200).length === 1, `${r1.status} ${r2.status}`);
+
+    console.log('\n— Flyers —');
+    const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+    const jobBase = { title: 'Bartender para bar', locality: 'San Carlos', category: 'Gastronomía', type: 'Medio tiempo', modality: 'Presencial', contactEmail: 'rrhh@demo.workuco' };
+    check('sin flyer, descripción corta: 400', (await bodega.post('/api/company/jobs', { ...jobBase, description: 'Bartender con experiencia.' })).status === 400);
+    const wf = await bodega.post('/api/company/jobs', { ...jobBase, description: 'Bartender con experiencia.', flyer: PNG });
+    check('con flyer alcanza una descripción corta', wf.status === 201 && /^\/media\/flyer-/.test(wf.data.job.flyer || ''), JSON.stringify(wf.data).slice(0, 200));
+    check('flyer que no es imagen: 400', (await bodega.post('/api/company/jobs', { ...jobBase, description: 'Bartender con experiencia.', flyer: 'data:image/png;base64,aG9sYQ==' })).status === 400);
+    const fid = wf.data.job.id;
+    await bodega.put(`/api/company/jobs/${fid}`, { ...jobBase, description: 'Bartender con experiencia en tragos.' });
+    const afterEdit = (await bodega.get('/api/company/jobs')).data.jobs.find((j) => j.id === fid) || {};
+    check('editar sin mandar el flyer lo conserva', afterEdit.flyer === wf.data.job.flyer);
+    const removed = await bodega.put(`/api/company/jobs/${fid}`, { ...jobBase, description: 'Bartender con experiencia en tragos.', removeFlyer: true });
+    check('sin flyer de nuevo, la descripción corta vuelve a fallar', removed.status === 400);
+    await admin.patch(`/api/admin/jobs/${fid}`, { status: 'approved' });
+    const listF = (await pub.get('/api/jobs?limit=30')).data.jobs.find((j) => j.id === fid) || {};
+    const detF = (await pub.get(`/api/jobs/${fid}`)).data.job || {};
+    check('la tarjeta y el detalle traen el flyer', listF.flyer === wf.data.job.flyer && detF.flyer === wf.data.job.flyer);
+    const img = await fetch(BASE + wf.data.job.flyer);
+    check('el flyer se sirve como imagen', img.status === 200 && /image\/png/.test(img.headers.get('content-type') || ''));
+    check('completar con el flyer sin IA configurada: 400', (await bodega.post('/api/company/ai/flyer', { image: PNG })).status === 400);
+    const impF = await admin.post('/api/admin/import/publish', { draft: { ...drafts[0], title: 'Bachero de fin de semana', companyName: 'Bodegón Uco', contactPhone: '2622 333222' }, sourceName: 'X', flyer: PNG });
+    check('el importador guarda la captura como flyer', impF.status === 201 && /^\/media\/flyer-/.test(impF.data.job.flyer || ''));
 
     console.log('\n— Páginas y límites —');
     const page = await pub.get('/reclamar/abc123');

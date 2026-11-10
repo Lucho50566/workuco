@@ -249,7 +249,7 @@ function originOk(req) {
 }
 
 /* Validación de una oferta */
-function validateJob(b) {
+function validateJob(b, { hasFlyer = false } = {}) {
   const errors = {};
   const title = clean(b.title, 120);
   const description = cleanMultiline(b.description, 8000);
@@ -258,7 +258,8 @@ function validateJob(b) {
   const type = TYPES.includes(b.type) ? b.type : '';
   const modality = MODALITIES.includes(b.modality) ? b.modality : '';
   if (title.length < 5) errors.title = 'El puesto debe tener al menos 5 caracteres';
-  if (description.length < 60) errors.description = 'Describí el puesto con al menos 60 caracteres';
+  const minDesc = hasFlyer ? 20 : 60;
+  if (description.length < minDesc) errors.description = `Describí el puesto con al menos ${minDesc} caracteres`;
   if (!locality) errors.locality = 'Elegí una localidad';
   if (!category) errors.category = 'Elegí una categoría';
   if (!type) errors.type = 'Elegí el tipo de empleo';
@@ -305,7 +306,7 @@ function jobSummary(j) {
     locality: j.locality, category: j.category, type: j.type, modality: j.modality,
     salary: j.salary, salaryMin: j.salaryMin, salaryMax: j.salaryMax, salaryPeriod: j.salaryPeriod, salaryLabel: j.salaryLabel,
     skills: j.skills, gig: j.gig, startDate: j.startDate, duration: j.duration, positions: j.positions,
-    sourceKind: j.sourceKind, sourceName: j.sourceName,
+    sourceKind: j.sourceKind, sourceName: j.sourceName, flyer: j.flyer,
     featured: j.featured, createdAt: j.createdAt, publishedAt: j.publishedAt, closesAt: j.closesAt,
   };
 }
@@ -742,7 +743,7 @@ async function handleApi(req, res, url) {
         salaryMin: j.salaryMin, salaryMax: j.salaryMax, salaryPeriod: j.salaryPeriod, salaryLabel: j.salaryLabel,
         skills: j.skills, gig: j.gig, startDate: j.startDate, duration: j.duration,
         match, companyResponse: store.responseStats(j.companyId),
-        sourceKind: j.sourceKind, sourceName: j.sourceName, companyClaimed: (store.company(j.companyId) || {}).claimed !== 0,
+        flyer: j.flyer, sourceKind: j.sourceKind, sourceName: j.sourceName, companyClaimed: (store.company(j.companyId) || {}).claimed !== 0,
         benefits: j.benefits, positions: j.positions,
         contactEmail: j.contactEmail, contactPhone: j.contactPhone,
         closesAt: j.closesAt, createdAt: j.createdAt, publishedAt: j.publishedAt, views: j.views + 1,
@@ -862,10 +863,11 @@ async function handleApi(req, res, url) {
   if (p === '/api/company/jobs' && method === 'POST') {
     if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
     const b = await readBody(req);
-    const v = validateJob(b);
+    const v = validateJob(b, { hasFlyer: !!b.flyer });
     if (!v.ok) return send(res, 400, { error: 'Revisá los datos', fields: v.errors });
+    const flyerFile = b.flyer ? saveImage(b.flyer, 'flyer') : null;
     const j = store.insertJob({
-      id: uid('j'), companyId: me.company.id, ...v.data, status: 'pending', featured: 0, createdAt: now(),
+      id: uid('j'), companyId: me.company.id, ...v.data, flyerFile, status: 'pending', featured: 0, createdAt: now(),
     });
     return send(res, 201, { job: j });
   }
@@ -884,9 +886,11 @@ async function handleApi(req, res, url) {
       return send(res, 200, { job: updated });
     }
     const b = await readBody(req);
-    const v = validateJob(b);
+    const keepFlyer = !b.removeFlyer && !b.flyer ? j.flyerFile : null;
+    const v = validateJob(b, { hasFlyer: !!(b.flyer || keepFlyer) });
     if (!v.ok) return send(res, 400, { error: 'Revisá los datos', fields: v.errors });
-    const updated = store.updateJob(j.id, { ...v.data, status: 'pending', rejectReason: null, featured: 0, publishedAt: null });
+    const flyerFile = b.flyer ? saveImage(b.flyer, 'flyer') : keepFlyer;
+    const updated = store.updateJob(j.id, { ...v.data, flyerFile, status: 'pending', rejectReason: null, featured: 0, publishedAt: null });
     return send(res, 200, { job: updated, message: 'Los cambios quedaron pendientes de aprobación' });
   }
 
@@ -1080,6 +1084,24 @@ async function handleApi(req, res, url) {
       return send(res, 200, { ok: true, reply: out });
     } catch (e) {
       return send(res, 502, { error: `No pudimos conectar con la IA: ${e.message}` });
+    }
+  }
+
+  if (p === '/api/company/ai/flyer' && method === 'POST') {
+    if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
+    const b = await readBody(req);
+    const img = parseDataUrl(b.image);
+    if (!img) return send(res, 400, { error: 'El flyer tiene que ser una imagen JPG, PNG o WebP' });
+    const cfg = ai.configOf(store.company(me.company.id));
+    if (!cfg.provider || !cfg.apiKey) return send(res, 400, { error: 'Configurá tu IA en Panel → IA para completar el aviso desde el flyer' });
+    try {
+      const meta = { localities: LOCALITIES, categories: CATEGORIES, types: TYPES, modalities: MODALITIES };
+      const { system, user } = buildImportPrompt(meta);
+      const raw = await ai.callProvider(cfg, { system, user, images: [{ mime: img.mime, base64: img.buf.toString('base64') }], maxTokens: 3000 });
+      const { drafts } = normalizeDrafts(raw, meta, '', 1);
+      return send(res, 200, { draft: drafts[0] || null });
+    } catch (e) {
+      return send(res, 502, { error: `No pudimos leer el flyer con la IA: ${e.message}` });
     }
   }
 
@@ -1351,13 +1373,13 @@ async function handleApi(req, res, url) {
         if (base64.length > 4 * 1024 * 1024 * 1.37) return send(res, 413, { error: 'Cada imagen puede pesar hasta 4 MB' });
         imgs.push({ mime, base64 });
       }
-      if (IMPORT_FAKE) return send(res, 200, normalizeDrafts(IMPORT_FAKE_REPLY, importMeta, text));
+      if (IMPORT_FAKE) return send(res, 200, normalizeDrafts(IMPORT_FAKE_REPLY, importMeta, text, imgs.length));
       const cfg = ai.importConfig();
       if (!cfg) return send(res, 400, { code: 'no_ai', error: 'La IA del importador no está configurada: cargá los avisos a mano o configurá WORKUCO_IMPORT_AI_PROVIDER y WORKUCO_IMPORT_AI_KEY' });
       try {
         const { system, user } = buildImportPrompt(importMeta);
         const raw = await ai.callProvider(cfg, { system, user: text.trim() ? `${user}\n\n${text}` : user, images: imgs, maxTokens: 6000 });
-        return send(res, 200, normalizeDrafts(raw, importMeta, text));
+        return send(res, 200, normalizeDrafts(raw, importMeta, text, imgs.length));
       } catch (e) {
         return send(res, 502, { error: `No pudimos leer los avisos con la IA: ${e.message}` });
       }
@@ -1369,7 +1391,7 @@ async function handleApi(req, res, url) {
       const companyName = clean(d.companyName, 120);
       const contactPhone = clean(d.contactPhone, 60);
       const hasEmail = isEmail(d.contactEmail);
-      const v = validateJob({ ...d, contactEmail: hasEmail ? d.contactEmail : 'sin-email@import.workuco' });
+      const v = validateJob({ ...d, contactEmail: hasEmail ? d.contactEmail : 'sin-email@import.workuco' }, { hasFlyer: !!b.flyer });
       const fields = { ...v.errors };
       if (companyName.length < 2) fields.companyName = 'Falta el nombre de la empresa';
       if (Object.keys(fields).length) return send(res, 400, { error: 'Revisá el borrador', fields });
@@ -1383,11 +1405,12 @@ async function handleApi(req, res, url) {
       }
       const co = store.findUnclaimed({ phoneNorm, nameNorm })
         || store.createUnclaimed({ name: companyName, phone: contactPhone, locality: v.data.locality, phoneNorm, nameNorm });
+      const flyerFile = b.flyer ? saveImage(b.flyer, 'flyer') : null;
       const limit = addDaysAR(30);
       const closesAt = v.data.closesAt && v.data.closesAt < limit ? v.data.closesAt : limit;
       const job = store.insertJob({
         id: uid('j'), companyId: co.id, ...v.data,
-        contactEmail: hasEmail ? v.data.contactEmail : '', contactPhone, closesAt,
+        contactEmail: hasEmail ? v.data.contactEmail : '', contactPhone, closesAt, flyerFile,
         status: 'approved', featured: 0, createdAt: now(), publishedAt: now(),
       });
       store.setJobSource(job.id, { sourceName: clean(b.sourceName, 80) || 'Canal de WhatsApp', sourceText: cleanMultiline(b.sourceText, 20000) });
