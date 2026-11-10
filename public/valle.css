@@ -185,7 +185,7 @@ html { scrollbar-color: #b9ad94 var(--cream); }
 .job-pay .is-empty { color: var(--muted); font-weight: 600; font-family: var(--font); font-size: 13.5px; }
 .badge-featured { background: var(--lime); color: var(--night); font-weight: 700; }
 .badge-gig { background: var(--malbec); color: #fff; font-weight: 700; }
-.badge { background: var(--surface-2); color: #3d4842; }
+.badge { background: var(--surface-2); color: #3d4842; font-size: 12.5px; }
 
 .match-pill {
   --pct: 0;

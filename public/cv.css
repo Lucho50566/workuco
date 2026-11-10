@@ -6,6 +6,7 @@
   padding: 10px 16px; background: var(--night, #0b1612); color: #fff;
 }
 .cv-toolbar .btn-ghost { color: #cfe0d6; }
+.cv-toolbar .btn-ghost:hover { color: #fff; background: rgba(255, 255, 255, .1); }
 .cv-toolbar-title { font-family: var(--font-display, inherit); font-weight: 700; letter-spacing: -.02em; }
 .cv-wrap { padding: 28px 16px 12px; }
 .cv-hint { text-align: center; color: #5f6d66; font-size: 13px; padding: 0 16px 40px; }
