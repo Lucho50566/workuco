@@ -1073,7 +1073,7 @@
 
     function renderDrafts() {
       $('#imp-drafts').innerHTML = drafts.map((d, i) => `<article class="card imp-draft" data-draft="${i}">
-        <div class="imp-draft-head"><h3>Borrador ${i + 1}${d.title ? `: ${esc(d.title)}` : ''}</h3>
+        <div class="imp-draft-head">${d.imageIndex >= 0 && images[d.imageIndex] ? `<img class="imp-draft-flyer" src="${esc(images[d.imageIndex].dataUrl)}" alt="Flyer del borrador ${i + 1}">` : ''}<h3>Borrador ${i + 1}${d.title ? `: ${esc(d.title)}` : ''}</h3>
           ${(d.warnings || []).map((w) => `<span class="badge badge-amber">${esc(w)}</span>`).join('')}</div>
         <div class="form-grid">
           <div class="field"><label>Puesto</label><input class="input" data-f="title" value="${esc(d.title)}" maxlength="120"><span class="error-text" data-error="title" hidden></span></div>
@@ -1115,7 +1115,8 @@
       setFieldErrors(card, null);
       btn.disabled = true;
       try {
-        await api('/api/admin/import/publish', { method: 'POST', body: { draft, sourceName: $('#imp-source').value.trim(), sourceText: $('#imp-text').value, force } });
+        const flyer = draft.imageIndex >= 0 && images[draft.imageIndex] ? images[draft.imageIndex].dataUrl : undefined;
+        await api('/api/admin/import/publish', { method: 'POST', body: { draft, sourceName: $('#imp-source').value.trim(), sourceText: $('#imp-text').value, force, flyer } });
         toast(`Publicado: ${draft.title}`, 'ok');
         drafts.splice(i, 1);
         renderDrafts();

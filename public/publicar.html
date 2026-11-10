@@ -126,6 +126,15 @@
             <p>Una descripción clara recibe mejores postulantes. Te ayudamos con plantillas o IA.</p>
           </div>
 
+          <div class="flyer-box" id="flyer-box">
+            <div class="flyer-empty">
+              <span class="field-label">Flyer del aviso <span class="hint">(opcional, es lo que más llama la atención)</span></span>
+              <label class="btn btn-outline btn-sm" for="flyer-input">{{ICON_IMAGE}} Subir flyer</label>
+              <input class="sr-only" id="flyer-input" type="file" accept="image/jpeg,image/png,image/webp">
+            </div>
+            <div class="flyer-preview" id="flyer-preview"></div>
+          </div>
+
           <div class="ai-strip">
             <div>{{ICON_SPARKLES}}<span><strong>¿No sabés cómo empezar?</strong><small>Generá un borrador con IA y ajustalo.</small></span></div>
             <button class="btn btn-outline btn-sm" type="button" id="btn-ai">{{ICON_WAND}} Generar con IA</button>
@@ -140,7 +149,7 @@
           <div class="field">
             <label for="j-description">Descripción del puesto</label>
             <textarea class="input" id="j-description" name="description" required minlength="60" maxlength="8000" rows="6" placeholder="Contá cómo es el equipo, el día a día y qué hace especial al puesto."></textarea>
-            <span class="hint">Mínimo 60 caracteres. Podés editarlo todo lo que quieras.</span>
+            <span class="hint" id="desc-hint">Mínimo 60 caracteres. Podés editarlo todo lo que quieras.</span>
           </div>
 
           <div class="field" style="margin-top:16px">

@@ -239,6 +239,30 @@ async function loadMeta() {
   return state.meta;
 }
 
+/* Achica una imagen en el navegador y la devuelve como JPEG (data URL). */
+async function shrinkImage(file, max = 1600, quality = 0.86) {
+  let src;
+  try { src = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+  catch (_) {
+    src = await new Promise((resolve, reject) => {
+      const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = URL.createObjectURL(file);
+    });
+  }
+  const w = src.width || src.naturalWidth; const h = src.height || src.naturalHeight;
+  const scale = Math.min(1, max / Math.max(w, h));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(w * scale); canvas.height = Math.round(h * scale);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL('image/jpeg', quality);
+}
+/* Un flyer ya publicado (URL) → data URL, para mandarlo a la IA. */
+async function urlToDataUrl(url) {
+  const blob = await (await fetch(url)).blob();
+  return new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = reject; r.readAsDataURL(blob); });
+}
+
 /* ---------------- componentes ---------------- */
 function matchPill(m) {
   if (!m || m.score == null) return '';
@@ -257,9 +281,9 @@ function payHtml(j) {
 }
 
 function jobCard(j) {
-  const cover = (j.companyGallery || [])[0];
+  const cover = j.flyer || (j.companyGallery || [])[0];
   return `<a class="job-card" href="/oferta/${j.id}">
-    <div class="job-cover${cover ? ' has-img' : ''}"${cover ? ` style="background-image:url('${esc(cover)}')"` : ''}>
+    <div class="job-cover${cover ? ' has-img' : ''}${j.flyer ? ' is-flyer' : ''}"${cover ? ` style="background-image:url('${esc(cover)}')"` : ''}>
       <span class="job-cover-shade"></span>
       ${j.gig ? '<span class="badge badge-gig">Changa</span>' : j.featured ? '<span class="badge badge-featured">Destacada</span>' : ''}
     </div>
@@ -281,7 +305,7 @@ function jobCard(j) {
 }
 
 function jobRow(j, saved = false) {
-  const cover = (j.companyGallery || [])[0];
+  const cover = j.flyer || (j.companyGallery || [])[0];
   return `<div class="job-row">
     <a class="job-row-main" href="/oferta/${j.id}">
       ${logoHtml(j.companyName, j.companyLogo, 'logo')}
@@ -654,6 +678,9 @@ async function initJob() {
           </div>
         </div>
 
+        ${job.flyer ? `<figure class="detail-flyer"><a href="${esc(job.flyer)}" target="_blank" rel="noopener" title="Ver el flyer en grande">
+          <img src="${esc(job.flyer)}" alt="Flyer: ${esc(job.title)} en ${esc(job.companyName)}" loading="lazy"></a>
+          <figcaption>Tocá el flyer para verlo en grande</figcaption></figure>` : ''}
         <div class="detail-block">
           <h2>De qué se trata</h2>
           <div class="prose">${esc(job.description)}</div>
@@ -893,6 +920,63 @@ async function initPublish() {
   $('#j-contact-phone').value = s.contactPhone;
   $('#j-positions').textContent = String(s.positions);
 
+  /* --- flyer del aviso --- */
+  s.flyerData = '';                          // flyer nuevo (data URL), todavía no subido
+  s.flyerUrl = editing ? (editing.flyer || '') : '';
+  s.removeFlyer = false;
+  const hasFlyer = () => !!(s.flyerData || (s.flyerUrl && !s.removeFlyer));
+  const canAi = !!(user.company.ai && user.company.ai.hasKey);
+  const renderFlyer = () => {
+    const src = s.flyerData || (!s.removeFlyer ? s.flyerUrl : '');
+    $('#flyer-box').classList.toggle('has-flyer', !!src);
+    $('#flyer-preview').innerHTML = src
+      ? `<img src="${esc(src)}" alt="Flyer del aviso">
+         <div class="flyer-actions">
+           ${canAi ? `<button class="btn btn-lime btn-sm" type="button" id="flyer-ai">${icon('sparkles', 15)} Completar el aviso con el flyer</button>` : '<span class="muted">Con la IA de tu panel, el flyer completa el aviso solo.</span>'}
+           <button class="btn btn-ghost btn-sm" type="button" id="flyer-remove">${icon('trash', 15)} Quitar flyer</button>
+         </div>`
+      : '';
+    $('#flyer-remove')?.addEventListener('click', () => { s.flyerData = ''; s.removeFlyer = true; renderFlyer(); });
+    $('#flyer-ai')?.addEventListener('click', fillFromFlyer);
+    $('#desc-hint').textContent = hasFlyer()
+      ? 'Con flyer alcanza con 20 caracteres: sumá lo esencial para que te encuentren en las búsquedas.'
+      : 'Mínimo 60 caracteres. Podés editarlo todo lo que quieras.';
+  };
+  $('#flyer-input').addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { toast('El flyer tiene que ser JPG, PNG o WebP', 'err'); return; }
+    try { s.flyerData = await shrinkImage(file, 1600, 0.86); s.removeFlyer = false; renderFlyer(); toast('Flyer cargado', 'ok'); }
+    catch (_) { toast('No pudimos leer la imagen', 'err'); }
+  });
+
+  async function fillFromFlyer(e) {
+    const btn = e.currentTarget;
+    if ($('#j-description').value.trim() && !confirm('El flyer va a reemplazar la descripción y los datos del aviso. ¿Seguimos?')) return;
+    btn.disabled = true; const old = btn.innerHTML; btn.innerHTML = `${icon('sparkles', 15)} Leyendo el flyer…`;
+    try {
+      const image = s.flyerData || await urlToDataUrl(s.flyerUrl);
+      const { draft } = await api('/api/company/ai/flyer', { method: 'POST', body: { image } });
+      if (!draft) { toast('No encontramos un aviso en el flyer', 'err'); return; }
+      if (draft.title) { s.title = draft.title; $('#j-title').value = draft.title; }
+      for (const k of ['category', 'type', 'modality']) if (draft[k]) s[k] = draft[k];
+      if (draft.locality) s.locality = draft.locality;
+      if (draft.description) { s.description = draft.description; $('#j-description').value = draft.description; }
+      if (draft.requirements) { s.requirements.splice(0, s.requirements.length, ...draft.requirements.split('\n').map((x) => x.replace(/^[•\-*]\s*/, '').trim()).filter(Boolean)); renderReq(); }
+      if (draft.skills && draft.skills.length) { s.skills = draft.skills.slice(0, 8); renderJobSkills(); }
+      if (draft.salaryMin) { $('#j-salary-min').value = draft.salaryMin; $('#j-salary-max').value = draft.salaryMax || ''; $('#j-salary-period').value = draft.salaryPeriod || 'mes'; nudge(); }
+      if (draft.gig) { $('#j-gig').checked = true; $('#gig-fields').hidden = false; }
+      if (draft.startDate) $('#j-start').value = draft.startDate;
+      if (draft.duration) $('#j-duration').value = draft.duration;
+      if (draft.contactEmail) $('#j-contact-email').value = draft.contactEmail;
+      if (draft.contactPhone) $('#j-contact-phone').value = draft.contactPhone;
+      rerender();
+      toast('Listo: revisá los datos que leímos del flyer', 'ok');
+    } catch (err) { toast(err.message, 'err'); }
+    finally { btn.disabled = false; btn.innerHTML = old; }
+  }
+
   /* --- v3: changa, sueldo estructurado, habilidades y plantillas del Valle --- */
   const readMoney = (sel) => Math.max(0, Number(String($(sel).value).replace(/\D/g, '')) || 0);
   const wizardPay = () => {
@@ -1114,8 +1198,11 @@ async function initPublish() {
     }
     if (s.step === 2) {
       s.description = $('#j-description').value.trim();
-      if (s.description.length < 60) {
-        showAlert($('#publish-alert'), 'Contá un poco más del puesto (mínimo 60 caracteres). Podés usar una plantilla o la IA.', 'error');
+      const minDesc = hasFlyer() ? 20 : 60;
+      if (s.description.length < minDesc) {
+        showAlert($('#publish-alert'), hasFlyer()
+          ? 'Sumá una descripción corta (mínimo 20 caracteres) para que te encuentren en las búsquedas.'
+          : 'Contá un poco más del puesto (mínimo 60 caracteres), subí un flyer o usá una plantilla.', 'error');
         $('#j-description').focus();
         return false;
       }
@@ -1141,8 +1228,9 @@ async function initPublish() {
   function renderPreview() {
     s.contactEmail = $('#j-contact-email').value.trim();
     s.contactPhone = $('#j-contact-phone').value.trim();
+    const flyerSrc = s.flyerData || (!s.removeFlyer ? s.flyerUrl : '');
     $('#job-preview').innerHTML = `<div class="preview-card">
-      <div class="preview-cover"><span>Así se va a ver tu aviso</span></div>
+      <div class="preview-cover${flyerSrc ? ' has-flyer' : ''}"${flyerSrc ? ` style="background-image:url('${esc(flyerSrc)}')"` : ''}><span>Así se va a ver tu aviso</span></div>
       <div class="preview-body">
         ${logoHtml(user.company.name, user.company.logo, 'logo')}
         <div><div class="job-title">${esc(s.title)}</div><div class="job-company">${esc(user.company.name)} ${user.company.verified ? `<span class="verified">${checkIcon}</span>` : ''}</div></div>
@@ -1169,6 +1257,7 @@ async function initPublish() {
       salaryMin: readMoney('#j-salary-min'), salaryMax: readMoney('#j-salary-max'), salaryPeriod: $('#j-salary-period').value,
       skills: s.skills, gig: $('#j-gig').checked,
       startDate: $('#j-gig').checked ? $('#j-start').value : '', duration: $('#j-gig').checked ? $('#j-duration').value.trim() : '',
+      ...(s.flyerData ? { flyer: s.flyerData } : {}), ...(s.removeFlyer && !s.flyerData ? { removeFlyer: true } : {}),
     };
     btn.disabled = true; btn.textContent = 'Guardando…';
     try {
@@ -1187,6 +1276,7 @@ async function initPublish() {
     }
   });
 
+  renderFlyer();
   showStep(1);
 }
 
@@ -1660,7 +1750,7 @@ async function initClaim() {
 window.WK = {
   $, $$, api, esc, toast, showAlert, hideAlert, setFieldErrors, icon, logoHtml, avatarHtml,
   state, loadMe, loadMeta, fmtDate, timeAgo, initials, stageBadge, STAGE_LABEL, statusBadge,
-  jobCard, jobRow, gigCard, matchPill, payHtml, responseHtml, profileCompleteness, setupCarousel, fileToBase64, ready: null,
+  jobCard, jobRow, gigCard, shrinkImage, matchPill, payHtml, responseHtml, profileCompleteness, setupCarousel, fileToBase64, ready: null,
 };
 
 document.addEventListener('DOMContentLoaded', async () => {

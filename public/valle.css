@@ -537,3 +537,21 @@ html { scrollbar-color: #b9ad94 var(--cream); }
 .claim-panel h3 { font-size: 19px; margin-bottom: 8px; }
 .claim-panel .field { margin-top: 12px; }
 @media (max-width: 900px) { .claim-grid { grid-template-columns: 1fr; } .claim-panel { order: -1; } }
+
+/* ---------- flyers ---------- */
+.job-cover.is-flyer { height: 170px; background-position: center top; }
+.job-cover.is-flyer .job-cover-shade { background: linear-gradient(180deg, rgba(11, 22, 18, 0) 70%, rgba(11, 22, 18, .35)); }
+.detail-flyer { margin: 0; padding: 22px 28px 4px; }
+.detail-flyer a { display: block; max-width: 520px; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); box-shadow: 0 14px 30px -18px rgba(15, 26, 21, .4); }
+.detail-flyer img { width: 100%; height: auto; display: block; }
+.detail-flyer figcaption { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+.flyer-box { border: 1px dashed var(--line-strong); border-radius: 14px; padding: 14px; margin-bottom: 14px; background: var(--bg-warm); }
+.flyer-box.has-flyer .flyer-empty .btn { display: none; }
+.flyer-preview { display: grid; grid-template-columns: minmax(0, 220px) 1fr; gap: 14px; align-items: start; }
+.flyer-preview:empty { display: none; }
+.flyer-preview img { width: 100%; border-radius: 10px; border: 1px solid var(--line); }
+.flyer-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.flyer-box.has-flyer .flyer-preview { margin-top: 10px; }
+.preview-cover.has-flyer { background-size: cover; background-position: center top; height: 180px; }
+.imp-draft-flyer { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
+@media (max-width: 560px) { .flyer-preview { grid-template-columns: 1fr; } .detail-flyer { padding: 18px 18px 4px; } }
