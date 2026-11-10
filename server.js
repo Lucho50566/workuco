@@ -1458,6 +1458,7 @@ async function handleApi(req, res, url) {
         return send(res, 409, { error: 'Ya hay una cuenta con ese email: ingresá con ella o usá otro', fields: { email: 'Email ya registrado' } });
       }
       const claimed = store.claimCompany(c.id, { email, password: hashPassword(password) });
+      if (!claimed) return send(res, 404, { error: 'Este link ya se usó o no existe' });
       setSession(res, 'company', req, { companyId: c.id });
       const seen = new Set();
       for (const a of store.applicantsOf(c.id)) {

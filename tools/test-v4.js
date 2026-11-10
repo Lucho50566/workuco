@@ -170,6 +170,15 @@ async function main() {
     check('borrar desde el admin no bloquea reimportar', (await admin.post('/api/admin/import/publish', { draft: { ...drafts[0], title: 'Cajero para el resto', companyName: 'Parrilla Don Tito', contactPhone: '2622 999888' }, sourceName: 'X' })).status === 201);
     check('el admin no borra empresas propias por esta vía', (await admin.del('/api/admin/import/companies/cdemo01bodega')).status === 404);
 
+    console.log('\n— Reclamo simultáneo —');
+    const p4 = await admin.post('/api/admin/import/publish', { draft: { ...drafts[0], title: 'Lavacopas', companyName: 'Bar La Esquina', contactPhone: '2622 777888' }, sourceName: 'X' });
+    const tok4 = ((await admin.get('/api/admin/import')).data.companies.find((c) => c.id === p4.data.company.id) || {}).claimUrl.split('/').pop();
+    const [r1, r2] = await Promise.all([
+      client().post(`/api/claim/${tok4}/accept`, { email: 'esquina1@test.workuco', password: 'clave12345' }),
+      client().post(`/api/claim/${tok4}/accept`, { email: 'esquina2@test.workuco', password: 'clave12345' }),
+    ]);
+    check('dos reclamos a la vez: sólo uno gana', [r1.status, r2.status].filter((s) => s === 200).length === 1, `${r1.status} ${r2.status}`);
+
     console.log('\n— Páginas y límites —');
     const page = await pub.get('/reclamar/abc123');
     check('la página de reclamo responde HTML', page.status === 200 && page.type.includes('text/html') && !page.text.includes('{{'));

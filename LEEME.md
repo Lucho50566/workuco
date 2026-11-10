@@ -83,6 +83,35 @@ para la base de talento, 3 con perfil público), postulaciones en todas las etap
 - **Insignia de respuesta**: qué % de postulaciones responde la empresa y en cuántos días (desde 3
   postulaciones). La ven las personas en la oferta y en la ficha de la empresa.
 
+### Nuevo en v4: avisos importados de canales de WhatsApp
+
+Para arrancar con contenido real, el admin carga avisos que circulan en canales de la zona y la
+empresa decide si los quiere administrar o borrar.
+
+1. **Admin → Importar**: pegá los mensajes del canal (hasta 20.000 caracteres) o subí hasta 6
+   capturas/flyers. La IA separa cada aviso y arma un borrador; vos revisás, corregís y publicás.
+   Sin IA configurada, "Cargar uno a mano".
+2. Cada aviso queda a nombre de una **ficha "sin reclamar"** (la misma ficha si se repite el
+   teléfono o el nombre), con la etiqueta "Tomado de <canal>", y **vence a los 30 días**.
+   La gente puede postularse igual: las postulaciones esperan a la empresa.
+3. En la tabla de fichas importadas, **"Avisar por WhatsApp"** abre tu WhatsApp con el mensaje ya
+   escrito y un link privado `/reclamar/<código>`.
+4. En ese link la empresa elige: **es nuestra** (crea su cuenta y pasa a manejar ficha, avisos y
+   postulantes), **corregir datos** (reclama y edita) o **borrarla** (se elimina al instante, se
+   avisa a quienes se postularon y su teléfono y nombre quedan en una lista de "no importar").
+
+Configuración (variables de entorno del servidor):
+
+| Variable | Para qué |
+|---|---|
+| `WORKUCO_IMPORT_AI_PROVIDER` | `gemini` (recomendado, lee imágenes), `openai`, `anthropic` o `custom` |
+| `WORKUCO_IMPORT_AI_KEY` | API key del admin (separada de las keys de cada empresa) |
+| `WORKUCO_IMPORT_AI_MODEL` / `WORKUCO_IMPORT_AI_BASE` | Opcionales (por defecto `gemini-2.5-flash`) |
+| `WORKUCO_CONTACT_WA` | WhatsApp de Workuco para el botón "¿Es tu empresa? Escribinos" |
+
+Privacidad: el código de reclamo y el texto original del canal sólo los ve el admin; nunca se
+publican datos de personas que buscan trabajo sacados de los canales.
+
 ### Desde v2
 
 **Quien busca trabajo**
@@ -185,13 +214,16 @@ Admin: `POST /api/admin/login`, `GET /api/admin/stats|jobs|applications|companie
 - La API key de IA se guarda por empresa, nunca se envía al navegador (solo enmascarada).
 - Base de talento y perfil público nunca exponen teléfono ni mail: el contacto llega cuando la persona se postula.
 - Todo texto de usuario nuevo (habilidades, alertas, mensajes de invitación, avisos) se escapa al mostrarse.
+- Links de reclamo: 24 bytes aleatorios, de un solo uso, con límite de intentos (8 fallos → 10 minutos).
+  Las fichas sin reclamar no pueden iniciar sesión.
 
 ## Pruebas
 
 ```
-npm test                     # match + API (82) + v3 (86), cada uno con su servidor temporal
+npm test                     # importador, IA con imágenes, match, API, v3 y v4 (cada uno con su servidor temporal)
 node tools/test-api.js       # 82 pruebas (servidor temporal + datos demo)
 WK_BASE=http://localhost:4250 node tools/test-ui-v3.mjs   # con un servidor con demo fresca
+WK_BASE=http://localhost:4250 node tools/test-ui-v4.mjs   # idem, con WORKUCO_IMPORT_AI_FAKE=1
 node tools/test-ai.js        # prompts y parseo de la IA
 node tools/check-layout.mjs http://localhost:4250/ 320 390 768 1366
 node tools/shots.mjs http://localhost:4250          # capturas en shots/

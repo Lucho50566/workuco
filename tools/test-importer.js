@@ -34,6 +34,15 @@ test('normPhone unifica formatos argentinos', () => {
   assert.equal(normPhone(''), '');
 });
 
+test('normPhone con características de 2, 3 y 4 dígitos y el 15 móvil', () => {
+  assert.equal(normPhone('011 15 1234 5678'), '1112345678');
+  assert.equal(normPhone('+54 9 11 1234 5678'), '1112345678');
+  assert.equal(normPhone('261 15 6123456'), '2616123456');
+  assert.equal(normPhone('+54 9 261 6123456'), '2616123456');
+  assert.equal(normPhone('+54 9 2622 15 555123'), '2622555123');
+  assert.equal(normPhone('0261 4 123456'), '2614123456');
+});
+
 test('normName ignora acentos, mayúsculas, espacios y razón social', () => {
   assert.equal(normName('Bodega Alto Uco S.A.'), 'bodega alto uco');
   assert.equal(normName('bodega  alto uco'), 'bodega alto uco');
