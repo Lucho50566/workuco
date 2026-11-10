@@ -326,6 +326,45 @@ html { scrollbar-color: #b9ad94 var(--cream); }
 .profile-main .card + .card { margin-top: 16px; }
 
 /* =====================================================================
+   PANEL DE EMPRESA: talento, ficha y wizard
+   ===================================================================== */
+.talent-toolbar { flex-wrap: wrap; }
+.talent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 14px; margin-top: 14px; }
+.talent-card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 10px; transition: border-color .2s, box-shadow .3s var(--ease-out); }
+.talent-card:hover { border-color: var(--line-strong); box-shadow: 0 14px 30px -18px rgba(15, 26, 21, .35); }
+.talent-top { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; }
+.talent-top .match-pill { grid-column: 1 / -1; justify-self: start; }
+.talent-id strong { display: block; font: 700 17px/1.2 var(--font-display); color: var(--ink); }
+.talent-id span { display: block; font-size: 13.5px; color: var(--text); }
+.talent-id small { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.talent-about { font-size: 13.5px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.talent-why { font-size: 12.5px; color: var(--green); font-weight: 600; }
+.talent-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); }
+.talent-foot .muted { font-size: 12.5px; }
+.invites-left { font-size: 13px; color: var(--muted); font-weight: 600; }
+.quick-wa-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.quick-wa-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 999px; border: 1px solid #b9e5cd; background: #effaf3; color: #13603f; font-weight: 650; font-size: 13px; transition: background .2s; }
+.quick-wa-btn:hover { background: #dcf3e5; }
+.drawer-badges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+
+.tpl-block { margin: 4px 0 18px; }
+.tpl-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.tpl-card { text-align: left; border: 1px solid var(--line-strong); background: var(--surface); border-radius: 12px; padding: 10px 12px; transition: border-color .2s, background .2s, transform .25s var(--ease-out); }
+.tpl-card strong { display: block; font-size: 14px; color: var(--ink); }
+.tpl-card small { display: block; font-size: 12px; color: var(--muted); }
+.tpl-card:hover { border-color: var(--green); transform: translateY(-2px); }
+.tpl-card.is-active { border-color: var(--night); background: var(--night); }
+.tpl-card.is-active strong { color: #fff; }
+.tpl-card.is-active small { color: var(--night-muted); }
+.tpl-card.is-gig { border-color: rgba(122, 31, 77, .35); }
+.gig-switch { margin-top: 18px; padding: 14px; border-radius: 12px; background: var(--malbec-soft); }
+.gig-fields { margin-top: 10px; }
+.salary-grid { display: grid; grid-template-columns: 1fr 1fr 140px; gap: 10px; }
+.salary-grid .hint { display: block; margin-bottom: 4px; }
+.salary-nudge { margin-top: 8px; font-size: 13px; color: #7a4a06; background: #fbf0d6; border-radius: 10px; padding: 8px 12px; }
+@media (max-width: 560px) { .salary-grid { grid-template-columns: 1fr 1fr; } .salary-grid > div:last-child { grid-column: 1 / -1; } }
+
+/* =====================================================================
    CAMPANITA
    ===================================================================== */
 .bell-wrap { position: relative; }

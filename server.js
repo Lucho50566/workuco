@@ -309,6 +309,14 @@ function matchFor(c, j) {
 }
 const byMatchDesc = (a, b) => ((b.match ? b.match.score : -1) - (a.match ? a.match.score : -1));
 
+/* Suma la compatibilidad a cada postulación que vino de un perfil. */
+function withMatch(applications) {
+  const jobs = new Map();
+  const jobOf = (id) => { if (!jobs.has(id)) jobs.set(id, store.job(id)); return jobs.get(id); };
+  return applications.map((a) => (a.candidateId
+    ? { ...a, match: matchFor(store.candidate(a.candidateId), jobOf(a.jobId)) } : a));
+}
+
 /* Las notificaciones nunca pueden hacer fallar la acción que las origina. */
 function tryNotify(type, id, data) {
   try { store.notify(type, id, data); } catch (e) { console.warn('Notificación:', e.message); }
@@ -894,11 +902,8 @@ async function handleApi(req, res, url) {
       stage: clean(q.get('stage'), 20),
       q: clean(q.get('q'), 80),
     });
-    const jobsById = new Map();
-    const jobOf = (id) => { if (!jobsById.has(id)) jobsById.set(id, store.job(id)); return jobsById.get(id); };
     return send(res, 200, {
-      applications: applications.map((a) => (a.candidateId
-        ? { ...a, match: matchFor(store.candidate(a.candidateId), jobOf(a.jobId)) } : a)),
+      applications: withMatch(applications),
       stages: store.stageCounts(me.company.id),
     });
   }
@@ -1007,7 +1012,7 @@ async function handleApi(req, res, url) {
   if (p === '/api/company/dashboard' && method === 'GET') {
     if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
     const jobs = store.companyJobs(me.company.id);
-    const applications = store.applicationsForCompany(me.company.id);
+    const applications = withMatch(store.applicationsForCompany(me.company.id));
     const company = store.company(me.company.id);
     return send(res, 200, {
       company: publicCompany(company, { privateView: true }),

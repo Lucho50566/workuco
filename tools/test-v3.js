@@ -147,6 +147,10 @@ async function main() {
     const bApps = await bodega.get('/api/company/applications');
     const mApp = (bApps.data.applications || []).find((a) => a.id === 'ademo01') || {};
     check('la empresa ve la compatibilidad de cada postulante', mApp.match && Number.isInteger(mApp.match.score));
+    const dash = await bodega.get('/api/company/dashboard');
+    const dApp = (dash.data.applications || []).find((a) => a.id === 'ademo01') || {};
+    check('el tablero del panel también trae la compatibilidad', dApp.match && Number.isInteger(dApp.match.score));
+    check('el tablero trae la respuesta de la empresa', dash.data.response && dash.data.response.rate >= 0);
 
     /* ------------------------------------------------------------ */
     console.log('\n— Notificaciones —');

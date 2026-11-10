@@ -47,6 +47,10 @@
             <h2 class="wizard-step-title">¿Qué puesto necesitás?</h2>
             <p>Elegí con tarjetas. Menos escribir, más decidir.</p>
           </div>
+          <div class="tpl-block">
+            <span class="field-label">Empezá con una plantilla del Valle <span class="hint">(completa todo y lo ajustás)</span></span>
+            <div class="tpl-strip" id="tpl-strip"></div>
+          </div>
           <div class="form-grid">
             <div class="field span-2">
               <label for="j-title">Nombre del puesto</label>
@@ -88,6 +92,23 @@
             </div>
           </div>
 
+          <label class="switch-row gig-switch">
+            <input type="checkbox" id="j-gig">
+            <span class="switch" aria-hidden="true"></span>
+            <span><strong>Es una changa o trabajo por temporada</strong><small>Cosecha, poda, eventos, obra: aparece en la sección Changas con fecha de inicio y duración.</small></span>
+          </label>
+          <div class="form-grid gig-fields" id="gig-fields" hidden>
+            <div class="field">
+              <label for="j-start">¿Cuándo empieza?</label>
+              <input class="input" id="j-start" type="date">
+              <span class="error-text" data-error="startDate" hidden></span>
+            </div>
+            <div class="field">
+              <label for="j-duration">¿Cuánto dura?</label>
+              <input class="input" id="j-duration" maxlength="60" placeholder="Ej.: 3 semanas, 1 noche, toda la vendimia">
+            </div>
+          </div>
+
           <div class="positions-row">
             <div><strong>¿Cuántos puestos?</strong><span>Podés cubrir más de uno con el mismo aviso.</span></div>
             <div class="stepper">
@@ -120,6 +141,12 @@
             <label for="j-description">Descripción del puesto</label>
             <textarea class="input" id="j-description" name="description" required minlength="60" maxlength="8000" rows="6" placeholder="Contá cómo es el equipo, el día a día y qué hace especial al puesto."></textarea>
             <span class="hint">Mínimo 60 caracteres. Podés editarlo todo lo que quieras.</span>
+          </div>
+
+          <div class="field" style="margin-top:16px">
+            <span class="field-label">Habilidades que buscás <span class="hint">(hasta 8; se usan para calcular la compatibilidad)</span></span>
+            <div class="tag-list" id="jskills-list"></div>
+            <div class="inline-add" style="margin-top:8px"><input class="input input-sm" id="jskill-input" placeholder="Ej.: Tractor, atención al público, Excel" maxlength="30"><button class="btn btn-outline btn-sm" type="button" id="jskill-add">{{ICON_PLUS}} Agregar</button></div>
           </div>
 
           <div class="editor-grid">
@@ -155,10 +182,16 @@
             <input class="input" id="j-schedule" name="schedule" maxlength="160" placeholder="Ej.: Lunes a viernes de 8 a 17 h" style="margin-top:8px">
           </div>
 
-          <div class="field">
-            <label for="j-salary">Remuneración <span class="hint">(opcional)</span></label>
-            <div class="filter-chips" id="salary-chips"></div>
-            <input class="input" id="j-salary" name="salary" maxlength="120" placeholder="Ej.: $ 900.000 brutos" style="margin-top:8px">
+          <div class="field salary-field">
+            <label for="j-salary-min">Sueldo</label>
+            <div class="salary-grid">
+              <div><span class="hint">Desde</span><input class="input" id="j-salary-min" inputmode="numeric" placeholder="900000"></div>
+              <div><span class="hint">Hasta <small>(opcional)</small></span><input class="input" id="j-salary-max" inputmode="numeric" placeholder="1100000"></div>
+              <div><span class="hint">Por</span><select class="input" id="j-salary-period"><option value="mes">mes</option><option value="día">día</option><option value="hora">hora</option></select></div>
+            </div>
+            <span class="error-text" data-error="salaryMax" hidden></span>
+            <p class="salary-nudge" id="salary-nudge">Quien busca trabajo puede filtrar por avisos con sueldo publicado y ordenarlos por cuánto pagan. Sin sueldo, tu aviso no aparece en ese filtro.</p>
+            <input class="input" id="j-salary" name="salary" maxlength="120" placeholder="Aclaración opcional: + propinas, + alojamiento, brutos…" style="margin-top:8px">
           </div>
 
           <div class="field">

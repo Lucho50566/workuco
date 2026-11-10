@@ -80,6 +80,7 @@
       try {
         data = await api('/api/company/dashboard');
         renderAll();
+        if (hashTab() && !load.done) { load.done = true; showTab(hashTab()); }
       } catch (err) {
         toast(err.message, 'err');
         if (err.status === 401) location.href = '/acceder?rol=empresa&next=/panel';
@@ -108,9 +109,14 @@
       $$('[data-tab]').forEach((b) => b.classList.toggle('is-active', b.dataset.tab === name));
       $$('[data-panel]').forEach((p) => { p.hidden = p.dataset.panel !== name; });
       if (name === 'ai') renderAiTab();
+      if (name === 'talent') loadTalent();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     };
     $$('[data-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
+    /* links directos: /panel#talento, #postulantes, #ofertas */
+    const HASH_TAB = { talento: 'talent', postulantes: 'applicants', ofertas: 'jobs', empresa: 'company', ia: 'ai' };
+    const hashTab = () => HASH_TAB[location.hash.replace('#', '')];
+    window.addEventListener('hashchange', () => { if (hashTab()) showTab(hashTab()); });
     document.addEventListener('click', (e) => {
       const b = e.target.closest('[data-goto]');
       if (b && b.closest('#panel-app')) showTab(b.dataset.goto);
@@ -136,6 +142,9 @@
 
       const tasks = [];
       if (k.newApplications) tasks.push({ icon: 'users', text: `Tenés ${k.newApplications} postulante${k.newApplications === 1 ? '' : 's'} nuevo${k.newApplications === 1 ? '' : 's'} sin revisar`, action: 'applicants', cta: 'Revisar' });
+      const r = data.response;
+      if (r && (r.rate < 80 || r.days > 3)) tasks.push({ icon: 'clock', text: `Respondés el ${r.rate}% de las postulaciones, en ${r.days} día${r.days === 1 ? '' : 's'}. Esa insignia la ve quien se postula: moverlas de etapa la mejora.`, action: 'applicants', cta: 'Responder' });
+      if (k.published) tasks.push({ icon: 'users', text: 'Mirá quién está disponible en el Valle e invitalo a tu búsqueda', action: 'talent', cta: 'Ver talento' });
       if (k.pending) tasks.push({ icon: 'clock', text: `${k.pending} publicación${k.pending === 1 ? '' : 'es'} esperando aprobación`, action: 'jobs', cta: 'Ver estado' });
       if (!(data.company.gallery || []).length) tasks.push({ icon: 'image', text: 'Sumá fotos de tu empresa: los avisos con imágenes reciben más postulaciones', action: 'company', cta: 'Subir fotos' });
       if (!data.company.logo) tasks.push({ icon: 'building', text: 'Cargá el logo de tu empresa para que te reconozcan', action: 'company', cta: 'Cargar logo' });
@@ -304,6 +313,84 @@
       searchTimer = setTimeout(() => { appSearch = e.target.value.trim(); renderKanban(); }, 180);
     });
 
+
+    /* ---------- talento: gente disponible del Valle ---------- */
+    const talentState = { jobId: '', locality: '', category: '', q: '', loaded: false };
+    let talentTimer = null;
+    function fillTalentFilters() {
+      const published = data.jobs.filter((j) => j.status === 'approved');
+      const sel = $('#talent-job');
+      const keep = sel.value;
+      sel.innerHTML = '<option value="">Elegí una búsqueda publicada…</option>' + published.map((j) => `<option value="${esc(j.id)}">${esc(j.title)}</option>`).join('');
+      sel.value = published.some((j) => j.id === keep) ? keep : (published[0] ? published[0].id : '');
+      talentState.jobId = sel.value;
+      if ($('#talent-loc').options.length <= 1) $('#talent-loc').innerHTML += meta.localities.map((l) => `<option value="${esc(l)}">${esc(l)}</option>`).join('');
+      if ($('#talent-cat').options.length <= 1) $('#talent-cat').innerHTML += meta.categories.filter((c) => c !== 'Otros').map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    }
+    async function loadTalent() {
+      if (!data) return;
+      if (!talentState.loaded) { fillTalentFilters(); talentState.loaded = true; }
+      const list = $('#talent-list');
+      list.innerHTML = '<div class="skeleton" style="height:180px"></div><div class="skeleton" style="height:180px"></div><div class="skeleton" style="height:180px"></div>';
+      const qs = new URLSearchParams(Object.entries(talentState).filter(([k, v]) => v && k !== 'loaded'));
+      try {
+        const r = await api(`/api/company/talent?${qs}`);
+        $('#invites-left').textContent = `Te quedan ${r.invitesLeft} invitaciones hoy`;
+        const job = data.jobs.find((j) => j.id === talentState.jobId);
+        list.innerHTML = r.people.length ? r.people.map((p) => `<article class="talent-card">
+          <div class="talent-top">
+            ${avatarHtml(p.name, p.photo, 'avatar-lg')}
+            <div class="talent-id"><strong>${esc(p.name)}</strong><span>${esc(p.headline || 'Sin titular')}</span><small>${icon('pin', 13)} ${esc(p.locality || 'Valle de Uco')}</small></div>
+            ${p.match ? W.matchPill(p.match) : ''}
+          </div>
+          ${p.about ? `<p class="talent-about">${esc(p.about)}</p>` : ''}
+          ${(p.skills || []).length ? `<div class="chips">${p.skills.slice(0, 6).map((k) => `<span class="badge">${esc(k)}</span>`).join('')}</div>` : ''}
+          ${p.match && p.match.reasons.length ? `<p class="talent-why">${esc(p.match.reasons.slice(0, 2).join(' · '))}</p>` : ''}
+          <div class="talent-foot">
+            <span class="muted">${esc(p.availability || 'Disponibilidad a coordinar')}</span>
+            ${p.applied ? '<span class="stage-pill stage-revisado"><i></i>Ya se postuló</span>'
+              : p.invited ? '<span class="stage-pill stage-entrevista"><i></i>Invitada</span>'
+                : job ? `<button class="btn btn-primary btn-sm" type="button" data-invite="${esc(p.id)}" data-name="${esc(p.name)}">${icon('send', 15)} Invitar</button>`
+                  : '<span class="muted">Elegí una búsqueda para invitar</span>'}
+          </div>
+        </article>`).join('') : `<div class="empty" style="grid-column:1/-1"><h3>No encontramos gente con esos filtros</h3><p>Probá con otra habilidad o quitá la localidad.</p></div>`;
+        $$('[data-invite]', list).forEach((b) => b.addEventListener('click', () => invite(b, job)));
+      } catch (err) {
+        list.innerHTML = `<div class="empty" style="grid-column:1/-1"><h3>No pudimos cargar la base de talento</h3><p>${esc(err.message)}</p></div>`;
+      }
+    }
+    async function invite(btn, job) {
+      const name = btn.dataset.name.split(' ')[0];
+      const message = prompt(`Mensaje para ${name} (opcional). Le llega junto con la invitación a "${job.title}":`, `Hola ${name}, vimos tu perfil y creemos que podés sumar en ${data.company.name}. ¿Te postulás?`);
+      if (message === null) return;
+      btn.disabled = true;
+      try {
+        await api('/api/company/invitations', { method: 'POST', body: { jobId: job.id, candidateId: btn.dataset.invite, message } });
+        btn.outerHTML = '<span class="stage-pill stage-entrevista"><i></i>Invitada</span>';
+        toast(`Listo: ${name} recibió tu invitación`, 'ok');
+        const left = $('#invites-left');
+        const n = Number((left.textContent.match(/\d+/) || [0])[0]) - 1;
+        left.textContent = `Te quedan ${Math.max(0, n)} invitaciones hoy`;
+      } catch (err) { btn.disabled = false; toast(err.message, 'err'); }
+    }
+    $('#talent-job').addEventListener('change', (e) => { talentState.jobId = e.target.value; loadTalent(); });
+    $('#talent-loc').addEventListener('change', (e) => { talentState.locality = e.target.value; loadTalent(); });
+    $('#talent-cat').addEventListener('change', (e) => { talentState.category = e.target.value; loadTalent(); });
+    $('#talent-q').addEventListener('input', (e) => {
+      clearTimeout(talentTimer);
+      talentTimer = setTimeout(() => { talentState.q = e.target.value.trim(); loadTalent(); }, 250);
+    });
+
+    /* mensajes rápidos de WhatsApp para la ficha */
+    const quickMessages = (a) => {
+      const first = String(a.name || '').split(' ')[0];
+      return [
+        ['Citar a entrevista', `Hola ${first}, te escribo de ${data.company.name}. Vimos tu postulación a "${a.jobTitle}" y nos gustaría conocerte. ¿Qué día y horario te queda bien para una entrevista esta semana?`],
+        ['Pedir más datos', `Hola ${first}, te escribo de ${data.company.name} por tu postulación a "${a.jobTitle}". ¿Nos podrías contar un poco más de tu experiencia y desde cuándo podrías empezar?`],
+        ['Avisar que no sigue', `Hola ${first}, te escribo de ${data.company.name}. Gracias por postularte a "${a.jobTitle}". Esta vez seguimos con otros perfiles, pero te tenemos en cuenta para próximas búsquedas. ¡Muchos éxitos!`],
+      ];
+    };
+
     /* ---------- ficha de postulante ---------- */
     function openDrawer(id) {
       currentApp = data.applications.find((a) => a.id === id);
@@ -332,7 +419,7 @@
           <div class="drawer-id">
             <h2>${esc(a.name)}</h2>
             <p>${esc(a.jobTitle)} · ${timeAgo(a.createdAt)}</p>
-            <div class="drawer-badges">${stagePill(a.stage)}${a.aiScore != null ? `<span class="badge badge-ai">${icon('sparkles', 13)} IA ${a.aiScore}</span>` : ''}</div>
+            <div class="drawer-badges">${stagePill(a.stage)}${a.match ? W.matchPill(a.match) : ''}${a.aiScore != null ? `<span class="badge badge-ai">${icon('sparkles', 13)} IA ${a.aiScore}</span>` : ''}</div>
           </div>
           <button class="icon-btn" type="button" data-close-drawer aria-label="Cerrar">${icon('x', 18)}</button>
         </div>
@@ -341,7 +428,14 @@
           <a class="btn btn-primary btn-sm" href="${waLink(a.phone, msg)}" target="_blank" rel="noopener">${icon('whatsapp', 15)} WhatsApp</a>
           <a class="btn btn-outline btn-sm" href="mailto:${esc(a.email)}?subject=${encodeURIComponent('Tu postulación a ' + a.jobTitle)}">${icon('mail', 15)} Email</a>
           <a class="btn btn-outline btn-sm" href="tel:${esc(a.phone)}">${icon('phone', 15)} Llamar</a>
-          ${cvHref ? `<a class="btn btn-outline btn-sm" href="${cvHref}" target="_blank" rel="noopener">${icon('file', 15)} Ver CV</a>` : ''}
+          ${cvHref ? `<a class="btn btn-outline btn-sm" href="${cvHref}" target="_blank" rel="noopener">${icon('file', 15)} CV en PDF</a>` : ''}
+          ${a.candidateId ? `<a class="btn btn-outline btn-sm" href="/cv/${esc(a.candidateId)}" target="_blank" rel="noopener">${icon('file', 15)} CV Workuco</a>` : ''}
+        </div>
+
+        <div class="drawer-section quick-wa">
+          <h3>Mensajes rápidos por WhatsApp</h3>
+          <div class="quick-wa-list">${quickMessages(a).map(([label, text], i) => `<a class="quick-wa-btn" href="${waLink(a.phone, text)}" target="_blank" rel="noopener" data-quick="${i}">${icon('whatsapp', 15)} ${esc(label)}</a>`).join('')}</div>
+          ${a.match ? `<p class="muted" style="margin-top:10px">Compatibilidad con el aviso: ${esc(a.match.reasons.join(' · ') || 'sin coincidencias fuertes')}${a.match.missing.length ? `. Le faltaría: ${esc(a.match.missing.join(', '))}` : ''}.</p>` : ''}
         </div>
 
         <div class="drawer-section">

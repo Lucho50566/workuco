@@ -867,6 +867,13 @@ async function initPublish() {
     salary: editing ? (editing.salary || '') : '',
     benefits: editing ? (editing.benefits || []) : [],
     closesAt: editing ? (editing.closesAt || '') : '',
+    salaryMin: editing ? (editing.salaryMin || 0) : 0,
+    salaryMax: editing ? (editing.salaryMax || 0) : 0,
+    salaryPeriod: editing ? (editing.salaryPeriod || 'mes') : 'mes',
+    skills: editing ? [...(editing.skills || [])] : [],
+    gig: editing ? !!editing.gig : false,
+    startDate: editing ? (editing.startDate || '') : '',
+    duration: editing ? (editing.duration || '') : '',
     contactEmail: editing ? (editing.contactEmail || user.company.email) : user.company.email,
     contactPhone: editing ? (editing.contactPhone || '') : (user.company.phone || ''),
   };
@@ -879,6 +886,71 @@ async function initPublish() {
   $('#j-contact-email').value = s.contactEmail;
   $('#j-contact-phone').value = s.contactPhone;
   $('#j-positions').textContent = String(s.positions);
+
+  /* --- v3: changa, sueldo estructurado, habilidades y plantillas del Valle --- */
+  const readMoney = (sel) => Math.max(0, Number(String($(sel).value).replace(/\D/g, '')) || 0);
+  const wizardPay = () => {
+    const min = readMoney('#j-salary-min'); const max = readMoney('#j-salary-max'); const period = $('#j-salary-period').value;
+    const money = (n) => `$ ${n.toLocaleString('es-AR')}`;
+    const lo = min || max;
+    return {
+      salaryMin: lo, salaryMax: max, salaryPeriod: period,
+      salaryLabel: lo ? `${max > lo ? `${money(lo)} a ${money(max)}` : money(lo)} por ${period}` : ($('#j-salary').value.trim() || 'Sueldo a convenir'),
+    };
+  };
+  $('#j-gig').checked = s.gig;
+  $('#j-start').value = s.startDate;
+  $('#j-duration').value = s.duration;
+  $('#gig-fields').hidden = !s.gig;
+  $('#j-gig').addEventListener('change', () => { $('#gig-fields').hidden = !$('#j-gig').checked; });
+  $('#j-salary-min').value = s.salaryMin || '';
+  $('#j-salary-max').value = s.salaryMax || '';
+  $('#j-salary-period').value = s.salaryPeriod;
+  const nudge = () => { $('#salary-nudge').hidden = readMoney('#j-salary-min') > 0 || readMoney('#j-salary-max') > 0; };
+  ['#j-salary-min', '#j-salary-max'].forEach((sel) => $(sel).addEventListener('input', nudge));
+  nudge();
+
+  const renderJobSkills = () => {
+    $('#jskills-list').innerHTML = s.skills.length
+      ? s.skills.map((k, i) => `<span class="tag">${esc(k)}<button type="button" data-rm-jskill="${i}" aria-label="Quitar ${esc(k)}">${icon('x', 11)}</button></span>`).join('')
+      : '<span class="muted">Sumá las habilidades clave del puesto.</span>';
+    $$('[data-rm-jskill]').forEach((b) => b.addEventListener('click', () => { s.skills.splice(Number(b.dataset.rmJskill), 1); renderJobSkills(); }));
+  };
+  const addJobSkill = () => {
+    const v = $('#jskill-input').value.trim().slice(0, 30);
+    if (!v) return;
+    if (s.skills.length >= 8) { toast('Hasta 8 habilidades por aviso', 'err'); return; }
+    if (!s.skills.some((x) => x.toLowerCase() === v.toLowerCase())) s.skills.push(v);
+    $('#jskill-input').value = '';
+    renderJobSkills();
+  };
+  $('#jskill-add').addEventListener('click', addJobSkill);
+  $('#jskill-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addJobSkill(); } });
+  renderJobSkills();
+
+  const splitLines = (t) => String(t || '').split('\n').map((x) => x.replace(/^[•\-*]\s*/, '').trim()).filter(Boolean);
+  $('#tpl-strip').innerHTML = (meta.templates || []).map((t) =>
+    `<button type="button" class="tpl-card${t.gig ? ' is-gig' : ''}" data-tpl="${esc(t.id)}"><strong>${esc(t.label)}</strong><small>${esc(t.category)} · ${esc(t.type)}</small></button>`).join('');
+  $$('[data-tpl]').forEach((b) => b.addEventListener('click', () => {
+    const t = (meta.templates || []).find((x) => x.id === b.dataset.tpl);
+    if (!t) return;
+    const hasText = $('#j-description').value.trim().length > 0;
+    if (hasText && !confirm('La plantilla reemplaza la descripción, tareas y requisitos que escribiste. ¿Seguimos?')) return;
+    s.title = t.title; $('#j-title').value = t.title;
+    s.category = t.category; s.type = t.type;
+    s.description = t.description; $('#j-description').value = t.description;
+    s.responsibilities.splice(0, s.responsibilities.length, ...splitLines(t.responsibilities));
+    s.requirements.splice(0, s.requirements.length, ...splitLines(t.requirements));
+    s.skills = [...t.skills].slice(0, 8);
+    s.benefits = [...t.benefits];
+    $('#j-gig').checked = !!t.gig; $('#gig-fields').hidden = !t.gig;
+    if (t.gig) $('#j-salary-period').value = 'día';
+    $$('[data-tpl]').forEach((x) => x.classList.toggle('is-active', x === b));
+    renderJobSkills();
+    renderResp(); renderReq();
+    rerender();
+    toast(`Plantilla "${t.label}" aplicada: ajustala a tu gusto.`, 'ok');
+  }));
 
   /* --- render de opciones visuales --- */
   $('#cat-tiles').innerHTML = meta.categories.map((c) =>
@@ -896,8 +968,6 @@ async function initPublish() {
     .map((x) => `<button type="button" class="filter-chip${s.experience === x ? ' is-active' : ''}" data-exp="${esc(x)}">${esc(x)}</button>`).join('');
   $('#sched-chips').innerHTML = ['Lunes a viernes 8 a 17 h', 'Lunes a sábado', 'Turnos rotativos', 'Medio tiempo', 'Fines de semana', 'Horario flexible']
     .map((x) => `<button type="button" class="filter-chip${s.schedule === x ? ' is-active' : ''}" data-sched="${esc(x)}">${esc(x)}</button>`).join('');
-  $('#salary-chips').innerHTML = ['A convenir', '$ 500.000', '$ 800.000', '$ 1.000.000', 'Según experiencia']
-    .map((x) => `<button type="button" class="filter-chip" data-salary="${esc(x)}">${esc(x)}</button>`).join('');
   $('#benefit-chips').innerHTML = meta.benefits.map((b) =>
     `<button type="button" class="filter-chip${s.benefits.includes(b) ? ' is-active' : ''}" data-benefit="${esc(b)}">${icon('plus', 13)} ${esc(b)}</button>`).join('');
 
@@ -1023,6 +1093,19 @@ async function initPublish() {
         return false;
       }
     }
+    if (s.step === 1 && $('#j-gig').checked && !$('#j-start').value) {
+      showAlert($('#publish-alert'), 'Contá cuándo empieza la changa: es lo primero que mira quien busca.', 'error');
+      $('#j-start').focus();
+      return false;
+    }
+    if (s.step === 3) {
+      const min = readMoney('#j-salary-min'); const max = readMoney('#j-salary-max');
+      if (max && min && max < min) {
+        showAlert($('#publish-alert'), 'El sueldo "hasta" no puede ser menor que el "desde".', 'error');
+        $('#j-salary-max').focus();
+        return false;
+      }
+    }
     if (s.step === 2) {
       s.description = $('#j-description').value.trim();
       if (s.description.length < 60) {
@@ -1059,7 +1142,8 @@ async function initPublish() {
         <div><div class="job-title">${esc(s.title)}</div><div class="job-company">${esc(user.company.name)} ${user.company.verified ? `<span class="verified">${checkIcon}</span>` : ''}</div></div>
         <div class="job-meta"><span class="badge">${esc(s.locality)}</span><span class="badge">${esc(s.modality)}</span><span class="badge">${esc(s.category)}</span></div>
         <p class="preview-desc">${esc(s.description).slice(0, 240)}${s.description.length > 240 ? '…' : ''}</p>
-        <div class="job-foot"><span class="job-salary">${esc(s.salary || 'A convenir')}</span><span>${s.positions > 1 ? `${s.positions} puestos` : '1 puesto'}</span></div>
+        <div class="job-foot">${payHtml(wizardPay())}<span>${s.gig ? 'Changa · ' : ''}${s.positions > 1 ? `${s.positions} puestos` : '1 puesto'}</span></div>
+        ${s.skills.length ? `<div class="chips">${s.skills.map((k) => `<span class="badge">${esc(k)}</span>`).join('')}</div>` : ''}
       </div>
     </div>`;
   }
@@ -1076,6 +1160,9 @@ async function initPublish() {
       salary: $('#j-salary').value.trim(), contactEmail: s.contactEmail,
       contactPhone: s.contactPhone, closesAt: $('#j-closes').value,
       benefits: s.benefits, positions: s.positions,
+      salaryMin: readMoney('#j-salary-min'), salaryMax: readMoney('#j-salary-max'), salaryPeriod: $('#j-salary-period').value,
+      skills: s.skills, gig: $('#j-gig').checked,
+      startDate: $('#j-gig').checked ? $('#j-start').value : '', duration: $('#j-gig').checked ? $('#j-duration').value.trim() : '',
     };
     btn.disabled = true; btn.textContent = 'Guardando…';
     try {

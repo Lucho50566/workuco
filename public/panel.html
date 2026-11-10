@@ -30,6 +30,7 @@
         <button type="button" class="panel-nav-item is-active" data-tab="overview">{{ICON_CHART}}<span>Resumen</span></button>
         <button type="button" class="panel-nav-item" data-tab="jobs">{{ICON_BAG}}<span>Ofertas</span></button>
         <button type="button" class="panel-nav-item" data-tab="applicants">{{ICON_USERS}}<span>Postulantes</span></button>
+        <button type="button" class="panel-nav-item" data-tab="talent">{{ICON_SEARCH}}<span>Talento</span></button>
         <button type="button" class="panel-nav-item" data-tab="company">{{ICON_BUILDING}}<span>Mi empresa</span></button>
         <button type="button" class="panel-nav-item" data-tab="ai">{{ICON_SPARKLES}}<span>IA</span></button>
       </nav>
@@ -117,6 +118,21 @@
         </div>
         <div class="kanban" id="kanban"></div>
         <p class="kanban-hint">{{ICON_ARROW}} Deslizá para ver todas las etapas. Podés mover con el botón de cada tarjeta o desde la ficha.</p>
+      </div>
+
+      <!-- TALENTO -->
+      <div data-panel="talent" hidden>
+        <header class="panel-head">
+          <div><h1>Gente disponible</h1><p>Personas del Valle que marcaron "estoy disponible". Elegí una búsqueda para ordenarlas por compatibilidad e invitalas a postularse. Ves su contacto cuando se postulan.</p></div>
+          <div class="head-actions"><span class="invites-left" id="invites-left"></span></div>
+        </header>
+        <div class="toolbar talent-toolbar">
+          <select class="input input-sm toolbar-select" id="talent-job" aria-label="Búsqueda para comparar"><option value="">Elegí una búsqueda publicada…</option></select>
+          <select class="input input-sm toolbar-select" id="talent-loc" aria-label="Localidad"><option value="">Todo el Valle</option></select>
+          <select class="input input-sm toolbar-select" id="talent-cat" aria-label="Rubro"><option value="">Todos los rubros</option></select>
+          <input class="input input-sm toolbar-search" id="talent-q" placeholder="Buscar por habilidad: tractor, Excel, barista…" aria-label="Buscar por habilidad">
+        </div>
+        <div class="talent-grid" id="talent-list" aria-live="polite"></div>
       </div>
 
       <!-- EMPRESA -->
