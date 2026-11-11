@@ -385,6 +385,7 @@ const NAV_ITEMS = [
   ['/', 'Inicio'],
   ['/buscar', 'Buscar empleo'],
   ['/changas', 'Changas'],
+  ['/flyers', 'Flyers'],
   ['/empresas', 'Empresas'],
   ['/publicar', 'Para empresas'],
 ];
@@ -1669,6 +1670,9 @@ const server = http.createServer(async (req, res) => {
     }
     if (/^\/reclamar\/[A-Za-z0-9]+$/.test(url.pathname) && req.method === 'GET') {
       return renderPage(res, 'reclamar.html', { title: 'Tu empresa en Workuco' });
+    }
+    if (url.pathname === '/flyers' && req.method === 'GET') {
+      return renderPage(res, 'flyers.html', { active: '/flyers', title: 'Modo flyers · Workuco' });
     }
     if (url.pathname === '/changas' && req.method === 'GET') {
       return renderPage(res, 'changas.html', { active: '/changas', title: 'Changas y trabajos por temporada · Workuco' });

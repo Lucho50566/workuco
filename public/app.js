@@ -263,6 +263,22 @@ async function urlToDataUrl(url) {
   return new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = reject; r.readAsDataURL(blob); });
 }
 
+/* Flyer siempre completo (sin recortes) sobre una versión desenfocada de sí mismo. */
+function flyerFrame(src, alt, cls = '') {
+  return `<div class="flyer-frame ${cls}" style="--flyer-bg:url('${esc(src)}')"><img src="${esc(src)}" alt="${esc(alt)}" loading="lazy" decoding="async"></div>`;
+}
+
+/* Puntos de un carrusel horizontal de flyers (scroll-snap): siguen el scroll y lo controlan. */
+function setupFlyerRail(root) {
+  if (!root) return;
+  const rail = $('[data-flyer-rail]', root);
+  const dots = $$('[data-flyer-dot]', root);
+  if (!rail || !dots.length) return;
+  const at = () => Math.round(rail.scrollLeft / Math.max(1, rail.clientWidth));
+  rail.addEventListener('scroll', () => { const i = at(); dots.forEach((d, k) => d.classList.toggle('is-on', k === i)); }, { passive: true });
+  dots.forEach((d) => d.addEventListener('click', () => rail.scrollTo({ left: Number(d.dataset.flyerDot) * rail.clientWidth, behavior: 'smooth' })));
+}
+
 /* ---------------- componentes ---------------- */
 function matchPill(m) {
   if (!m || m.score == null) return '';
@@ -282,9 +298,10 @@ function payHtml(j) {
 
 function jobCard(j) {
   const cover = j.flyer || (j.companyGallery || [])[0];
+  const extra = (j.flyers || []).length - 1;
   return `<a class="job-card" href="/oferta/${j.id}">
-    <div class="job-cover${cover ? ' has-img' : ''}${j.flyer ? ' is-flyer' : ''}"${cover ? ` style="background-image:url('${esc(cover)}')"` : ''}>
-      <span class="job-cover-shade"></span>
+    <div class="job-cover${j.flyer ? ' job-cover-flyer' : cover ? ' has-img' : ''}"${!j.flyer && cover ? ` style="background-image:url('${esc(cover)}')"` : ''}>
+      ${j.flyer ? flyerFrame(j.flyer, `Flyer: ${j.title} en ${j.companyName}`) + (extra > 0 ? `<span class="flyer-more">+${extra}</span>` : '') : '<span class="job-cover-shade"></span>'}
       ${j.gig ? '<span class="badge badge-gig">Changa</span>' : j.featured ? '<span class="badge badge-featured">Destacada</span>' : ''}
     </div>
     <div class="job-card-body">
@@ -678,9 +695,11 @@ async function initJob() {
           </div>
         </div>
 
-        ${job.flyer ? `<figure class="detail-flyer"><a href="${esc(job.flyer)}" target="_blank" rel="noopener" title="Ver el flyer en grande">
-          <img src="${esc(job.flyer)}" alt="Flyer: ${esc(job.title)} en ${esc(job.companyName)}" loading="lazy"></a>
-          <figcaption>Tocá el flyer para verlo en grande</figcaption></figure>` : ''}
+        ${(job.flyers || []).length ? `<section class="detail-flyers" aria-label="Flyers del aviso">
+          <div class="flyer-rail" data-flyer-rail>${job.flyers.map((src, i) => `<a class="flyer-slide" href="${esc(src)}" target="_blank" rel="noopener" title="Ver el flyer en grande">${flyerFrame(src, `Flyer${job.flyers.length > 1 ? ` ${i + 1}` : ''}: ${job.title} en ${job.companyName}`)}</a>`).join('')}</div>
+          ${job.flyers.length > 1 ? `<div class="flyer-dots">${job.flyers.map((_, i) => `<button type="button" class="flyer-dot${i === 0 ? ' is-on' : ''}" data-flyer-dot="${i}" aria-label="Ver flyer ${i + 1}"></button>`).join('')}</div>` : ''}
+          <p class="flyer-hint">Tocá el flyer para verlo en grande${job.flyers.length > 1 ? ' · deslizá para ver los demás' : ''}</p>
+        </section>` : ''}
         <div class="detail-block">
           <h2>De qué se trata</h2>
           <div class="prose">${esc(job.description)}</div>
@@ -735,6 +754,7 @@ async function initJob() {
     </div>`;
 
     setupCarousel($('[data-carousel]', view));
+    setupFlyerRail($('.detail-flyers', view));
     if (canApply && !applied) initApply(job);
 
     $('#save-job')?.addEventListener('click', async (e) => {
@@ -920,35 +940,45 @@ async function initPublish() {
   $('#j-contact-phone').value = s.contactPhone;
   $('#j-positions').textContent = String(s.positions);
 
-  /* --- flyer del aviso --- */
-  s.flyerData = '';                          // flyer nuevo (data URL), todavía no subido
-  s.flyerUrl = editing ? (editing.flyer || '') : '';
-  s.removeFlyer = false;
-  const hasFlyer = () => !!(s.flyerData || (s.flyerUrl && !s.removeFlyer));
+  /* --- flyers del aviso (hasta 5): { url } ya publicados, { data } nuevos --- */
+  const MAX_FLYERS = 5;
+  s.flyers = editing ? (editing.flyers || []).map((url) => ({ url })) : [];
+  const hasFlyer = () => s.flyers.length > 0;
+  const flyerSrc = (f) => f.data || f.url;
   const canAi = !!(user.company.ai && user.company.ai.hasKey);
   const renderFlyer = () => {
-    const src = s.flyerData || (!s.removeFlyer ? s.flyerUrl : '');
-    $('#flyer-box').classList.toggle('has-flyer', !!src);
-    $('#flyer-preview').innerHTML = src
-      ? `<img src="${esc(src)}" alt="Flyer del aviso">
-         <div class="flyer-actions">
-           ${canAi ? `<button class="btn btn-lime btn-sm" type="button" id="flyer-ai">${icon('sparkles', 15)} Completar el aviso con el flyer</button>` : '<span class="muted">Con la IA de tu panel, el flyer completa el aviso solo.</span>'}
-           <button class="btn btn-ghost btn-sm" type="button" id="flyer-remove">${icon('trash', 15)} Quitar flyer</button>
-         </div>`
+    const n = s.flyers.length;
+    $('#flyer-box').classList.toggle('has-flyer', n > 0);
+    $('#flyer-box').classList.toggle('is-full', n >= MAX_FLYERS);
+    $('#flyer-count').textContent = n ? `${n} de ${MAX_FLYERS}` : '';
+    $('#flyer-preview').innerHTML = n
+      ? `<div class="flyer-thumbs">${s.flyers.map((f, i) => `<figure class="flyer-thumb">
+          <img src="${esc(flyerSrc(f))}" alt="Flyer ${i + 1} del aviso">
+          ${i === 0 ? '<span class="flyer-main">Principal</span>' : ''}
+          <button type="button" data-rm-flyer="${i}" aria-label="Quitar el flyer ${i + 1}">${icon('x', 13)}</button>
+        </figure>`).join('')}</div>
+        <div class="flyer-actions">
+          ${canAi ? `<button class="btn btn-lime btn-sm" type="button" id="flyer-ai">${icon('sparkles', 15)} Completar el aviso con el flyer principal</button>` : '<span class="muted">Con la IA de tu panel, el flyer completa el aviso solo.</span>'}
+        </div>`
       : '';
-    $('#flyer-remove')?.addEventListener('click', () => { s.flyerData = ''; s.removeFlyer = true; renderFlyer(); });
+    $$('[data-rm-flyer]').forEach((b) => b.addEventListener('click', () => { s.flyers.splice(Number(b.dataset.rmFlyer), 1); renderFlyer(); }));
     $('#flyer-ai')?.addEventListener('click', fillFromFlyer);
     $('#desc-hint').textContent = hasFlyer()
       ? 'Con flyer alcanza con 20 caracteres: sumá lo esencial para que te encuentren en las búsquedas.'
       : 'Mínimo 60 caracteres. Podés editarlo todo lo que quieras.';
   };
   $('#flyer-input').addEventListener('change', async (e) => {
-    const file = e.target.files && e.target.files[0];
+    const list = Array.from(e.target.files || []);
     e.target.value = '';
-    if (!file) return;
-    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { toast('El flyer tiene que ser JPG, PNG o WebP', 'err'); return; }
-    try { s.flyerData = await shrinkImage(file, 1600, 0.86); s.removeFlyer = false; renderFlyer(); toast('Flyer cargado', 'ok'); }
-    catch (_) { toast('No pudimos leer la imagen', 'err'); }
+    let added = 0;
+    for (const file of list) {
+      if (s.flyers.length >= MAX_FLYERS) { toast(`Hasta ${MAX_FLYERS} flyers por aviso`, 'err'); break; }
+      if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { toast(`${file.name}: tiene que ser JPG, PNG o WebP`, 'err'); continue; }
+      try { s.flyers.push({ data: await shrinkImage(file, 1600, 0.86) }); added++; }
+      catch (_) { toast(`No pudimos leer ${file.name}`, 'err'); }
+    }
+    renderFlyer();
+    if (added) toast(added === 1 ? 'Flyer cargado' : `${added} flyers cargados`, 'ok');
   });
 
   async function fillFromFlyer(e) {
@@ -956,7 +986,8 @@ async function initPublish() {
     if ($('#j-description').value.trim() && !confirm('El flyer va a reemplazar la descripción y los datos del aviso. ¿Seguimos?')) return;
     btn.disabled = true; const old = btn.innerHTML; btn.innerHTML = `${icon('sparkles', 15)} Leyendo el flyer…`;
     try {
-      const image = s.flyerData || await urlToDataUrl(s.flyerUrl);
+      const first = s.flyers[0];
+      const image = first.data || await urlToDataUrl(first.url);
       const { draft } = await api('/api/company/ai/flyer', { method: 'POST', body: { image } });
       if (!draft) { toast('No encontramos un aviso en el flyer', 'err'); return; }
       if (draft.title) { s.title = draft.title; $('#j-title').value = draft.title; }
@@ -1229,9 +1260,9 @@ async function initPublish() {
   function renderPreview() {
     s.contactEmail = $('#j-contact-email').value.trim();
     s.contactPhone = $('#j-contact-phone').value.trim();
-    const flyerSrc = s.flyerData || (!s.removeFlyer ? s.flyerUrl : '');
+    const cover = s.flyers[0] ? flyerSrc(s.flyers[0]) : '';
     $('#job-preview').innerHTML = `<div class="preview-card">
-      <div class="preview-cover${flyerSrc ? ' has-flyer' : ''}"${flyerSrc ? ` style="background-image:url('${esc(flyerSrc)}')"` : ''}><span>Así se va a ver tu aviso</span></div>
+      ${cover ? flyerFrame(cover, 'Flyer principal del aviso', 'preview-flyer') : '<div class="preview-cover"><span>Así se va a ver tu aviso</span></div>'}
       <div class="preview-body">
         ${logoHtml(user.company.name, user.company.logo, 'logo')}
         <div><div class="job-title">${esc(s.title)}</div><div class="job-company">${esc(user.company.name)} ${user.company.verified ? `<span class="verified">${checkIcon}</span>` : ''}</div></div>
@@ -1258,7 +1289,8 @@ async function initPublish() {
       salaryMin: readMoney('#j-salary-min'), salaryMax: readMoney('#j-salary-max'), salaryPeriod: $('#j-salary-period').value,
       skills: s.skills, gig: $('#j-gig').checked,
       startDate: $('#j-gig').checked ? $('#j-start').value : '', duration: $('#j-gig').checked ? $('#j-duration').value.trim() : '',
-      ...(s.flyerData ? { flyer: s.flyerData } : {}), ...(s.removeFlyer && !s.flyerData ? { removeFlyer: true } : {}),
+      flyers: s.flyers.filter((f) => f.data).map((f) => f.data),
+      ...(editing ? { keepFlyers: s.flyers.filter((f) => f.url).map((f) => f.url) } : {}),
     };
     btn.disabled = true; btn.textContent = 'Guardando…';
     try {
@@ -1746,12 +1778,151 @@ async function initClaim() {
 }
 
 /* ================================================================== */
+/* MODO FLYERS (feed vertical tipo TikTok)                            */
+/* ================================================================== */
+function genFlyer(j) {
+  return `<div class="fgen" role="img" aria-label="${esc(`${j.title} en ${j.companyName}`)}">
+    <span class="fgen-tag">${j.gig ? 'Changa' : 'Se busca'}</span>
+    <h3 class="fgen-title">${esc(j.title)}</h3>
+    <p class="fgen-co">${esc(j.companyName)}</p>
+    ${j.salaryLabel ? `<p class="fgen-pay">${esc(nbMoney(j.salaryLabel))}</p>` : ''}
+    <p class="fgen-meta">${esc(j.locality)} · ${esc(j.type)}${j.gig && j.startDate ? ` · empieza ${esc(fmtDay(j.startDate))}` : ''}</p>
+    <svg class="fgen-ridge" viewBox="0 0 400 120" preserveAspectRatio="none" aria-hidden="true"><path d="M0 70 L50 40 L90 62 L140 22 L190 58 L240 30 L290 64 L340 34 L400 56 V120 H0Z" fill="#17302a"/><path d="M0 96 L60 76 L120 92 L180 72 L250 94 L320 74 L400 90 V120 H0Z" fill="#12241d"/></svg>
+  </div>`;
+}
+
+function feedSlide(j, saved) {
+  const flyers = j.flyers || [];
+  const alt = (i) => `Flyer${flyers.length > 1 ? ` ${i + 1}` : ''}: ${j.title} en ${j.companyName}`;
+  return `<article class="fslide" data-job="${esc(j.id)}" data-bg="${esc(flyers[0] || '')}" data-locality="${esc(j.locality)}" aria-label="${esc(`${j.title} en ${j.companyName}`)}">
+    <div class="fslide-media">
+      ${flyers.length ? `<div class="fslide-flyers flyer-rail" data-flyer-rail>${flyers.map((src, i) => `<div class="flyer-slide">${flyerFrame(src, alt(i))}</div>`).join('')}</div>
+        ${flyers.length > 1 ? `<div class="flyer-dots fslide-dots">${flyers.map((_, i) => `<button type="button" class="flyer-dot${i === 0 ? ' is-on' : ''}" data-flyer-dot="${i}" aria-label="Ver flyer ${i + 1}"></button>`).join('')}</div>` : ''}`
+        : genFlyer(j)}
+    </div>
+    <div class="fslide-info">
+      <h2>${esc(j.title)}</h2>
+      <p>${esc(j.companyName)} · ${esc(j.locality)}${j.gig ? ' · <strong>Changa</strong>' : ''}</p>
+      <p class="fslide-pay">${esc(nbMoney(j.salaryLabel || 'Sueldo a convenir'))}</p>
+    </div>
+    <div class="fslide-actions">
+      <a class="fact fact-main" href="/oferta/${esc(j.id)}">${icon('arrow', 22)}<span>Me interesa</span></a>
+      <button class="fact${saved ? ' is-on' : ''}" type="button" data-feed-save="${esc(j.id)}" aria-pressed="${saved}">${icon('heart', 22)}<span>${saved ? 'Guardado' : 'Guardar'}</span></button>
+      <button class="fact" type="button" data-feed-share="${esc(j.id)}" data-title="${esc(j.title)}" data-company="${esc(j.companyName)}">${icon('share', 22)}<span>Compartir</span></button>
+    </div>
+  </article>`;
+}
+
+async function initFlyers() {
+  const feed = $('#feed');
+  const bg = $('#feed-bg');
+  const calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const filter = { locality: '', gig: '' };
+  let page = 1; let pages = 1; let loading = false; let loadedOnce = false;
+  const saved = new Set();
+
+  /* el feed ocupa justo lo que queda de pantalla debajo del encabezado */
+  const fit = () => { feed.style.height = `${Math.max(320, window.innerHeight - feed.getBoundingClientRect().top - window.scrollY)}px`; };
+  fit();
+  window.addEventListener('resize', fit);
+
+  const visible = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (!e.isIntersecting) continue;
+      const src = e.target.dataset.bg;
+      bg.style.backgroundImage = src ? `url('${src.replace(/'/g, '%27')}')` : '';
+      $$('.fslide[aria-current]', feed).forEach((s) => s.removeAttribute('aria-current'));
+      e.target.setAttribute('aria-current', 'true');
+    }
+  }, { root: feed, threshold: 0.6 });
+  const more = new IntersectionObserver((entries) => {
+    if (entries.some((e) => e.isIntersecting) && page < pages) { page += 1; load(false); }
+  }, { root: feed, rootMargin: '0px 0px 100% 0px' });
+
+  const message = (title, body, link) => `<div class="fslide fslide-msg"><div><h2>${title}</h2><p>${body}</p>${link}</div></div>`;
+
+  async function load(reset) {
+    if (loading) return;
+    loading = true;
+    if (reset) { page = 1; feed.innerHTML = '<div class="fslide fslide-loading"><div class="skeleton"></div></div>'; feed.scrollTop = 0; }
+    const qs = new URLSearchParams({ sort: 'flyer', limit: '10', page: String(page) });
+    if (filter.locality) qs.set('locality', filter.locality);
+    if (filter.gig) qs.set('gig', '1');
+    try {
+      const d = await api(`/api/jobs?${qs}`);
+      pages = d.pages;
+      (d.saved || []).forEach((id) => saved.add(id));
+      if (reset) feed.innerHTML = '';
+      if (!d.jobs.length && page === 1) {
+        feed.innerHTML = message('No hay avisos con ese filtro', 'Probá con todo el Valle o mirá las búsquedas en la lista.', '<button class="btn btn-lime" type="button" data-feed-filter="">Ver todo el Valle</button>');
+      } else {
+        feed.insertAdjacentHTML('beforeend', d.jobs.map((j) => feedSlide(j, saved.has(j.id))).join(''));
+        if (page >= pages) feed.insertAdjacentHTML('beforeend', message('Viste todas las búsquedas', 'Volvé más tarde: cada día se suman avisos nuevos del Valle.', '<a class="btn btn-lime" href="/buscar">Ver la lista completa</a>'));
+      }
+      const slides = $$('.fslide[data-job]', feed);
+      slides.forEach((s) => { if (!s.dataset.ready) { s.dataset.ready = '1'; visible.observe(s); setupFlyerRail($('.fslide-media', s)); } });
+      more.disconnect();
+      if (slides.length > 1 && page < pages) more.observe(slides[slides.length - 2]);
+      loadedOnce = true;
+    } catch (err) {
+      if (!loadedOnce || reset) feed.innerHTML = message('No pudimos cargar los avisos', esc(err.message), '<button class="btn btn-lime" type="button" data-feed-retry>Reintentar</button>');
+    } finally { loading = false; }
+  }
+
+  const go = (dir) => feed.scrollBy({ top: dir * feed.clientHeight, behavior: calm ? 'auto' : 'smooth' });
+  document.addEventListener('keydown', (e) => {
+    if (e.target.closest && e.target.closest('input, textarea, select')) return;
+    if (['ArrowDown', 'PageDown', 'j'].includes(e.key)) { e.preventDefault(); go(1); }
+    if (['ArrowUp', 'PageUp', 'k'].includes(e.key)) { e.preventDefault(); go(-1); }
+  });
+
+  document.addEventListener('click', async (e) => {
+    const chip = e.target.closest('[data-feed-filter]');
+    if (chip) {
+      const v = chip.dataset.feedFilter;
+      filter.gig = v === 'gig' ? '1' : '';
+      filter.locality = v === 'gig' ? '' : v;
+      $$('.feed-chip').forEach((c) => c.classList.toggle('is-on', c.dataset.feedFilter === v));
+      load(true);
+      return;
+    }
+    if (e.target.closest('[data-feed-retry]')) { load(true); return; }
+    const sv = e.target.closest('[data-feed-save]');
+    if (sv) {
+      const u = state.user;
+      if (!u) { location.href = '/acceder?rol=empleado&next=/flyers'; return; }
+      if (u.role !== 'candidate') { toast('Guardar avisos es para cuentas de persona', 'err'); return; }
+      try {
+        const { saved: on } = await api(`/api/candidate/saved/${sv.dataset.feedSave}`, { method: 'POST' });
+        sv.classList.toggle('is-on', on);
+        sv.setAttribute('aria-pressed', String(on));
+        $('span', sv).textContent = on ? 'Guardado' : 'Guardar';
+        toast(on ? 'Guardado en Mi perfil' : 'Quitado de guardados', 'ok');
+      } catch (err) { toast(err.message, 'err'); }
+      return;
+    }
+    const sh = e.target.closest('[data-feed-share]');
+    if (sh) {
+      const url = `${location.origin}/oferta/${sh.dataset.feedShare}`;
+      const text = `${sh.dataset.title} en ${sh.dataset.company} · Workuco`;
+      try {
+        if (navigator.share) await navigator.share({ title: sh.dataset.title, text, url });
+        else window.open(`https://wa.me/?text=${encodeURIComponent(`${text}: ${url}`)}`, '_blank', 'noopener');
+      } catch (_) { /* compartir cancelado */ }
+    }
+  });
+
+  await load(true);
+  feed.focus({ preventScroll: true });
+}
+
+/* ================================================================== */
 /* ARRANQUE                                                           */
 /* ================================================================== */
 window.WK = {
   $, $$, api, esc, toast, showAlert, hideAlert, setFieldErrors, icon, logoHtml, avatarHtml,
   state, loadMe, loadMeta, fmtDate, timeAgo, initials, stageBadge, STAGE_LABEL, statusBadge,
-  jobCard, jobRow, gigCard, shrinkImage, matchPill, payHtml, responseHtml, profileCompleteness, setupCarousel, fileToBase64, ready: null,
+  jobCard, jobRow, gigCard, shrinkImage, flyerFrame, setupFlyerRail, matchPill, payHtml, responseHtml, profileCompleteness, setupCarousel, fileToBase64, ready: null,
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -1777,6 +1948,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       case 'cv': await initCv(); break;
       case 'public-profile': await initPublicProfile(); break;
       case 'claim': await initClaim(); break;
+      case 'flyers': await initFlyers(); break;
       default: break;
     }
   } catch (err) {

@@ -115,16 +115,16 @@ if (process.env.WK_FLYER) {
   await click('#wizard-next'); await sleep(300);
   const doc = await send('DOM.getDocument', {});
   const node = await send('DOM.querySelector', { nodeId: doc.result.root.nodeId, selector: '#flyer-input' });
-  await send('DOM.setFileInputFiles', { nodeId: node.result.nodeId, files: [process.env.WK_FLYER] });
+  await send('DOM.setFileInputFiles', { nodeId: node.result.nodeId, files: [process.env.WK_FLYER, process.env.WK_FLYER2 || process.env.WK_FLYER] });
   await sleep(1500);
-  check('el wizard muestra el flyer cargado', await ev(`!!document.querySelector('#flyer-preview img')`));
+  check('el wizard muestra los 2 flyers cargados', (await ev(`document.querySelectorAll('#flyer-preview .flyer-thumb').length`)) === 2);
   check('con flyer pide sólo 20 caracteres', /20 caracteres/.test(await ev(`document.querySelector('#desc-hint').textContent`)));
   await shot('wizard-flyer');
   await setVal('#j-description', 'Mozo para el salón, turno noche.');
   await click('#wizard-next'); await sleep(300);
   check('con flyer avanza con una descripción corta', (await ev(`document.querySelector('.wizard-step:not([hidden])').dataset.step`)) === '3');
   await click('#wizard-next'); await sleep(300);
-  check('la vista previa usa el flyer', await ev(`!!document.querySelector('.preview-cover.has-flyer')`));
+  check('la vista previa usa el flyer', await ev(`!!document.querySelector('.preview-flyer img')`));
   check('en el último paso se ve el botón de enviar', await ev(`(() => { const b = document.querySelector('#job-submit'); return !b.hidden && b.offsetParent !== null && getComputedStyle(b).visibility !== 'hidden'; })()`));
   await ev('window.scrollTo(0, 0)'); await sleep(250);
   check('sin scroll, la barra de pasos va arriba de la tarjeta y no tapa el título', await ev(`(() => {
@@ -141,18 +141,54 @@ if (process.env.WK_FLYER) {
   })()`));
   await click('#job-submit'); await sleep(1200);
   const mine = await ev(`fetch('/api/company/jobs').then(r=>r.json()).then(d=>d.jobs.find(j=>j.flyer))`);
-  check('el aviso se guardó con flyer', !!mine && /^\/media\/flyer-/.test(mine.flyer));
+  check('el aviso se guardó con 2 flyers', !!mine && mine.flyers.length === 2 && /^\/media\/flyer-/.test(mine.flyer));
   await send('Network.clearBrowserCookies');
   await go('/');
   await ev(`fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:'admin@workuco.com.ar',password:'workuco2026'})}).then(r=>r.status)`);
   await ev(`fetch('/api/admin/jobs/${mine.id}',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'approved'})}).then(r=>r.status)`);
   await go(`/oferta/${mine.id}`);
-  check('el detalle muestra el flyer completo', await ev(`!!document.querySelector('.detail-flyer img[alt^="Flyer:"]')`));
+  check('el detalle muestra los 2 flyers en carrusel', (await ev(`document.querySelectorAll('.detail-flyers .flyer-slide').length`)) === 2);
+  check('los flyers del detalle se ven completos', await ev(`[...document.querySelectorAll('.detail-flyers img')].every((i) => getComputedStyle(i).objectFit === 'contain')`));
   await shot('oferta-flyer');
   await go('/buscar?q=mozo');
   check('la búsqueda muestra el aviso', /Mozo/.test(await ev('document.body.innerText')));
   await go('/');
+  check('la tarjeta muestra el flyer completo y +1', await ev(`(() => { const i = document.querySelector('.job-cover-flyer img'); const m = document.querySelector('.job-cover-flyer .flyer-more'); return !!i && getComputedStyle(i).objectFit === 'contain' && !!m && m.textContent.trim() === '+1'; })()`));
+  await go('/');
   await shot('home-flyer');
+}
+/* 6. modo flyers */
+{
+  await send('Network.clearBrowserCookies');
+  const current = `(() => { const f = document.querySelector('#feed'); const top = f.getBoundingClientRect().top;
+    const s = [...f.querySelectorAll('.fslide[data-job]')].find((x) => Math.abs(x.getBoundingClientRect().top - top) < 5); return s ? s.dataset.job : ''; })()`;
+  for (const w of [390, 1440]) {
+    await size(w); await go('/flyers'); await sleep(600);
+    check(`modo flyers sin desbordes (${w})`, await noOverflow());
+    check(`la primera diapositiva tiene flyer (${w})`, await ev(`!!document.querySelector('.fslide[data-job] .flyer-frame')`));
+    if (w === 1440) check('en la computadora el feed tiene ancho de celular', (await ev(`document.querySelector('#feed').getBoundingClientRect().width`)) <= 461);
+    await shot(`flyers-${w}`);
+  }
+  await size(390); await go('/flyers'); await sleep(600);
+  const first = await ev(current);
+  await ev(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))`); await sleep(900);
+  const second = await ev(current);
+  check('la flecha ↓ pasa al aviso siguiente', !!first && !!second && first !== second, `${first} → ${second}`);
+  await ev(`document.querySelector('.fslide[data-job="${second}"] .fact-main').click()`); await sleep(1200);
+  check('"Me interesa" lleva al aviso completo', (await ev('location.pathname')) === `/oferta/${second}`);
+  await go('/flyers'); await sleep(600);
+  await ev(`document.querySelector('[data-feed-save]').click()`); await sleep(800);
+  check('Guardar sin sesión lleva a ingresar', (await ev('location.pathname')) === '/acceder');
+  await go('/flyers'); await sleep(600);
+  await ev(`document.querySelector('[data-feed-filter="Tupungato"]').click()`); await sleep(1200);
+  check('el filtro Tupungato muestra sólo Tupungato', await ev(`(() => { const s = [...document.querySelectorAll('.fslide[data-job]')]; return s.length > 0 && s.every((x) => x.dataset.locality === 'Tupungato'); })()`));
+  if (process.env.WK_FLYER2) {
+    check('un flyer muy alto se ve entero dentro de la diapositiva', await ev(`(() => {
+      const imgs = [...document.querySelectorAll('.fslide .flyer-frame img')];
+      return imgs.length > 0 && imgs.every((i) => { const f = i.closest('.flyer-frame').getBoundingClientRect(); const r = i.getBoundingClientRect(); return getComputedStyle(i).objectFit === 'contain' && r.width <= f.width + 1 && r.height <= f.height + 1; });
+    })()`));
+  }
+  await shot('flyers-tupungato');
 }
 check('sin errores de JS', errors.length === 0, JSON.stringify(errors.slice(0, 2)));
 console.log(`\n${ok} ok · ${fail} fail`);

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{{TITLE}}</title>
+  <meta name="description" content="Mirá los avisos de empleo del Valle de Uco como flyers: deslizá, guardá los que te gustan y tocá Me interesa para ver todo.">
+  <meta name="theme-color" content="#0b1612">
+  <link rel="icon" href="/favicon.png" type="image/png" sizes="64x64">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body data-page="flyers" class="flyers-page">
+{{NAV}}
+<main class="feed-wrap" id="feed-wrap">
+  <div class="feed-bg" id="feed-bg" aria-hidden="true"></div>
+  <h1 class="sr-only">Modo flyers: avisos de empleo del Valle de Uco</h1>
+  <div class="feed-filters" role="group" aria-label="Filtrar avisos">
+    <button class="feed-chip is-on" type="button" data-feed-filter="">Todo el Valle</button>
+    <button class="feed-chip" type="button" data-feed-filter="San Carlos">San Carlos</button>
+    <button class="feed-chip" type="button" data-feed-filter="Tunuyán">Tunuyán</button>
+    <button class="feed-chip" type="button" data-feed-filter="Tupungato">Tupungato</button>
+    <button class="feed-chip" type="button" data-feed-filter="gig">Changas</button>
+  </div>
+  <div class="feed" id="feed" tabindex="0" aria-label="Avisos: deslizá hacia arriba para ver el siguiente" aria-live="polite">
+    <div class="fslide fslide-loading"><div class="skeleton"></div></div>
+  </div>
+  <p class="feed-keys" aria-hidden="true">↑ ↓ para pasar de aviso</p>
+</main>
+<script src="/app.js"></script>
+</body>
+</html>
