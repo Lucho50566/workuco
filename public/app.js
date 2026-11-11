@@ -1822,7 +1822,7 @@ async function initFlyers() {
   const saved = new Set();
 
   /* el feed ocupa justo lo que queda de pantalla debajo del encabezado */
-  const fit = () => { feed.style.height = `${Math.max(320, window.innerHeight - feed.getBoundingClientRect().top - window.scrollY)}px`; };
+  const fit = () => { feed.style.height = `${Math.max(200, window.innerHeight - feed.getBoundingClientRect().top - window.scrollY)}px`; };
   fit();
   window.addEventListener('resize', fit);
 
@@ -1836,7 +1836,8 @@ async function initFlyers() {
     }
   }, { root: feed, threshold: 0.6 });
   const more = new IntersectionObserver((entries) => {
-    if (entries.some((e) => e.isIntersecting) && page < pages) { page += 1; load(false); }
+    /* sólo se pide la página siguiente si no hay otra cargando: al terminar se vuelve a observar */
+    if (!loading && entries.some((e) => e.isIntersecting) && page < pages) { page += 1; load(false); }
   }, { root: feed, rootMargin: '0px 0px 100% 0px' });
 
   const message = (title, body, link) => `<div class="fslide fslide-msg"><div><h2>${title}</h2><p>${body}</p>${link}</div></div>`;
@@ -1862,7 +1863,8 @@ async function initFlyers() {
       const slides = $$('.fslide[data-job]', feed);
       slides.forEach((s) => { if (!s.dataset.ready) { s.dataset.ready = '1'; visible.observe(s); setupFlyerRail($('.fslide-media', s)); } });
       more.disconnect();
-      if (slides.length > 1 && page < pages) more.observe(slides[slides.length - 2]);
+      /* se vigila el último: si alguien baja de golpe hasta el final, igual se pide la página siguiente */
+      if (slides.length && page < pages) more.observe(slides[slides.length - 1]);
       loadedOnce = true;
     } catch (err) {
       if (!loadedOnce || reset) feed.innerHTML = message('No pudimos cargar los avisos', esc(err.message), '<button class="btn btn-lime" type="button" data-feed-retry>Reintentar</button>');

@@ -180,6 +180,14 @@ if (process.env.WK_FLYER) {
   await ev(`document.querySelector('[data-feed-save]').click()`); await sleep(800);
   check('Guardar sin sesión lleva a ingresar', (await ev('location.pathname')) === '/acceder');
   await go('/flyers'); await sleep(600);
+  const total = await ev(`fetch('/api/jobs?sort=flyer&limit=3').then(r=>r.json()).then(d=>d.total)`);
+  for (let i = 0; i < 12; i++) { await ev(`(() => { const f = document.querySelector('#feed'); f.scrollTop = f.scrollHeight; })()`); await sleep(120); }
+  await sleep(1500);
+  for (let i = 0; i < 4; i++) { await ev(`(() => { const f = document.querySelector('#feed'); f.scrollTop = f.scrollHeight; })()`); await sleep(500); }
+  const ids = await ev(`[...document.querySelectorAll('.fslide[data-job]')].map((s) => s.dataset.job)`);
+  check('bajando rápido aparecen todos los avisos, sin repetidos', ids.length === total && new Set(ids).size === total, `${ids.length}/${new Set(ids).size} de ${total}`);
+  check('al final avisa que no hay más', /Viste todas las búsquedas/.test(await ev('document.body.innerText')));
+  await go('/flyers'); await sleep(600);
   await ev(`document.querySelector('[data-feed-filter="Tupungato"]').click()`); await sleep(1200);
   check('el filtro Tupungato muestra sólo Tupungato', await ev(`(() => { const s = [...document.querySelectorAll('.fslide[data-job]')]; return s.length > 0 && s.every((x) => x.dataset.locality === 'Tupungato'); })()`));
   if (process.env.WK_FLYER2) {
