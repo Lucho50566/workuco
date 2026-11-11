@@ -202,6 +202,33 @@ async function main() {
     const impF = await admin.post('/api/admin/import/publish', { draft: { ...drafts[0], title: 'Bachero de fin de semana', companyName: 'Bodegón Uco', contactPhone: '2622 333222' }, sourceName: 'X', flyer: PNG });
     check('el importador guarda la captura como flyer', impF.status === 201 && /^\/media\/flyer-/.test(impF.data.job.flyer || ''));
 
+    console.log('\n— Varios flyers —');
+    const two = await bodega.post('/api/company/jobs', { ...jobBase, title: 'Bartender de temporada', description: 'Bartender con experiencia.', flyers: [PNG, PNG] });
+    check('alta con 2 flyers', two.status === 201 && two.data.job.flyers.length === 2 && two.data.job.flyer === two.data.job.flyers[0], JSON.stringify(two.data).slice(0, 200));
+    const six = await bodega.post('/api/company/jobs', { ...jobBase, description: 'Bartender con experiencia.', flyers: [PNG, PNG, PNG, PNG, PNG, PNG] });
+    check('más de 5 flyers: 400', six.status === 400 && !!(six.data.fields && six.data.fields.flyers));
+    const tid = two.data.job.id; const [f0, f1] = two.data.job.flyers;
+    const mineJob = async () => (await bodega.get('/api/company/jobs')).data.jobs.find((j) => j.id === tid) || {};
+    await bodega.put(`/api/company/jobs/${tid}`, { ...jobBase, title: 'Bartender de temporada', description: 'Bartender con experiencia.' });
+    check('editar sin tocar flyers conserva los 2', (await mineJob()).flyers.length === 2);
+    await bodega.put(`/api/company/jobs/${tid}`, { ...jobBase, title: 'Bartender de temporada', description: 'Bartender con experiencia.', keepFlyers: [f1], flyers: [PNG] });
+    const reordered = await mineJob();
+    check('quedarse con uno y sumar otro: 2 en ese orden', reordered.flyers.length === 2 && reordered.flyers[0] === f1 && reordered.flyers[1] !== f0);
+    await bodega.put(`/api/company/jobs/${tid}`, { ...jobBase, title: 'Bartender de temporada', description: 'Bartender con experiencia.', keepFlyers: ['/media/flyer-ajeno.png', reordered.flyers[0]] });
+    check('un flyer ajeno en keepFlyers se ignora', JSON.stringify((await mineJob()).flyers) === JSON.stringify([reordered.flyers[0]]));
+    await bodega.put(`/api/company/jobs/${tid}`, { ...jobBase, title: 'Bartender de temporada', description: 'Bartender con experiencia en tragos, turno noche y fines de semana en el bar.', removeFlyer: true });
+    const none = await mineJob();
+    check('quitar todos los flyers', none.flyers.length === 0 && none.flyer === null);
+    const old = await bodega.post('/api/company/jobs', { ...jobBase, title: 'Mozo con un flyer', description: 'Mozo con experiencia.', flyer: PNG });
+    check('la forma vieja (un flyer) sigue andando', old.status === 201 && old.data.job.flyers.length === 1);
+
+    const sorted = (await pub.get('/api/jobs?sort=flyer&limit=30')).data.jobs || [];
+    const lastWith = sorted.map((j) => !!j.flyer).lastIndexOf(true);
+    const firstWithout = sorted.map((j) => !!j.flyer).indexOf(false);
+    check('orden flyer: primero los que tienen flyer', lastWith >= 0 && (firstWithout === -1 || lastWith < firstWithout), `${lastWith} ${firstWithout}`);
+    check('orden flyer respeta la localidad', ((await pub.get('/api/jobs?sort=flyer&limit=30&locality=Tupungato')).data.jobs || []).every((j) => j.locality === 'Tupungato'));
+    check('orden flyer respeta changas', ((await pub.get('/api/jobs?sort=flyer&limit=30&gig=1')).data.jobs || []).every((j) => j.gig === true));
+
     console.log('\n— Páginas y límites —');
     const page = await pub.get('/reclamar/abc123');
     check('la página de reclamo responde HTML', page.status === 200 && page.type.includes('text/html') && !page.text.includes('{{'));

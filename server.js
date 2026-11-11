@@ -35,6 +35,7 @@ const ADMIN_EMAIL = (process.env.WORKUCO_ADMIN_EMAIL || 'admin@workuco.com.ar').
 const ADMIN_PASS = process.env.WORKUCO_ADMIN_PASS || 'workuco2026';
 const INVITE_LIMIT = Number(process.env.WORKUCO_INVITE_LIMIT) || 20; // invitaciones por empresa por día
 const MAX_ALERTS = 10;
+const MAX_FLYERS = 5;
 const IMPORT_FAKE = process.env.WORKUCO_IMPORT_AI_FAKE === '1'; // sólo para pruebas: IA simulada
 const CONTACT_WA = process.env.WORKUCO_CONTACT_WA || '';
 const IMPORT_FAKE_REPLY = { avisos: [
@@ -306,7 +307,7 @@ function jobSummary(j) {
     locality: j.locality, category: j.category, type: j.type, modality: j.modality,
     salary: j.salary, salaryMin: j.salaryMin, salaryMax: j.salaryMax, salaryPeriod: j.salaryPeriod, salaryLabel: j.salaryLabel,
     skills: j.skills, gig: j.gig, startDate: j.startDate, duration: j.duration, positions: j.positions,
-    sourceKind: j.sourceKind, sourceName: j.sourceName, flyer: j.flyer,
+    sourceKind: j.sourceKind, sourceName: j.sourceName, flyer: j.flyer, flyers: j.flyers,
     featured: j.featured, createdAt: j.createdAt, publishedAt: j.publishedAt, closesAt: j.closesAt,
   };
 }
@@ -672,7 +673,7 @@ async function handleApi(req, res, url) {
   if (p === '/api/jobs' && method === 'GET') {
     const me = current(req);
     const cand = me && me.role === 'candidate' ? store.candidate(me.candidate.id) : null;
-    const sort = ['old', 'salary', 'match'].includes(q.get('sort')) ? q.get('sort') : 'recent';
+    const sort = ['old', 'salary', 'match', 'flyer'].includes(q.get('sort')) ? q.get('sort') : 'recent';
     const byMatch = sort === 'match' && !!cand;
     const limit = Math.min(30, Math.max(3, Number(q.get('limit') || 9)));
     const r = store.searchJobs({
@@ -743,7 +744,7 @@ async function handleApi(req, res, url) {
         salaryMin: j.salaryMin, salaryMax: j.salaryMax, salaryPeriod: j.salaryPeriod, salaryLabel: j.salaryLabel,
         skills: j.skills, gig: j.gig, startDate: j.startDate, duration: j.duration,
         match, companyResponse: store.responseStats(j.companyId),
-        flyer: j.flyer, sourceKind: j.sourceKind, sourceName: j.sourceName, companyClaimed: (store.company(j.companyId) || {}).claimed !== 0,
+        flyer: j.flyer, flyers: j.flyers, sourceKind: j.sourceKind, sourceName: j.sourceName, companyClaimed: (store.company(j.companyId) || {}).claimed !== 0,
         benefits: j.benefits, positions: j.positions,
         contactEmail: j.contactEmail, contactPhone: j.contactPhone,
         closesAt: j.closesAt, createdAt: j.createdAt, publishedAt: j.publishedAt, views: j.views + 1,
@@ -863,11 +864,13 @@ async function handleApi(req, res, url) {
   if (p === '/api/company/jobs' && method === 'POST') {
     if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
     const b = await readBody(req);
-    const v = validateJob(b, { hasFlyer: !!b.flyer });
+    const newFlyers = Array.isArray(b.flyers) ? b.flyers.filter(Boolean) : (b.flyer ? [b.flyer] : []);
+    if (newFlyers.length > MAX_FLYERS) return send(res, 400, { error: `Podés subir hasta ${MAX_FLYERS} flyers`, fields: { flyers: `Hasta ${MAX_FLYERS} flyers` } });
+    const v = validateJob(b, { hasFlyer: newFlyers.length > 0 });
     if (!v.ok) return send(res, 400, { error: 'Revisá los datos', fields: v.errors });
-    const flyerFile = b.flyer ? saveImage(b.flyer, 'flyer') : null;
+    const flyerFiles = newFlyers.map((f) => saveImage(f, 'flyer'));
     const j = store.insertJob({
-      id: uid('j'), companyId: me.company.id, ...v.data, flyerFile, status: 'pending', featured: 0, createdAt: now(),
+      id: uid('j'), companyId: me.company.id, ...v.data, flyerFiles, status: 'pending', featured: 0, createdAt: now(),
     });
     return send(res, 201, { job: j });
   }
@@ -886,11 +889,16 @@ async function handleApi(req, res, url) {
       return send(res, 200, { job: updated });
     }
     const b = await readBody(req);
-    const keepFlyer = !b.removeFlyer && !b.flyer ? j.flyerFile : null;
-    const v = validateJob(b, { hasFlyer: !!(b.flyer || keepFlyer) });
+    /* flyers: keepFlyers (URLs que ya eran del aviso) + flyers nuevos; "flyer" solo reemplaza todo */
+    const own = new Map((j.flyerFiles || []).map((f) => [mediaUrl(f), f]));
+    const keep = b.removeFlyer || b.flyer ? []
+      : Array.isArray(b.keepFlyers) ? b.keepFlyers.map((u) => own.get(u)).filter(Boolean) : (j.flyerFiles || []);
+    const added = Array.isArray(b.flyers) ? b.flyers.filter(Boolean) : (b.flyer ? [b.flyer] : []);
+    if (keep.length + added.length > MAX_FLYERS) return send(res, 400, { error: `Podés tener hasta ${MAX_FLYERS} flyers`, fields: { flyers: `Hasta ${MAX_FLYERS} flyers` } });
+    const v = validateJob(b, { hasFlyer: keep.length + added.length > 0 });
     if (!v.ok) return send(res, 400, { error: 'Revisá los datos', fields: v.errors });
-    const flyerFile = b.flyer ? saveImage(b.flyer, 'flyer') : keepFlyer;
-    const updated = store.updateJob(j.id, { ...v.data, flyerFile, status: 'pending', rejectReason: null, featured: 0, publishedAt: null });
+    const flyerFiles = [...new Set(keep), ...added.map((f) => saveImage(f, 'flyer'))];
+    const updated = store.updateJob(j.id, { ...v.data, flyerFiles, status: 'pending', rejectReason: null, featured: 0, publishedAt: null });
     return send(res, 200, { job: updated, message: 'Los cambios quedaron pendientes de aprobación' });
   }
 
@@ -1410,7 +1418,7 @@ async function handleApi(req, res, url) {
       const closesAt = v.data.closesAt && v.data.closesAt < limit ? v.data.closesAt : limit;
       const job = store.insertJob({
         id: uid('j'), companyId: co.id, ...v.data,
-        contactEmail: hasEmail ? v.data.contactEmail : '', contactPhone, closesAt, flyerFile,
+        contactEmail: hasEmail ? v.data.contactEmail : '', contactPhone, closesAt, flyerFiles: flyerFile ? [flyerFile] : [],
         status: 'approved', featured: 0, createdAt: now(), publishedAt: now(),
       });
       store.setJobSource(job.id, { sourceName: clean(b.sourceName, 80) || 'Canal de WhatsApp', sourceText: cleanMultiline(b.sourceText, 20000) });
