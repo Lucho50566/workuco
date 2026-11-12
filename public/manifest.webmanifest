@@ -1,6 +1,6 @@
 {
-  "name": "Workuco — Empleos del Valle de Uco",
-  "short_name": "Workuco",
+  "name": "WorkUco — Empleos del Valle de Uco",
+  "short_name": "WorkUco",
   "description": "Portal de empleo del Valle de Uco: San Carlos, Tunuyán y Tupungato.",
   "start_url": "/",
   "scope": "/",

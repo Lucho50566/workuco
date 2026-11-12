@@ -1,5 +1,5 @@
 ---
-name: Workuco
+name: WorkUco
 description: El portal de empleo del Valle de Uco, de noche y con las luces de los pueblos encendidas.
 colors:
   night: "#0b1612"
@@ -146,13 +146,13 @@ components:
     padding: "4px 9px"
 ---
 
-# Design System: Workuco
+# Design System: WorkUco
 
 ## Overview
 
 **Creative North Star: "El Valle de noche"**
 
-Workuco es el Valle de Uco visto de noche: bandas grandes de verde casi negro donde la cordillera se recorta en capas planas y los pueblos son luces lima encendidas con su número real de búsquedas. Entre esas bandas, el contenido se lee sobre crema cálida, nunca sobre blanco frío. La noche es el escenario; la crema es la mesa de trabajo.
+WorkUco es el Valle de Uco visto de noche: bandas grandes de verde casi negro donde la cordillera se recorta en capas planas y los pueblos son luces lima encendidas con su número real de búsquedas. Entre esas bandas, el contenido se lee sobre crema cálida, nunca sobre blanco frío. La noche es el escenario; la crema es la mesa de trabajo.
 
 El sistema alterna dos registros. Las bandas de noche (hero, cierre, footer, encabezado de /changas) son tipográficas y enormes: Bricolage Grotesque a 800 con interlineado apretado, una palabra o una cifra en lima. Las zonas crema son densas y prácticas: tarjetas de 16px de radio, chips en píldora, cifras tabulares. El malbec aparece como una banda entera para las changas, no como acento disperso.
 
@@ -172,7 +172,7 @@ Noche profunda, crema cálida y dos voces fuertes: lima como luz y malbec como v
 
 ### Primary
 - **Lima Farol** (lime): la luz del sistema. Botón primario sobre noche, palabra rotativa del titular, pulsos de los pueblos, cintas de rubros, chip de filtro activo, contadores (campanita, pestañas), anillo de foto de perfil. Sobre noche siempre con texto noche encima, nunca blanco.
-- **Verde Workuco** (brand-green): verde de marca comprometido en PRODUCT.md. Acción primaria sobre crema (botón, links con flecha, foco, numerales de pasos, interruptores encendidos, anillo de compatibilidad).
+- **Verde WorkUco** (brand-green): verde de marca comprometido en PRODUCT.md. Acción primaria sobre crema (botón, links con flecha, foco, numerales de pasos, interruptores encendidos, anillo de compatibilidad).
 
 ### Secondary
 - **Malbec** (malbec): banda de changas, cifra de pago de cada changa, insignia "Destacada", franja de modo demostración. Su variante suave (malbec-soft) sólo como fondo de la etiqueta "Empieza en N días" y del bloque de changa en el wizard.
@@ -247,7 +247,7 @@ Radios suaves y consistentes: 9px para botones chicos e íconos, 10px campos, 12
 Directos y grandes, con peso 650.
 - **Shape:** curva suave (12px); chico 9px, grande 13px.
 - **Lima:** fondo lima, texto noche, sombra corta; es el primario sobre noche (header, buscador del hero, cierre).
-- **Primario verde:** fondo verde Workuco, texto blanco; primario sobre crema. Hover verde oscuro.
+- **Primario verde:** fondo verde WorkUco, texto blanco; primario sobre crema. Hover verde oscuro.
 - **Noche:** fondo noche, texto blanco; hover noche 2.
 - **Outline:** papel con borde `line-strong`; sobre noche, transparente con borde blanco 28%.
 - **Estados:** `:active` baja 1px; deshabilitado al 55%. Mínimo 44px de alto (52–54px en el hero).
@@ -269,7 +269,7 @@ Directos y grandes, con peso 650.
 
 ### Inputs / Fields
 - **Style:** papel, borde 1px `line-strong`, radio 10px, 44px mínimo, texto 14.5px tinta, cursor verde.
-- **Focus:** borde verde Workuco y halo de 3px verde al 13%.
+- **Focus:** borde verde WorkUco y halo de 3px verde al 13%.
 - **Error:** borde #d46b64.
 - **Buscador del hero:** contenedor crema de 16px con campos sin borde de 52px, ícono a la izquierda y botón lima.
 
@@ -290,7 +290,7 @@ Banda lima a todo el ancho con rubros en display 800 clamp(20px, 2.4vw, 30px) se
 
 ### Do:
 - **Do** alternar bandas de noche y crema; cada página pública abre o cierra en noche.
-- **Do** usar lima como luz sobre noche (botón primario, palabra clave, números vivos) y verde Workuco como acción sobre crema.
+- **Do** usar lima como luz sobre noche (botón primario, palabra clave, números vivos) y verde WorkUco como acción sobre crema.
 - **Do** reservar el malbec para changas, destacados y la franja de demostración.
 - **Do** componer titulares en Bricolage Grotesque 800 con tracking negativo e interlineado menor a 1.
 - **Do** mostrar cifras reales de la base en tabular-nums; si no hay dato, decirlo en texto gris, no inventar.

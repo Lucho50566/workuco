@@ -1,4 +1,4 @@
-/* Workuco — paneles de empresa, persona y administración */
+/* WorkUco — paneles de empresa, persona y administración */
 'use strict';
 
 (function () {
@@ -429,7 +429,7 @@
           <a class="btn btn-outline btn-sm" href="mailto:${esc(a.email)}?subject=${encodeURIComponent('Tu postulación a ' + a.jobTitle)}">${icon('mail', 15)} Email</a>
           <a class="btn btn-outline btn-sm" href="tel:${esc(a.phone)}">${icon('phone', 15)} Llamar</a>
           ${cvHref ? `<a class="btn btn-outline btn-sm" href="${cvHref}" target="_blank" rel="noopener">${icon('file', 15)} CV en PDF</a>` : ''}
-          ${a.candidateId ? `<a class="btn btn-outline btn-sm" href="/cv/${esc(a.candidateId)}" target="_blank" rel="noopener">${icon('file', 15)} CV Workuco</a>` : ''}
+          ${a.candidateId ? `<a class="btn btn-outline btn-sm" href="/cv/${esc(a.candidateId)}" target="_blank" rel="noopener">${icon('file', 15)} CV WorkUco</a>` : ''}
         </div>
 
         <div class="drawer-section quick-wa">
@@ -855,7 +855,7 @@
       }));
       const url = `${location.origin}/p/${profile.publicSlug}`;
       $('#public-url').textContent = url;
-      $('#share-wa').href = `https://wa.me/?text=${encodeURIComponent(`Mirá mi perfil en Workuco: ${url}`)}`;
+      $('#share-wa').href = `https://wa.me/?text=${encodeURIComponent(`Mirá mi perfil en WorkUco: ${url}`)}`;
       $('#share-row').hidden = !profile.isPublic;
       const cv = `/cv/${profile.id}`;
       $('#cv-link').href = cv;

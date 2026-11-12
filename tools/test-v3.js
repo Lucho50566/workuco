@@ -57,7 +57,7 @@ const monthly = (j) => (j.salaryMin || 0) * ({ 'día': 22, hora: 160 }[j.salaryP
 const nonIncreasing = (arr) => arr.every((v, i) => i === 0 || arr[i - 1] >= v);
 const validJob = (over = {}) => ({
   title: 'Ayudante de prueba', locality: 'Tunuyán', category: 'Comercio', type: 'Tiempo completo', modality: 'Presencial',
-  description: 'Descripción de prueba suficientemente larga para pasar la validación del servidor de Workuco.',
+  description: 'Descripción de prueba suficientemente larga para pasar la validación del servidor de WorkUco.',
   contactEmail: 'prueba@demo.workuco', ...over,
 });
 
@@ -254,7 +254,7 @@ async function main() {
     check('el directorio trae la respuesta', (cList.data.companies || []).some((c) => c.response && c.response.rate >= 0));
 
     /* ------------------------------------------------------------ */
-    console.log('\n— CV Workuco y perfil público —');
+    console.log('\n— CV WorkUco y perfil público —');
     const cvMine = await martina.get('/api/cv-data/udemo01');
     check('la persona ve su CV con contacto', cvMine.status === 200 && cvMine.data.candidate.name === 'Martina Salinas' && /512345/.test(cvMine.data.candidate.phone));
     check('CV: otra persona no puede', (await nuevo.get('/api/cv-data/udemo01')).status === 403);

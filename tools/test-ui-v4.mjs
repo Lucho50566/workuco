@@ -78,17 +78,17 @@ const finca = list.companies.find((c) => c.name === 'Finca Las Pircas');
 await send('Network.clearBrowserCookies');
 await go(`/oferta/${resto.jobs[0].id}`);
 check('el detalle dice de qué canal salió', /Aviso tomado de Empleos Tunuyán/.test(await ev('document.body.innerText')));
-check('el detalle ofrece escribir a Workuco por WhatsApp', await ev(`!!document.querySelector('.claim-hint a[href^="https://wa.me/5492622400000"]')`));
+check('el detalle ofrece escribir a WorkUco por WhatsApp', await ev(`!!document.querySelector('.claim-hint a[href^="https://wa.me/5492622400000"]')`));
 await shot('oferta-importada');
 await go(`/empresa/${resto.id}`);
-check('la ficha avisa que no está reclamada', /Ficha armada por Workuco/.test(await ev('document.body.innerText')));
+check('la ficha avisa que no está reclamada', /Ficha armada por WorkUco/.test(await ev('document.body.innerText')));
 await go('/buscar');
 check('la tarjeta muestra "Tomado de un canal"', /Tomado de un canal/.test(await ev('document.body.innerText')));
 
 /* 3. una empresa borra su ficha */
 const tokFinca = finca.claimUrl.split('/').pop();
 await go(`/reclamar/${tokFinca}`);
-check('la página de reclamo muestra la empresa', /Finca Las Pircas ya está en Workuco/.test(await ev('document.body.innerText')));
+check('la página de reclamo muestra la empresa', /Finca Las Pircas ya está en WorkUco/.test(await ev('document.body.innerText')));
 await shot('reclamar');
 await size(390); await go(`/reclamar/${tokFinca}`);
 check('reclamo sin desbordes en el celular', await noOverflow());

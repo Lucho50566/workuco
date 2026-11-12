@@ -1,5 +1,5 @@
 /**
- * Pruebas end-to-end de la API de Workuco.
+ * Pruebas end-to-end de la API de WorkUco.
  * Levanta un servidor temporal con datos demo y verifica los flujos principales.
  *
  *   node tools/test-api.js

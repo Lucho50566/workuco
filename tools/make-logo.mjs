@@ -1,6 +1,6 @@
-// Genera los íconos PNG de Workuco a partir del logo en SVG, con Chrome headless.
+// Genera los íconos PNG de WorkUco a partir del logo en SVG, con Chrome headless.
 // Uso: node tools/make-logo.mjs
-// El logo: una línea que es la W de Workuco, los picos de la cordillera del Valle de Uco y,
+// El logo: una línea que es la W de WorkUco, los picos de la cordillera del Valle de Uco y,
 // con el punto (cabeza / sol), una persona con los brazos en alto.
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';

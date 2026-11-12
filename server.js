@@ -1,5 +1,5 @@
 /**
- * Workuco — Portal de empleo del Valle de Uco
+ * WorkUco — Portal de empleo del Valle de Uco
  * Servidor HTTP sin dependencias: API JSON + SQLite + frontend estático.
  *
  *   node server.js            -> http://localhost:4250
@@ -391,7 +391,7 @@ const NAV_ITEMS = [
   ['/publicar', 'Para empresas'],
 ];
 
-/* Logo de marca: una sola línea que es a la vez la W de Workuco, los picos de la cordillera
+/* Logo de marca: una sola línea que es a la vez la W de WorkUco, los picos de la cordillera
    del Valle de Uco y, con el punto (cabeza / sol), una persona con los brazos en alto.
    La línea toma el color del texto; el punto, el acento (--brand-dot). */
 const brandMark = () => `<svg class="brand-svg" viewBox="0 0 40 40" width="30" height="30" aria-hidden="true">
@@ -419,9 +419,9 @@ function navHtml(active) {
   return `${INTRO_HTML}
 <header class="site-header">
   <div class="container header-inner">
-    <a class="brand" href="/" aria-label="Workuco, inicio">
+    <a class="brand" href="/" aria-label="WorkUco, inicio">
       ${brandMark()}
-      <span class="brand-name">Workuco</span>
+      <span class="brand-name">Work<b>Uco</b></span>
     </a>
     <nav class="main-nav" aria-label="Principal">${links}</nav>
     <div class="header-actions" data-auth-slot>
@@ -445,7 +445,7 @@ function footerHtml() {
     <div class="footer-brand">
       <a class="brand" href="/">
         ${brandMark()}
-        <span class="brand-name">Workuco</span>
+        <span class="brand-name">Work<b>Uco</b></span>
       </a>
       <p>El portal de empleo del Valle de Uco. Conectamos talento local con empresas de San Carlos, Tunuyán y Tupungato.</p>
     </div>
@@ -464,7 +464,7 @@ function footerHtml() {
       <a href="/empresas">Empresas del Valle</a>
     </div>
     <div class="footer-col">
-      <h4>Workuco</h4>
+      <h4>WorkUco</h4>
       <a href="/acerca">Acerca de</a>
       <a href="/contacto">Contacto</a>
       <a href="/faq">Preguntas frecuentes</a>
@@ -474,7 +474,7 @@ function footerHtml() {
     </div>
   </div>
   <div class="container footer-bottom">
-    <span>© ${new Date().getFullYear()} Workuco · Valle de Uco, Mendoza</span>
+    <span>© ${new Date().getFullYear()} WorkUco · Valle de Uco, Mendoza</span>
     <span>Hecho para el Valle de Uco</span>
   </div>
   <div class="container footer-legal">
@@ -488,11 +488,11 @@ function footerHtml() {
 function legalIdentity() {
   const l = legal.legalInfo();
   const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
-  const parts = [l.name ? `Responsable: ${esc(l.name)}` : 'Responsable: Workuco', l.cuit ? `CUIT ${esc(l.cuit)}` : '', l.address ? `Domicilio: ${esc(l.address)}` : '', `Contacto: ${esc(l.email)}`];
+  const parts = [l.name ? `Responsable: ${esc(l.name)}` : 'Responsable: WorkUco', l.cuit ? `CUIT ${esc(l.cuit)}` : '', l.address ? `Domicilio: ${esc(l.address)}` : '', `Contacto: ${esc(l.email)}`];
   return parts.filter(Boolean).join(' · ');
 }
 
-function renderPage(res, file, { active = '', title = 'Workuco' } = {}) {
+function renderPage(res, file, { active = '', title = 'WorkUco' } = {}) {
   fs.readFile(path.join(WEB, file), 'utf8', (err, html) => {
     if (err) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('No encontrado'); }
     const out = html
@@ -509,7 +509,7 @@ function renderPage(res, file, { active = '', title = 'Workuco' } = {}) {
 }
 
 const INFO_PAGES = {
-  '/acerca': 'Acerca de Workuco',
+  '/acerca': 'Acerca de WorkUco',
   '/contacto': 'Contacto',
   '/faq': 'Preguntas frecuentes',
   '/terminos': 'Términos y condiciones',
@@ -781,7 +781,7 @@ async function handleApi(req, res, url) {
         match, companyResponse: store.responseStats(j.companyId),
         flyer: j.flyer, flyers: j.flyers, sourceKind: j.sourceKind, sourceName: j.sourceName, companyClaimed: !unclaimed,
         benefits: j.benefits, positions: j.positions,
-        /* aviso importado sin reclamar: no se difunden teléfono ni mail de terceros (Ley 25.326, minimización); se postula por Workuco */
+        /* aviso importado sin reclamar: no se difunden teléfono ni mail de terceros (Ley 25.326, minimización); se postula por WorkUco */
         contactEmail: unclaimed ? '' : j.contactEmail, contactPhone: unclaimed ? '' : j.contactPhone,
         closesAt: j.closesAt, createdAt: j.createdAt, publishedAt: j.publishedAt, views: j.views + 1,
       },
@@ -849,7 +849,7 @@ async function handleApi(req, res, url) {
   if (p === '/api/account/export' && method === 'GET') {
     if (!me || (me.role !== 'candidate' && me.role !== 'company')) return send(res, 401, { error: 'Iniciá sesión' });
     const strip = (row) => { const { password, ai_key: aiKey, claim_token: claim, ...rest } = row || {}; return rest; };
-    const data = { exportado: new Date().toISOString(), sitio: 'Workuco' };
+    const data = { exportado: new Date().toISOString(), sitio: 'WorkUco' };
     if (me.role === 'candidate') {
       const c = store.candidate(me.candidate.id);
       data.perfil = strip(c);
@@ -1399,7 +1399,7 @@ async function handleApi(req, res, url) {
     return send(res, 201, { ok: true, invitation: { id } });
   }
 
-  /* ---------- CV Workuco y perfil público ---------- */
+  /* ---------- CV WorkUco y perfil público ---------- */
   const cvData = p.match(/^\/api\/cv-data\/([a-z0-9]+)$/);
   if (cvData && method === 'GET') {
     if (!me) return send(res, 401, { error: 'Iniciá sesión' });
@@ -1482,7 +1482,7 @@ async function handleApi(req, res, url) {
       const phoneNorm = normPhone(contactPhone);
       const nameNorm = normName(companyName);
       if (store.blocked(phoneNorm, nameNorm)) {
-        return send(res, 409, { code: 'blocked', error: 'Esta empresa pidió no aparecer en Workuco' });
+        return send(res, 409, { code: 'blocked', error: 'Esta empresa pidió no aparecer en WorkUco' });
       }
       if (!b.force && store.importedDuplicate(phoneNorm, v.data.title)) {
         return send(res, 409, { code: 'duplicate', error: 'Ya hay un aviso igual de esta empresa publicado' });
@@ -1509,7 +1509,7 @@ async function handleApi(req, res, url) {
         const claimUrl = c.claim_token ? `${origin}/reclamar/${c.claim_token}` : '';
         const applications = jobs.reduce((n, j) => n + j.applications, 0);
         const open = jobs.find((j) => j.status === 'approved') || jobs[0];
-        const msg = open && claimUrl ? `Hola, ¿cómo están? Les escribo de Workuco, el portal de empleo del Valle de Uco. Vimos su búsqueda "${open.title}" en ${open.source_name || 'un canal de empleo'} y la publicamos para que llegue a más gente de la zona. Si quieren, pueden reclamarla gratis para manejar sus postulantes (ya tienen ${applications}), o pedir que la borremos con un toque: ${claimUrl}. ¡Gracias!` : '';
+        const msg = open && claimUrl ? `Hola, ¿cómo están? Les escribo de WorkUco, el portal de empleo del Valle de Uco. Vimos su búsqueda "${open.title}" en ${open.source_name || 'un canal de empleo'} y la publicamos para que llegue a más gente de la zona. Si quieren, pueden reclamarla gratis para manejar sus postulantes (ya tienen ${applications}), o pedir que la borremos con un toque: ${claimUrl}. ¡Gracias!` : '';
         return {
           id: c.id, name: c.name, phone: c.phone || '', locality: c.locality || '',
           claimed: c.claimed !== 0, notifyStatus: c.notify_status || 'sin_avisar', notifiedAt: c.notified_at || null,
@@ -1573,7 +1573,7 @@ async function handleApi(req, res, url) {
       for (const a of store.applicantsOf(c.id)) {
         if (seen.has(a.candidateId)) continue;
         seen.add(a.candidateId);
-        tryNotify('candidate', a.candidateId, { kind: 'etapa', title: `${c.name} ya administra su aviso en Workuco`, body: `Tu postulación a "${a.jobTitle}" ya está en manos de la empresa.`, link: '/mi-perfil?tab=postulaciones' });
+        tryNotify('candidate', a.candidateId, { kind: 'etapa', title: `${c.name} ya administra su aviso en WorkUco`, body: `Tu postulación a "${a.jobTitle}" ya está en manos de la empresa.`, link: '/mi-perfil?tab=postulaciones' });
       }
       return send(res, 200, { company: publicCompany(claimed, { privateView: true }) });
     }
@@ -1584,7 +1584,7 @@ async function handleApi(req, res, url) {
       store.addBlock('name', c.name_norm || normName(c.name), c.name);
       store.deleteCompanyCascade(c.id);
       for (const a of applicants) {
-        tryNotify('candidate', a.candidateId, { kind: 'etapa', title: `El aviso "${a.jobTitle}" fue retirado por la empresa`, body: 'Hay más búsquedas en Workuco para vos.', link: '/buscar' });
+        tryNotify('candidate', a.candidateId, { kind: 'etapa', title: `El aviso "${a.jobTitle}" fue retirado por la empresa`, body: 'Hay más búsquedas en WorkUco para vos.', link: '/buscar' });
       }
       return send(res, 200, { ok: true });
     }
@@ -1742,52 +1742,52 @@ const server = http.createServer(async (req, res) => {
 
     /* páginas */
     if (url.pathname === '/' && req.method === 'GET') {
-      return renderPage(res, 'index.html', { active: '/', title: 'Workuco · Empleos en el Valle de Uco' });
+      return renderPage(res, 'index.html', { active: '/', title: 'WorkUco · Empleos en el Valle de Uco' });
     }
     if (url.pathname === '/buscar' && req.method === 'GET') {
-      return renderPage(res, 'buscar.html', { active: '/buscar', title: 'Buscar empleo · Workuco' });
+      return renderPage(res, 'buscar.html', { active: '/buscar', title: 'Buscar empleo · WorkUco' });
     }
     if (/^\/reclamar\/[A-Za-z0-9]+$/.test(url.pathname) && req.method === 'GET') {
-      return renderPage(res, 'reclamar.html', { title: 'Tu empresa en Workuco' });
+      return renderPage(res, 'reclamar.html', { title: 'Tu empresa en WorkUco' });
     }
     if (url.pathname === '/flyers' && req.method === 'GET') {
-      return renderPage(res, 'flyers.html', { active: '/flyers', title: 'Modo flyers · Workuco' });
+      return renderPage(res, 'flyers.html', { active: '/flyers', title: 'Modo flyers · WorkUco' });
     }
     if (url.pathname === '/changas' && req.method === 'GET') {
-      return renderPage(res, 'changas.html', { active: '/changas', title: 'Changas y trabajos por temporada · Workuco' });
+      return renderPage(res, 'changas.html', { active: '/changas', title: 'Changas y trabajos por temporada · WorkUco' });
     }
     if (/^\/cv\/[a-z0-9]+$/.test(url.pathname) && req.method === 'GET') {
-      return renderPage(res, 'cv.html', { title: 'CV · Workuco' });
+      return renderPage(res, 'cv.html', { title: 'CV · WorkUco' });
     }
     if (/^\/p\/[a-z0-9-]+$/.test(url.pathname) && req.method === 'GET') {
-      return renderPage(res, 'perfil-publico.html', { title: 'Perfil · Workuco' });
+      return renderPage(res, 'perfil-publico.html', { title: 'Perfil · WorkUco' });
     }
     if (url.pathname === '/empresas' && req.method === 'GET') {
-      return renderPage(res, 'empresas.html', { active: '/empresas', title: 'Empresas del Valle de Uco · Workuco' });
+      return renderPage(res, 'empresas.html', { active: '/empresas', title: 'Empresas del Valle de Uco · WorkUco' });
     }
     if (/^\/empresa\/[a-z0-9]+$/.test(url.pathname) && req.method === 'GET') {
-      return renderPage(res, 'empresa.html', { active: '/empresas', title: 'Empresa · Workuco' });
+      return renderPage(res, 'empresa.html', { active: '/empresas', title: 'Empresa · WorkUco' });
     }
     if (url.pathname === '/publicar' && req.method === 'GET') {
-      return renderPage(res, 'publicar.html', { active: '/publicar', title: 'Publicar empleo · Workuco' });
+      return renderPage(res, 'publicar.html', { active: '/publicar', title: 'Publicar empleo · WorkUco' });
     }
     if (/^\/oferta\/[a-z0-9]+$/.test(url.pathname) && req.method === 'GET') {
-      return renderPage(res, 'oferta.html', { active: '/buscar', title: 'Oferta laboral · Workuco' });
+      return renderPage(res, 'oferta.html', { active: '/buscar', title: 'Oferta laboral · WorkUco' });
     }
     if (url.pathname === '/acceder' && req.method === 'GET') {
-      return renderPage(res, 'acceso.html', { title: 'Acceder · Workuco' });
+      return renderPage(res, 'acceso.html', { title: 'Acceder · WorkUco' });
     }
     if (url.pathname === '/panel' && req.method === 'GET') {
-      return renderPage(res, 'panel.html', { title: 'Panel de empresa · Workuco' });
+      return renderPage(res, 'panel.html', { title: 'Panel de empresa · WorkUco' });
     }
     if (url.pathname === '/mi-perfil' && req.method === 'GET') {
-      return renderPage(res, 'mi-perfil.html', { title: 'Mi perfil · Workuco' });
+      return renderPage(res, 'mi-perfil.html', { title: 'Mi perfil · WorkUco' });
     }
     if (url.pathname === '/admin' && req.method === 'GET') {
-      return renderPage(res, 'admin.html', { title: 'Administración · Workuco' });
+      return renderPage(res, 'admin.html', { title: 'Administración · WorkUco' });
     }
     if (INFO_PAGES[url.pathname] && req.method === 'GET') {
-      return renderPage(res, 'info.html', { title: `${INFO_PAGES[url.pathname]} · Workuco` });
+      return renderPage(res, 'info.html', { title: `${INFO_PAGES[url.pathname]} · WorkUco` });
     }
     if (url.pathname === '/robots.txt') {
       res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -1826,7 +1826,7 @@ if (process.env.WORKUCO_DEMO === '1') {
 }
 
 server.listen(PORT, HOST, () => {
-  console.log(`Workuco en http://localhost:${PORT}`);
+  console.log(`WorkUco en http://localhost:${PORT}`);
   console.log(`Base de datos: ${DB_FILE}`);
   if (PUBLIC_URL) console.log(`URL pública: ${PUBLIC_URL}`);
 });

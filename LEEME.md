@@ -1,4 +1,4 @@
-# Workuco — Portal de empleo del Valle de Uco
+# WorkUco — Portal de empleo del Valle de Uco
 
 Plataforma web para buscar y publicar empleos en **San Carlos, Tunuyán y Tupungato**.
 Aplicación real y funcional: sin dependencias, sin build, con base de datos propia.
@@ -15,7 +15,7 @@ Aplicación real y funcional: sin dependencias, sin build, con base de datos pro
 ## Arrancar
 
 ```
-Iniciar Workuco.bat        (o: node server.js)
+Iniciar WorkUco.bat        (o: node server.js)
 ```
 
 Abre `http://localhost:4250`. Desde el celular en la misma WiFi: `http://IP-DE-LA-PC:4250`.
@@ -48,7 +48,7 @@ para la base de talento, 3 con perfil público), postulaciones en todas las etap
 | `/changas` | Trabajos por día o temporada: pago por jornada, inicio, duración y cupos |
 | `/flyers` | Modo flyers: avisos de a uno a pantalla completa, deslizando como TikTok: compartir (izquierda), guardar (derecha), barra para deslizar y postularse, compatibilidad arriba a la derecha y filtro de lugar |
 | `/reclamar/:código` | Link privado para que una empresa reclame o borre la ficha que armamos con sus avisos |
-| `/cv/:id` | CV Workuco imprimible (A4) armado desde el perfil; "Descargar PDF" con la impresión del navegador |
+| `/cv/:id` | CV WorkUco imprimible (A4) armado desde el perfil; "Descargar PDF" con la impresión del navegador |
 | `/p/:slug` | Perfil público opcional de la persona, sin teléfono ni mail |
 | `/oferta/:id` | Detalle con carrusel de fotos de la empresa, resumen, beneficios y postulación |
 | `/empresas` | Directorio de empresas del Valle |
@@ -71,7 +71,7 @@ para la base de talento, 3 con perfil público), postulaciones en todas las etap
 - **Alertas de búsqueda** (hasta 10): cuando se aprueba una oferta que coincide, llega una notificación.
 - **Campanita** de notificaciones: cambios de etapa (incluido el descarte), invitaciones y alertas.
 - **"Estoy disponible"**, rubros de interés y sueldo pretendido: te suman a la base de talento.
-- **CV Workuco** automático e imprimible, y **perfil público** con botón para compartir por WhatsApp.
+- **CV WorkUco** automático e imprimible, y **perfil público** con botón para compartir por WhatsApp.
 - **Sueldo estructurado** (desde/hasta, por mes/día/hora): filtro "con sueldo publicado" y orden por sueldo.
 - **Changas**: sección propia con inicio, duración, cupos y pago por jornada.
 
@@ -80,7 +80,7 @@ para la base de talento, 3 con perfil público), postulaciones en todas las etap
   búsqueda, sin datos de contacto. **Invitá a postularse** (20 invitaciones por día).
 - **8 plantillas del Valle** en el wizard: cosecha, bodega, mozo, cocina, ventas, administración, obra, turismo.
 - Wizard con **changa** (inicio y duración), **habilidades buscadas** y **sueldo estructurado**.
-- Ficha del postulante con **compatibilidad**, **CV Workuco** y **mensajes rápidos de WhatsApp** (citar a
+- Ficha del postulante con **compatibilidad**, **CV WorkUco** y **mensajes rápidos de WhatsApp** (citar a
   entrevista, pedir datos, avisar que no sigue).
 - **Insignia de respuesta**: qué % de postulaciones responde la empresa y en cuántos días (desde 3
   postulaciones). La ven las personas en la oferta y en la ficha de la empresa.
@@ -109,7 +109,7 @@ Configuración (variables de entorno del servidor):
 | `WORKUCO_IMPORT_AI_PROVIDER` | `gemini` (recomendado, lee imágenes), `openai`, `anthropic` o `custom` |
 | `WORKUCO_IMPORT_AI_KEY` | API key del admin (separada de las keys de cada empresa) |
 | `WORKUCO_IMPORT_AI_MODEL` / `WORKUCO_IMPORT_AI_BASE` | Opcionales (por defecto `gemini-2.5-flash`) |
-| `WORKUCO_CONTACT_WA` | WhatsApp de Workuco para el botón "¿Es tu empresa? Escribinos" |
+| `WORKUCO_CONTACT_WA` | WhatsApp de WorkUco para el botón "¿Es tu empresa? Escribinos" |
 
 Privacidad: el código de reclamo y el texto original del canal sólo los ve el admin; nunca se
 publican datos de personas que buscan trabajo sacados de los canales.
@@ -124,7 +124,7 @@ publican datos de personas que buscan trabajo sacados de los canales.
 - Los flyers se ven **siempre completos** (sin recortes) sobre su propia versión desenfocada: en la
   tarjeta (con "+N" si hay más), en el carrusel del detalle y en el modo flyers.
 - **Modo flyers** (`/flyers`): primero los avisos con flyer, después el resto con un flyer generado
-  por Workuco. Se pasa de aviso deslizando hacia arriba (o con ↑/↓ y la rueda en la computadora),
+  por WorkUco. Se pasa de aviso deslizando hacia arriba (o con ↑/↓ y la rueda en la computadora),
   y entre flyers del mismo aviso deslizando de costado. Carga de a 10.
   Abajo, una barra que se arrastra hasta el final lleva al aviso completo para postularse (un toque
   solo muestra el gesto; con teclado, Enter entra directo). Manteniendo apretado el flyer se esconde
@@ -210,7 +210,7 @@ Personas y empresas: `GET /api/notifications`, `POST /api/notifications/read`.
 Persona: `GET/PATCH /api/candidate/profile`, `GET /api/candidate/applications`,
 `GET/POST /api/candidate/saved[/:jobId]`, `GET /api/photo/c/:id`, `GET /api/cv/c/:id`,
 `GET /api/candidate/recommended`, `GET/POST /api/candidate/alerts`, `DELETE /api/candidate/alerts/:id`,
-`GET /api/candidate/invitations`, `GET /api/cv-data/:id` (CV Workuco; también empresa con postulación y admin).
+`GET /api/candidate/invitations`, `GET /api/cv-data/:id` (CV WorkUco; también empresa con postulación y admin).
 
 Empresa: `POST /api/auth/register|login|logout`, `GET/POST /api/company/jobs`,
 `PUT/DELETE /api/company/jobs/:id`, `GET /api/company/applications`,
@@ -254,7 +254,7 @@ Lo que ya hace el sitio:
   presencia", estado civil, aspecto, religión o nacionalidad. No bloquea: avisa a la empresa en el último paso
   del asistente y marca el aviso en la revisión del admin.
 - **Avisos importados:** se cita la fuente, la empresa puede reclamar o borrar, y mientras no reclame no se
-  muestran su teléfono ni su mail (se postula por Workuco).
+  muestran su teléfono ni su mail (se postula por WorkUco).
 - **Defensa del consumidor:** link "Botón de baja" en el pie de todas las páginas; el botón de arrepentimiento
   no aplica mientras el servicio sea gratis (habrá que sumarlo si se cobra algo).
 

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "generatedAt": "2026-11-10T00:00:00Z",
-  "title": "Design System: Workuco",
+  "title": "Design System: WorkUco",
   "extensions": {
     "colorMeta": {
       "night": { "role": "neutral", "displayName": "Noche", "canonical": "#0b1612", "tonalRamp": ["#050b09", "#0b1612", "#12241d", "#1b3229", "#2a463d", "#4d6a5f", "#a9bcb1", "#e8efe9"] },
@@ -14,8 +14,8 @@
       "malbec": { "role": "secondary", "displayName": "Malbec", "canonical": "#7a1f4d", "tonalRamp": ["#2a0f20", "#40122e", "#5e1639", "#7a1f4d", "#9a3a6a", "#c47ea0", "#ecc9d8", "#f5e6ee"] },
       "malbec-2": { "role": "secondary", "displayName": "Malbec profundo", "canonical": "#5e1639" },
       "malbec-soft": { "role": "secondary", "displayName": "Malbec suave", "canonical": "#f5e6ee" },
-      "brand-green": { "role": "primary", "displayName": "Verde Workuco", "canonical": "#0a8263", "tonalRamp": ["#043d2e", "#076a51", "#0a8263", "#12b98d", "#6fd4b6", "#b9ebdc", "#e6f7f0", "#f2fbf7"] },
-      "brand-green-dark": { "role": "primary", "displayName": "Verde Workuco oscuro", "canonical": "#076a51" },
+      "brand-green": { "role": "primary", "displayName": "Verde WorkUco", "canonical": "#0a8263", "tonalRamp": ["#043d2e", "#076a51", "#0a8263", "#12b98d", "#6fd4b6", "#b9ebdc", "#e6f7f0", "#f2fbf7"] },
+      "brand-green-dark": { "role": "primary", "displayName": "Verde WorkUco oscuro", "canonical": "#076a51" },
       "green-soft": { "role": "primary", "displayName": "Verde brote", "canonical": "#e6f7f0" },
       "cream": { "role": "neutral", "displayName": "Crema", "canonical": "#f5f1e6", "tonalRamp": ["#56615a", "#b9ad94", "#cfc4ad", "#e3dbc9", "#e6dfcd", "#ece6d6", "#f5f1e6", "#fffdf8"] },
       "cream-2": { "role": "neutral", "displayName": "Crema 2", "canonical": "#ece6d6" },
@@ -105,7 +105,7 @@
       "kind": "nav",
       "refersTo": "nav",
       "description": "Header pegajoso de noche con link activo subrayado en lima.",
-      "html": "<nav class=\"ds-nav\"><b class=\"ds-nav-brand\">Workuco</b><a class=\"ds-nav-link\" href=\"#\">Inicio</a><a class=\"ds-nav-link is-active\" href=\"#\">Changas</a><a class=\"ds-nav-link\" href=\"#\">Empresas</a></nav>",
+      "html": "<nav class=\"ds-nav\"><b class=\"ds-nav-brand\">WorkUco</b><a class=\"ds-nav-link\" href=\"#\">Inicio</a><a class=\"ds-nav-link is-active\" href=\"#\">Changas</a><a class=\"ds-nav-link\" href=\"#\">Empresas</a></nav>",
       "css": ".ds-nav { display: flex; align-items: center; gap: 4px; height: 70px; padding: 0 24px; background: rgba(11, 22, 18, .94); border-bottom: 1px solid rgba(200, 245, 96, .08); } .ds-nav-brand { color: #fff; font: 750 19.5px/1 'Bricolage Grotesque', Inter, sans-serif; letter-spacing: -.04em; margin-right: 22px; } .ds-nav-link { padding: 8px 12px; border-radius: 9px; color: #a9bcb1; font: 550 14.5px/1 Inter, system-ui, sans-serif; text-decoration: none; transition: color .15s, background .15s; } .ds-nav-link:hover, .ds-nav-link.is-active { color: #fff; background: rgba(255, 255, 255, .07); } .ds-nav-link.is-active { box-shadow: inset 0 -2px 0 #c8f560; border-radius: 8px 8px 2px 2px; } .ds-nav-link:focus-visible { outline: 2px solid #c8f560; outline-offset: 3px; }"
     },
     {
@@ -151,7 +151,7 @@
   ],
   "narrative": {
     "northStar": "El Valle de noche",
-    "overview": "Workuco es el Valle de Uco visto de noche: bandas grandes de verde casi negro donde la cordillera se recorta en capas planas y los pueblos son luces lima encendidas con su número real de búsquedas. Entre esas bandas, el contenido se lee sobre crema cálida, nunca sobre blanco frío. La noche es el escenario; la crema es la mesa de trabajo.\n\nEl sistema alterna dos registros. Las bandas de noche (hero, cierre, footer, encabezado de /changas) son tipográficas y enormes: Bricolage Grotesque a 800 con interlineado apretado, una palabra o una cifra en lima. Las zonas crema son densas y prácticas: tarjetas de 16px de radio, chips en píldora, cifras tabulares. El malbec aparece como una banda entera para las changas, no como acento disperso.\n\nLa geometría es plana: siluetas de cordillera en tres capas de verde (`#17302a`, `#2a463d`, `#12261f`) que cierran sobre la crema, sin ilustración, sin degradados de brillo, sin fotos inventadas del Valle. El movimiento se concentra en la entrada del hero; el resto responde a interacción y se apaga con `prefers-reduced-motion`.",
+    "overview": "WorkUco es el Valle de Uco visto de noche: bandas grandes de verde casi negro donde la cordillera se recorta en capas planas y los pueblos son luces lima encendidas con su número real de búsquedas. Entre esas bandas, el contenido se lee sobre crema cálida, nunca sobre blanco frío. La noche es el escenario; la crema es la mesa de trabajo.\n\nEl sistema alterna dos registros. Las bandas de noche (hero, cierre, footer, encabezado de /changas) son tipográficas y enormes: Bricolage Grotesque a 800 con interlineado apretado, una palabra o una cifra en lima. Las zonas crema son densas y prácticas: tarjetas de 16px de radio, chips en píldora, cifras tabulares. El malbec aparece como una banda entera para las changas, no como acento disperso.\n\nLa geometría es plana: siluetas de cordillera en tres capas de verde (`#17302a`, `#2a463d`, `#12261f`) que cierran sobre la crema, sin ilustración, sin degradados de brillo, sin fotos inventadas del Valle. El movimiento se concentra en la entrada del hero; el resto responde a interacción y se apaga con `prefers-reduced-motion`.",
     "keyCharacteristics": [
       "Bandas de noche a todo el ancho alternadas con crema; nunca fondo blanco puro.",
       "Lima como luz: acción primaria sobre noche, números vivos, estado activo.",
@@ -169,7 +169,7 @@
     ],
     "dos": [
       "**Do** alternar bandas de noche y crema; cada página pública abre o cierra en noche.",
-      "**Do** usar lima como luz sobre noche (botón primario, palabra clave, números vivos) y verde Workuco como acción sobre crema.",
+      "**Do** usar lima como luz sobre noche (botón primario, palabra clave, números vivos) y verde WorkUco como acción sobre crema.",
       "**Do** reservar el malbec para changas, destacados y la franja de demostración.",
       "**Do** componer titulares en Bricolage Grotesque 800 con tracking negativo e interlineado menor a 1.",
       "**Do** mostrar cifras reales de la base en tabular-nums; si no hay dato, decirlo en texto gris, no inventar.",

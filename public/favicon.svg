@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
-  <!-- Workuco: la W es la cordillera del Valle de Uco y, con el punto, una persona con los brazos en alto -->
+  <!-- WorkUco: la W es la cordillera del Valle de Uco y, con el punto, una persona con los brazos en alto -->
   <rect width="40" height="40" rx="9" fill="#0b1612"/>
   <g transform="translate(20 20.5) scale(.78) translate(-20 -20.5)">
     <path d="M7 13 13.5 30 20 17.5 26.5 30 33 13" fill="none" stroke="#f5f1e6" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round"/>

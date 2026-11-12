@@ -10,7 +10,7 @@ web
 
 - **Personas que buscan trabajo en el Valle de Uco** (San Carlos, Tunuyán, Tupungato, Mendoza): operarios de bodega y finca, gastronomía, comercio, turismo, construcción, administración. Muchas usan el celular, a veces sin CV armado. Su trabajo: encontrar algo cerca, saber si les conviene, postularse rápido y saber si les van a contestar.
 - **Empleadores del Valle**: bodegas, fincas, posadas, cafés, comercios, constructoras, estudios. PyMEs sin área de RR. HH. Su trabajo: publicar rápido, encontrar gente disponible y ordenar postulantes sin perder tiempo.
-- **Administración de Workuco**: aprueba avisos, verifica empresas.
+- **Administración de WorkUco**: aprueba avisos, verifica empresas.
 
 ## Product Purpose
 
@@ -22,7 +22,7 @@ Es el portal del Valle de Uco, no un portal nacional: tres localidades, rubros d
 
 ## Operating Context
 
-- Postulación en un toque con el perfil; CV Workuco imprimible para quien no tiene CV.
+- Postulación en un toque con el perfil; CV WorkUco imprimible para quien no tiene CV.
 - Empresas: wizard de 4 pasos con plantillas por rubro, Kanban de postulantes, mensajes rápidos por WhatsApp, IA opcional con la API key de cada empresa.
 - Notificaciones dentro del sitio (no se envían emails). Alertas de búsqueda.
 - Temporada: la vendimia y la cosecha mueven la demanda de changas.
@@ -36,7 +36,7 @@ Es el portal del Valle de Uco, no un portal nacional: tres localidades, rubros d
 
 ## Brand Commitments
 
-- Nombre **Workuco** y logo propio: una sola línea que es la W de Workuco, los picos de la cordillera del Valle de Uco y, con el punto lima (cabeza / sol), una persona con los brazos en alto. Vive en SVG (`brandMark` en `server.js`, `public/favicon.svg`); los PNG se generan con `node tools/make-logo.mjs`. Verde de marca `#0a8263`.
+- Nombre **WorkUco** y logo propio: una sola línea que es la W de WorkUco, los picos de la cordillera del Valle de Uco y, con el punto lima (cabeza / sol), una persona con los brazos en alto. Vive en SVG (`brandMark` en `server.js`, `public/favicon.svg`); los PNG se generan con `node tools/make-logo.mjs`. Verde de marca `#0a8263`.
 - Voz cercana y directa, de la zona ("acá nomás"), sin tecnicismos.
 
 ## Evidence on Hand

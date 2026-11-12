@@ -1,4 +1,4 @@
-// Capturas y QA visual de Workuco con Chrome headless + CDP.
+// Capturas y QA visual de WorkUco con Chrome headless + CDP.
 // Uso: node tools/shots.mjs [urlBase]
 import { spawn } from 'node:child_process';
 import { writeFileSync, mkdirSync } from 'node:fs';

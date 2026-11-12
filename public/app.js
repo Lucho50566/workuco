@@ -1,4 +1,4 @@
-/* Workuco — frontend público y compartido */
+/* WorkUco — frontend público y compartido */
 'use strict';
 
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -465,7 +465,7 @@ async function initHome() {
 
   const counts = meta.counts || {};
   const tl = $('[data-talent-line]');
-  if (tl && counts.candidates) tl.textContent = `${counts.candidates} personas del Valle ya tienen su perfil en Workuco.`;
+  if (tl && counts.candidates) tl.textContent = `${counts.candidates} personas del Valle ya tienen su perfil en WorkUco.`;
 
   /* pueblos: búsquedas abiertas reales por localidad */
   $$('[data-town]').forEach(async (el) => {
@@ -657,7 +657,7 @@ async function initJob() {
   try {
     const { job, canApply, applied, saved } = await api(`/api/jobs/${id}`);
     const contactWaUrl = job.sourceKind === 'importado' ? ((await loadMeta().catch(() => ({}))).contactWaUrl || '') : '';
-    document.title = `${job.title} · Workuco`;
+    document.title = `${job.title} · WorkUco`;
     $('#crumb-job').textContent = job.title;
     const list = (txt) => String(txt || '').split('\n').map((s) => s.replace(/^[•\-*]\s*/, '').trim()).filter(Boolean);
     const reqs = list(job.requirements);
@@ -710,7 +710,7 @@ async function initJob() {
 
         <div class="detail-block">
           <h2>Contacto</h2>
-          <p>${job.contactEmail ? `<a href="mailto:${esc(job.contactEmail)}" class="link-inline">${esc(job.contactEmail)}</a>` : job.companyClaimed === false ? 'Postulate desde esta página: Workuco le hace llegar tu postulación a la empresa.' : 'Postulate desde esta página y la empresa recibe tus datos.'}</p>
+          <p>${job.contactEmail ? `<a href="mailto:${esc(job.contactEmail)}" class="link-inline">${esc(job.contactEmail)}</a>` : job.companyClaimed === false ? 'Postulate desde esta página: WorkUco le hace llegar tu postulación a la empresa.' : 'Postulate desde esta página y la empresa recibe tus datos.'}</p>
           ${job.contactPhone ? `<p class="muted" style="margin-top:4px">Teléfono: ${esc(job.contactPhone)}</p>` : ''}
         </div>
       </article>
@@ -748,7 +748,7 @@ async function initJob() {
         </div>
         ${job.sourceKind === 'importado' ? `<div class="aside-card claim-hint"><h3>Aviso tomado de ${esc(job.sourceName || 'un canal de empleo')}</h3>
           <p class="soft-text">Lo publicamos para que llegue a más gente del Valle. Para postularte usá el botón o el contacto del aviso.</p>
-          <p class="soft-text"><strong>¿Es tu empresa?</strong> ${contactWaUrl ? `<a class="link-inline" href="${esc(contactWaUrl)}?text=${encodeURIComponent(`Hola, soy de la empresa del aviso "${job.title}" en Workuco`)}" target="_blank" rel="noopener">Escribinos</a>` : '<a class="link-inline" href="/contacto">Escribinos</a>'} y lo administrás vos o lo borramos.</p></div>` : ''}
+          <p class="soft-text"><strong>¿Es tu empresa?</strong> ${contactWaUrl ? `<a class="link-inline" href="${esc(contactWaUrl)}?text=${encodeURIComponent(`Hola, soy de la empresa del aviso "${job.title}" en WorkUco`)}" target="_blank" rel="noopener">Escribinos</a>` : '<a class="link-inline" href="/contacto">Escribinos</a>'} y lo administrás vos o lo borramos.</p></div>` : ''}
         ${job.companyDescription ? `<div class="aside-card"><h3>Sobre la empresa</h3><p class="soft-text">${esc(job.companyDescription)}</p><a class="link-arrow" href="/empresa/${job.companyId}">Ver perfil de la empresa ${icon('arrow', 15)}</a></div>` : ''}
       </aside>
     </div>`;
@@ -897,7 +897,7 @@ async function initPublish() {
       editing = jobs.find((j) => j.id === editId);
     } catch (_) {}
     if (editing) {
-      document.title = 'Editar empleo · Workuco';
+      document.title = 'Editar empleo · WorkUco';
       $('.app-head h1').textContent = 'Editar empleo';
       $('.app-head p').textContent = 'Al guardar, la publicación vuelve a revisión.';
       $('#job-submit').textContent = 'Guardar y reenviar';
@@ -1473,7 +1473,7 @@ async function initCompanyPage() {
   const view = $('#company-view');
   try {
     const { company, jobs } = await api(`/api/companies/${id}`);
-    document.title = `${company.name} · Workuco`;
+    document.title = `${company.name} · WorkUco`;
     const gallery = company.gallery || [];
     view.innerHTML = `
       <div class="company-hero">
@@ -1490,7 +1490,7 @@ async function initCompanyPage() {
           <div>
             <h1>${esc(company.name)} ${company.verified ? `<span class="verified">${checkIcon}</span>` : ''}</h1>
             <div class="company-meta">${icon('pin', 15)} ${esc(company.locality || 'Valle de Uco')} · ${jobs.length} ${jobs.length === 1 ? 'búsqueda abierta' : 'búsquedas abiertas'}</div>
-            ${company.claimed === false ? '<p class="unclaimed-note">Ficha armada por Workuco con búsquedas públicas. ¿Es tu empresa? Reclamala gratis desde el link que te enviamos o escribinos.</p>' : ''}
+            ${company.claimed === false ? '<p class="unclaimed-note">Ficha armada por WorkUco con búsquedas públicas. ¿Es tu empresa? Reclamala gratis desde el link que te enviamos o escribinos.</p>' : ''}
           </div>
         </div>
       </div>
@@ -1514,11 +1514,11 @@ async function initCompanyPage() {
 /* INFO                                                               */
 /* ================================================================== */
 const INFO = {
-  acerca: `<h1>Acerca de Workuco</h1>
-    <p class="lead">Workuco es el portal de empleo del Valle de Uco, pensado para conectar a quienes buscan trabajo con las empresas y emprendimientos de San Carlos, Tunuyán y Tupungato.</p>
+  acerca: `<h1>Acerca de WorkUco</h1>
+    <p class="lead">WorkUco es el portal de empleo del Valle de Uco, pensado para conectar a quienes buscan trabajo con las empresas y emprendimientos de San Carlos, Tunuyán y Tupungato.</p>
     <p>La plataforma centraliza búsquedas laborales que antes se dispersaban en grupos de WhatsApp, carteles y contactos personales. Del lado de las empresas, permite publicar una búsqueda en minutos y recibir postulaciones ordenadas. Del lado de las personas, permite crear un perfil con foto y CV, y postularse en un toque.</p>
     <h2>Cómo funciona</h2>
-    <ul><li>Las empresas crean una cuenta y publican su búsqueda.</li><li>El equipo de Workuco revisa cada publicación antes de que sea visible.</li><li>Las personas crean su perfil y se postulan con un toque.</li><li>La empresa recibe las postulaciones en su panel, las ordena por etapa y decide a quién contactar.</li></ul>
+    <ul><li>Las empresas crean una cuenta y publican su búsqueda.</li><li>El equipo de WorkUco revisa cada publicación antes de que sea visible.</li><li>Las personas crean su perfil y se postulan con un toque.</li><li>La empresa recibe las postulaciones en su panel, las ordena por etapa y decide a quién contactar.</li></ul>
     <h2>Gratis para empezar</h2>
     <p>Publicar y postularse es gratuito. Más adelante vamos a sumar opciones para destacar búsquedas y planes para empresas que publican con frecuencia, sin cambiar lo que ya funciona.</p>`,
   contacto: `<h1>Contacto</h1>
@@ -1534,26 +1534,26 @@ const INFO = {
     <h2>¿Publicar tiene costo?</h2><p>No. Publicar una búsqueda y postularse son gratuitos. Si en el futuro hay opciones pagas, se van a informar con su precio antes de contratarlas y el uso básico va a seguir siendo gratis.</p>
     <h2>¿Cuánto tarda en aprobarse una publicación?</h2><p>Revisamos las publicaciones dentro de las 24 horas hábiles. Si falta información o el aviso incumple los términos (por ejemplo, pide "buena presencia" o una edad determinada), lo rechazamos con un motivo para que puedas corregirlo.</p>
     <h2>¿Necesito CV para postularme?</h2><p>No es obligatorio. Podés cargar tu CV en tu perfil (PDF de hasta 4 MB) y postularte en un toque, o postularte solo con tus datos.</p>
-    <h2>¿Desde qué edad puedo usar Workuco?</h2><p>Desde los 16 años, que es la edad mínima para trabajar en Argentina. Entre los 16 y los 18 años rigen reglas especiales de jornada y tareas que la empresa tiene que respetar.</p>
-    <h2>¿Quién ve mis datos?</h2><p>Tu teléfono, tu mail y tu CV los ve sólo la empresa a la que te postulás (y el equipo de Workuco). Si activás <strong>"Estoy disponible para trabajar"</strong>, las empresas registradas ven tu nombre, foto, titular, localidad, rubros y habilidades en la base de talento, pero no tu teléfono ni tu mail. Si activás el <strong>perfil público</strong>, cualquiera con el link ve esa misma información. Las dos opciones están apagadas hasta que las prendas, y las podés apagar cuando quieras. No vendemos datos.</p>
-    <h2>¿Qué es el análisis con IA?</h2><p>Es una ayuda opcional para empresas: resume los CV recibidos. La empresa conecta su propia IA y puede activarla o desactivarla. Para hacerlo, el texto de tu CV se envía a ese proveedor, que puede estar fuera del país. Workuco no usa tus datos para entrenar modelos.</p>
-    <h2>Vi un aviso "tomado de un canal". ¿Qué es?</h2><p>Para que las búsquedas del Valle no se pierdan en grupos de WhatsApp, a veces publicamos avisos que circulan en canales públicos de empleo, citando de dónde salieron. La empresa puede reclamar el aviso o pedir que lo borremos. Mientras no lo reclame, no mostramos su teléfono ni su mail: te postulás por Workuco y te avisamos.</p>
+    <h2>¿Desde qué edad puedo usar WorkUco?</h2><p>Desde los 16 años, que es la edad mínima para trabajar en Argentina. Entre los 16 y los 18 años rigen reglas especiales de jornada y tareas que la empresa tiene que respetar.</p>
+    <h2>¿Quién ve mis datos?</h2><p>Tu teléfono, tu mail y tu CV los ve sólo la empresa a la que te postulás (y el equipo de WorkUco). Si activás <strong>"Estoy disponible para trabajar"</strong>, las empresas registradas ven tu nombre, foto, titular, localidad, rubros y habilidades en la base de talento, pero no tu teléfono ni tu mail. Si activás el <strong>perfil público</strong>, cualquiera con el link ve esa misma información. Las dos opciones están apagadas hasta que las prendas, y las podés apagar cuando quieras. No vendemos datos.</p>
+    <h2>¿Qué es el análisis con IA?</h2><p>Es una ayuda opcional para empresas: resume los CV recibidos. La empresa conecta su propia IA y puede activarla o desactivarla. Para hacerlo, el texto de tu CV se envía a ese proveedor, que puede estar fuera del país. WorkUco no usa tus datos para entrenar modelos.</p>
+    <h2>Vi un aviso "tomado de un canal". ¿Qué es?</h2><p>Para que las búsquedas del Valle no se pierdan en grupos de WhatsApp, a veces publicamos avisos que circulan en canales públicos de empleo, citando de dónde salieron. La empresa puede reclamar el aviso o pedir que lo borremos. Mientras no lo reclame, no mostramos su teléfono ni su mail: te postulás por WorkUco y te avisamos.</p>
     <h2>¿Puedo postularme a la misma oferta dos veces?</h2><p>No. El sistema toma tu email como referencia para evitar postulaciones duplicadas a la misma búsqueda.</p>
     <h2>¿Cómo elimino mi cuenta?</h2><p>Desde <a class="link-inline" href="/baja">Botón de baja</a> o desde tu perfil, en "Tus datos": borra tu cuenta, tu CV, tus fotos y tus postulaciones en el momento. También podés descargar una copia de tus datos antes.</p>`,
   terminos: `<h1>Términos y condiciones</h1>
     <p class="lead">Versión {{TERMS_VERSION}} · Última actualización: noviembre de 2026.</p>
     <div class="info-card"><p style="margin:0">{{RESPONSABLE}}</p></div>
-    <h2>1. Qué es Workuco</h2><p>Workuco es un portal gratuito de publicación y búsqueda de empleo para el Valle de Uco (San Carlos, Tunuyán y Tupungato, Mendoza). No somos empleadores, no somos una agencia de colocación ni cobramos a los postulantes, y no participamos en la relación laboral entre empresas y personas. No garantizamos conseguir empleo ni cubrir una búsqueda.</p>
+    <h2>1. Qué es WorkUco</h2><p>WorkUco es un portal gratuito de publicación y búsqueda de empleo para el Valle de Uco (San Carlos, Tunuyán y Tupungato, Mendoza). No somos empleadores, no somos una agencia de colocación ni cobramos a los postulantes, y no participamos en la relación laboral entre empresas y personas. No garantizamos conseguir empleo ni cubrir una búsqueda.</p>
     <h2>2. Cuentas</h2><ul><li>Para crear una cuenta de persona hay que tener <strong>16 años o más</strong>. Entre los 16 y los 18 años, la contratación tiene que respetar el régimen de trabajo adolescente (jornada reducida, sin tareas nocturnas, penosas, peligrosas ni insalubres).</li><li>Quien crea una cuenta de empresa declara que la representa.</li><li>Las cuentas son personales. Cuidá tu contraseña: sos responsable de lo que se haga desde tu cuenta.</li><li>Podés darte de baja cuando quieras desde el <a class="link-inline" href="/baja">Botón de baja</a>, sin trámites y sin costo.</li></ul>
-    <h2>3. Publicaciones de empresas</h2><ul><li>La empresa es responsable de que el aviso sea verdadero, de cumplir la legislación laboral y de usar los datos de los postulantes sólo para esa búsqueda.</li><li><strong>No se permiten avisos discriminatorios</strong> (Ley 23.592 y arts. 17 y 81 de la Ley de Contrato de Trabajo): no se puede pedir una edad, un sexo o género, estado civil, no tener hijos, "buena presencia", aspecto físico, religión, nacionalidad u opinión política o gremial, salvo que una ley lo exija para la tarea (por ejemplo, ser mayor de 18).</li><li>No se permiten avisos engañosos, de esquemas piramidales, ni que pidan pagos, cursos pagos o inversiones a los postulantes.</li><li>Al subir textos, fotos o flyers, la empresa declara que tiene derecho a usarlos y autoriza a Workuco a mostrarlos en el sitio y compartirlos para difundir la búsqueda.</li><li>Workuco revisa los avisos y puede rechazar, editar el formato o dar de baja los que incumplan estas reglas.</li></ul>
+    <h2>3. Publicaciones de empresas</h2><ul><li>La empresa es responsable de que el aviso sea verdadero, de cumplir la legislación laboral y de usar los datos de los postulantes sólo para esa búsqueda.</li><li><strong>No se permiten avisos discriminatorios</strong> (Ley 23.592 y arts. 17 y 81 de la Ley de Contrato de Trabajo): no se puede pedir una edad, un sexo o género, estado civil, no tener hijos, "buena presencia", aspecto físico, religión, nacionalidad u opinión política o gremial, salvo que una ley lo exija para la tarea (por ejemplo, ser mayor de 18).</li><li>No se permiten avisos engañosos, de esquemas piramidales, ni que pidan pagos, cursos pagos o inversiones a los postulantes.</li><li>Al subir textos, fotos o flyers, la empresa declara que tiene derecho a usarlos y autoriza a WorkUco a mostrarlos en el sitio y compartirlos para difundir la búsqueda.</li><li>WorkUco revisa los avisos y puede rechazar, editar el formato o dar de baja los que incumplan estas reglas.</li></ul>
     <h2>4. Avisos tomados de canales públicos</h2><p>Para reunir las búsquedas del Valle, el equipo puede publicar avisos difundidos en canales públicos de empleo, indicando la fuente. Sólo se toma lo necesario para que la búsqueda llegue a más gente; mientras la empresa no reclame el aviso, no se muestran su teléfono ni su mail. La empresa recibe un link para <strong>reclamar</strong> el aviso (y manejar sus postulantes) o <strong>borrarlo</strong> con un toque, y no volvemos a publicarla. También puede pedirlo escribiendo a {{EMAIL}}: lo borramos dentro de los 5 días hábiles.</p>
-    <h2>5. Postulaciones</h2><p>Al postularte, autorizás que tus datos, tu mensaje y tu CV se compartan con la empresa del aviso, que debe usarlos sólo para evaluar tu candidatura. Workuco nunca te va a pedir dinero para postularte: si una empresa lo hace, avisanos.</p>
+    <h2>5. Postulaciones</h2><p>Al postularte, autorizás que tus datos, tu mensaje y tu CV se compartan con la empresa del aviso, que debe usarlos sólo para evaluar tu candidatura. WorkUco nunca te va a pedir dinero para postularte: si una empresa lo hace, avisanos.</p>
     <h2>6. Uso aceptable</h2><p>No está permitido usar el sitio para juntar datos de otras personas, mandar publicidad no pedida, suplantar identidades ni afectar el funcionamiento del servicio.</p>
-    <h2>7. Responsabilidad</h2><p>Workuco pone los medios razonables para que el servicio funcione y los avisos sean reales, pero no responde por el contenido que publican terceros ni por las decisiones de contratación. Nada de esto limita los derechos que te da la Ley 24.240 de Defensa del Consumidor.</p>
+    <h2>7. Responsabilidad</h2><p>WorkUco pone los medios razonables para que el servicio funcione y los avisos sean reales, pero no responde por el contenido que publican terceros ni por las decisiones de contratación. Nada de esto limita los derechos que te da la Ley 24.240 de Defensa del Consumidor.</p>
     <h2>8. Cambios</h2><p>Si cambiamos estos términos, lo avisamos en el sitio antes de que rijan. Si no estás de acuerdo, podés darte de baja.</p>
     <h2>9. Ley aplicable</h2><p>Se aplican las leyes de la República Argentina. Si sos consumidor, podés reclamar ante los tribunales y las oficinas de Defensa del Consumidor de tu domicilio.</p>`,
   privacidad: `<h1>Política de privacidad</h1>
-    <p class="lead">Cómo tratamos tus datos en Workuco, según la Ley 25.326 de Protección de Datos Personales.</p>
+    <p class="lead">Cómo tratamos tus datos en WorkUco, según la Ley 25.326 de Protección de Datos Personales.</p>
     <div class="info-card"><p style="margin:0">{{RESPONSABLE}}</p>{{REGISTRO}}</div>
     <h2>Qué datos recopilamos y para qué</h2>
     <ul>
@@ -1569,7 +1569,7 @@ const INFO = {
       <li>La empresa a la que te postulás: los datos de tu postulación y tu CV.</li>
       <li>Si activás "Estoy disponible para trabajar": las empresas registradas ven tu nombre, foto, titular, localidad, rubros y habilidades (nunca tu teléfono ni tu mail hasta que te postulás).</li>
       <li>Si activás el perfil público: cualquiera con el link ve esa misma información.</li>
-      <li>El equipo de Workuco, para operar y moderar el sitio.</li>
+      <li>El equipo de WorkUco, para operar y moderar el sitio.</li>
     </ul>
     <p>No vendemos ni cedemos datos con fines publicitarios.</p>
     <h2>Proveedores y transferencia internacional</h2>
@@ -1588,7 +1588,7 @@ const INFO = {
     </ul>
     <p class="legal-note">El titular de los datos personales tiene la facultad de ejercer el derecho de acceso a los mismos en forma gratuita a intervalos no inferiores a seis meses, salvo que se acredite un interés legítimo al efecto conforme lo establecido en el artículo 14, inciso 3 de la Ley Nº 25.326. La AGENCIA DE ACCESO A LA INFORMACIÓN PÚBLICA, en su carácter de Órgano de Control de la Ley N° 25.326, tiene la atribución de atender las denuncias y reclamos que interpongan quienes resulten afectados en sus derechos por incumplimiento de las normas vigentes en materia de protección de datos personales.</p>`,
   baja: `<h1>Botón de baja</h1>
-    <p class="lead">Darte de baja de Workuco es gratis, inmediato y no tiene trámites.</p>
+    <p class="lead">Darte de baja de WorkUco es gratis, inmediato y no tiene trámites.</p>
     <div data-baja></div>
     <h2>¿Qué se borra?</h2>
     <ul><li><strong>Personas:</strong> tu cuenta, tu perfil, tu foto, tu CV, tus postulaciones (también las que hiciste sin cuenta con el mismo mail), alertas, guardados e invitaciones.</li><li><strong>Empresas:</strong> tu cuenta, tus avisos con sus postulaciones, tu logo y tus fotos.</li></ul>
@@ -1601,7 +1601,7 @@ function accountDataHtml(role) {
   const who = role === 'company' ? 'la cuenta de la empresa, sus avisos con sus postulaciones, el logo y las fotos' : 'tu cuenta, tu perfil, tu foto, tu CV, tus postulaciones, alertas y guardados';
   return `<div class="card account-data" data-account-data>
     <h2>Tus datos</h2>
-    <p class="sub">Podés bajarte una copia de todo lo que Workuco guarda sobre ${role === 'company' ? 'tu empresa' : 'vos'}, o darte de baja.</p>
+    <p class="sub">Podés bajarte una copia de todo lo que WorkUco guarda sobre ${role === 'company' ? 'tu empresa' : 'vos'}, o darte de baja.</p>
     <div class="account-data-actions">
       <a class="btn btn-outline btn-sm" href="/api/account/export" download>${icon('file', 16)} Descargar mis datos</a>
       <button class="btn btn-ghost btn-sm btn-danger-text" type="button" data-baja-open aria-expanded="false" aria-controls="baja-form">${icon('trash', 16)} Darme de baja</button>
@@ -1648,7 +1648,7 @@ async function initInfo() {
   try { meta = await loadMeta(); } catch (_) { /* sin meta, quedan los datos por defecto */ }
   const l = meta.legal || {};
   const mail = esc(l.email || 'hola@workuco.com.ar');
-  const resp = [l.name ? `<strong>Responsable:</strong> ${esc(l.name)}` : '<strong>Responsable:</strong> Workuco',
+  const resp = [l.name ? `<strong>Responsable:</strong> ${esc(l.name)}` : '<strong>Responsable:</strong> WorkUco',
     l.cuit ? `CUIT ${esc(l.cuit)}` : '', l.address ? `Domicilio legal: ${esc(l.address)}` : '',
     `Contacto: <a class="link-inline" href="mailto:${mail}">${mail}</a>`].filter(Boolean).join(' · ');
   root.innerHTML = INFO[key]
@@ -1744,7 +1744,7 @@ async function initCv() {
       ${err.status === 401 ? '<a class="btn btn-primary" href="/acceder">Ingresar</a>' : ''}</div>`;
     return;
   }
-  document.title = `CV de ${c.name} · Workuco`;
+  document.title = `CV de ${c.name} · WorkUco`;
   const block = (title, text) => (text ? `<section><h2>${esc(title)}</h2><p>${esc(text)}</p></section>` : '');
   root.innerHTML = `<article class="cv-sheet">
     <aside class="cv-side">
@@ -1763,7 +1763,7 @@ async function initCv() {
       ${block('Sobre mí', c.about)}
       ${block('Experiencia', c.experience)}
       ${block('Formación', c.education)}
-      <div class="cv-foot">CV generado con Workuco · el portal de empleo del Valle de Uco</div>
+      <div class="cv-foot">CV generado con WorkUco · el portal de empleo del Valle de Uco</div>
     </div>
   </article>`;
 }
@@ -1779,11 +1779,11 @@ async function initPublicProfile() {
     ({ person: p } = await api(`/api/public/${encodeURIComponent(slug)}`));
   } catch (_) {
     root.innerHTML = `<div class="container section"><div class="empty"><h3>Este perfil no es público</h3>
-      <p>La persona puede haberlo ocultado. Igual podés buscar empleo o talento en Workuco.</p>
+      <p>La persona puede haberlo ocultado. Igual podés buscar empleo o talento en WorkUco.</p>
       <a class="btn btn-primary" href="/">Ir al inicio</a></div></div>`;
     return;
   }
-  document.title = `${p.name} · Workuco`;
+  document.title = `${p.name} · WorkUco`;
   const block = (title, text) => (text ? `<section class="pp-block"><h2>${esc(title)}</h2><p>${esc(text)}</p></section>` : '');
   root.innerHTML = `<section class="band-night pp-hero">
     <div class="container pp-hero-inner">
@@ -1828,17 +1828,17 @@ async function initClaim() {
     return;
   }
   const { company, jobs, applicationsCount } = data;
-  document.title = `${company.name} en Workuco`;
+  document.title = `${company.name} en WorkUco`;
   const n = applicationsCount;
   root.innerHTML = `<section class="band-night claim-hero">
     <div class="container">
-      <h1 class="display-sm">${esc(company.name)} ya está en Workuco.</h1>
+      <h1 class="display-sm">${esc(company.name)} ya está en WorkUco.</h1>
       <p class="hero-sub">Publicamos ${jobs.length === 1 ? 'su búsqueda' : `sus ${jobs.length} búsquedas`} de canales de empleo de la zona para que llegue${jobs.length === 1 ? '' : 'n'} a más gente del Valle.
         ${n ? `<strong>${n} ${n === 1 ? 'persona ya se postuló' : 'personas ya se postularon'}.</strong>` : ''} Ustedes deciden qué hacemos con esto.</p>
       <div class="claim-choices">
         <button class="claim-choice is-main" type="button" data-claim-open="mine"><strong>Es nuestra: la quiero administrar</strong><span>Gratis. Ves postulantes, editás avisos y publicás nuevos.</span></button>
         <button class="claim-choice" type="button" data-claim-open="fix"><strong>Corregir datos</strong><span>Reclamala y editá el aviso desde tu panel.</span></button>
-        <button class="claim-choice is-danger" type="button" data-claim-open="delete"><strong>Borrarla de Workuco</strong><span>Se elimina ya y no la volvemos a publicar.</span></button>
+        <button class="claim-choice is-danger" type="button" data-claim-open="delete"><strong>Borrarla de WorkUco</strong><span>Se elimina ya y no la volvemos a publicar.</span></button>
       </div>
     </div>
   </section>
@@ -1863,7 +1863,7 @@ async function initClaim() {
         e.currentTarget.disabled = true;
         try {
           await api(`/api/claim/${encodeURIComponent(token)}/delete`, { method: 'POST' });
-          root.innerHTML = '<section class="section"><div class="container"><div class="empty"><h3>Listo, la borramos</h3><p>Su empresa ya no aparece en Workuco y no la vamos a volver a publicar. Gracias por avisarnos.</p><a class="btn btn-outline" href="/">Ir al inicio</a></div></div></section>';
+          root.innerHTML = '<section class="section"><div class="container"><div class="empty"><h3>Listo, la borramos</h3><p>Su empresa ya no aparece en WorkUco y no la vamos a volver a publicar. Gracias por avisarnos.</p><a class="btn btn-outline" href="/">Ir al inicio</a></div></div></section>';
         } catch (err) { toast(err.message, 'err'); e.currentTarget.disabled = false; }
       });
     } else {
@@ -2121,7 +2121,7 @@ async function initFlyers() {
     const sh = e.target.closest('[data-feed-share]');
     if (sh) {
       const url = `${location.origin}/oferta/${sh.dataset.feedShare}`;
-      const text = `${sh.dataset.title} en ${sh.dataset.company} · Workuco`;
+      const text = `${sh.dataset.title} en ${sh.dataset.company} · WorkUco`;
       try {
         if (navigator.share) await navigator.share({ title: sh.dataset.title, text, url });
         else window.open(`https://wa.me/?text=${encodeURIComponent(`${text}: ${url}`)}`, '_blank', 'noopener');

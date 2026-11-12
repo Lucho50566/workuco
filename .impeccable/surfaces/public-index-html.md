@@ -5,7 +5,7 @@ primary_target: "public/index.html"
 related_targets: ["public/styles.css","public/app.js"]
 ---
 
-Scope: home (`/`) of Workuco, plus the shared site chrome (header, footer, cards) every public page inherits. Visitor mode: Persuade.
+Scope: home (`/`) of WorkUco, plus the shared site chrome (header, footer, cards) every public page inherits. Visitor mode: Persuade.
 
 Audience: personas del Valle de Uco que buscan trabajo (mayoría en celular) y empleadores PyME. Action: buscar empleo (buscador funcionando en el primer viewport) o, con el interruptor, publicar/encontrar talento. Proof: ofertas, changas y conteos reales de la base; nada inventado.
 
