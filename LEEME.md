@@ -46,7 +46,7 @@ para la base de talento, 3 con perfil público), postulaciones en todas las etap
 | `/` | Home: interruptor busco / contrato, buscador, mapa del Valle con búsquedas por pueblo, recomendadas, changas, empresas |
 | `/buscar` | Búsqueda con filtros por palabra, localidad, categoría, tipo, modalidad, sueldo publicado y changas; orden por fecha, sueldo o compatibilidad; botón de alerta |
 | `/changas` | Trabajos por día o temporada: pago por jornada, inicio, duración y cupos |
-| `/flyers` | Modo flyers: avisos de a uno a pantalla completa, deslizando como TikTok, con Me interesa, Guardar, Compartir y filtros |
+| `/flyers` | Modo flyers: avisos de a uno a pantalla completa, deslizando como TikTok: compartir (izquierda), guardar (derecha), barra para deslizar y postularse, compatibilidad arriba a la derecha y filtro de lugar |
 | `/reclamar/:código` | Link privado para que una empresa reclame o borre la ficha que armamos con sus avisos |
 | `/cv/:id` | CV Workuco imprimible (A4) armado desde el perfil; "Descargar PDF" con la impresión del navegador |
 | `/p/:slug` | Perfil público opcional de la persona, sin teléfono ni mail |
@@ -126,6 +126,10 @@ publican datos de personas que buscan trabajo sacados de los canales.
 - **Modo flyers** (`/flyers`): primero los avisos con flyer, después el resto con un flyer generado
   por Workuco. Se pasa de aviso deslizando hacia arriba (o con ↑/↓ y la rueda en la computadora),
   y entre flyers del mismo aviso deslizando de costado. Carga de a 10.
+  Abajo, una barra que se arrastra hasta el final lleva al aviso completo para postularse (un toque
+  solo muestra el gesto; con teclado, Enter entra directo). Manteniendo apretado el flyer se esconde
+  todo y queda sólo la imagen. Con sesión de persona, arriba a la derecha va la compatibilidad:
+  la primera vez dice "compatible con tu perfil", a los 4 s queda sólo el porcentaje y tocándola se abre.
 - API: `flyers: [dataUrl…]` al publicar; al editar, `keepFlyers: [url…]` (los que quedan, en orden)
   + `flyers` nuevos; `removeFlyer: true` los saca todos. `GET /api/jobs?sort=flyer`.
 

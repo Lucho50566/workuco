@@ -390,15 +390,12 @@ const NAV_ITEMS = [
   ['/publicar', 'Para empresas'],
 ];
 
-/* Logo de marca en SVG (se ve bien sobre fondo noche). */
-const brandMark = (id) => `<svg class="brand-svg" viewBox="0 0 40 40" width="28" height="28" aria-hidden="true">
-  <mask id="${id}">
-    <rect width="40" height="40" fill="#fff"/>
-    <path d="M4 21.5 12 27l5-3 3 2 3-2 5 3 8-5.5" fill="none" stroke="#000" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-    <path d="M19 13h2v9h-2z" fill="#000"/>
-  </mask>
-  <rect x="4" y="11" width="32" height="23" rx="5" fill="#12b98d" mask="url(#${id})"/>
-  <path d="M15 11V8.5A3.5 3.5 0 0 1 18.5 5h3A3.5 3.5 0 0 1 25 8.5V11" fill="none" stroke="#12b98d" stroke-width="3"/>
+/* Logo de marca: una sola línea que es a la vez la W de Workuco, los picos de la cordillera
+   del Valle de Uco y, con el punto (cabeza / sol), una persona con los brazos en alto.
+   La línea toma el color del texto; el punto, el acento (--brand-dot). */
+const brandMark = () => `<svg class="brand-svg" viewBox="0 0 40 40" width="30" height="30" aria-hidden="true">
+  <path d="M7 13 13.5 30 20 17.5 26.5 30 33 13" fill="none" stroke="currentColor" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle class="brand-dot" cx="20" cy="10.5" r="3.4"/>
 </svg>`;
 
 const HEAD_EXTRA = `<link rel="preconnect" href="https://fonts.googleapis.com">
@@ -413,7 +410,7 @@ function navHtml(active) {
   return `<header class="site-header">
   <div class="container header-inner">
     <a class="brand" href="/" aria-label="Workuco, inicio">
-      ${brandMark('wk-cut-h')}
+      ${brandMark()}
       <span class="brand-name">Workuco</span>
     </a>
     <nav class="main-nav" aria-label="Principal">${links}</nav>
@@ -437,7 +434,7 @@ function footerHtml() {
   <div class="container footer-grid">
     <div class="footer-brand">
       <a class="brand" href="/">
-        ${brandMark('wk-cut-f')}
+        ${brandMark()}
         <span class="brand-name">Workuco</span>
       </a>
       <p>El portal de empleo del Valle de Uco. Conectamos talento local con empresas de San Carlos, Tunuyán y Tupungato.</p>
@@ -478,6 +475,7 @@ function renderPage(res, file, { active = '', title = 'Workuco' } = {}) {
       .replace('{{TITLE}}', title)
       .replace('{{NAV}}', navHtml(active))
       .replace('{{FOOTER}}', footerHtml())
+      .replace(/{{BRAND_MARK}}/g, brandMark())
       .replace('<link rel="stylesheet" href="/styles.css">', HEAD_EXTRA)
       .replace(/<meta name="theme-color" content="[^"]*">/, '<meta name="theme-color" content="#0b1612">')
       .replace(/\{\{ICON_([A-Z]+)\}\}/g, (_, name) => pageIcon(name));

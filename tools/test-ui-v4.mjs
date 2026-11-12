@@ -6,7 +6,9 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const BASE = process.env.WK_BASE || 'http://localhost:4250';
+/* sin valor por defecto: así nunca corre por error contra la base real (importa, borra y reclama fichas) */
+const BASE = process.env.WK_BASE;
+if (!BASE) { console.error('Falta WK_BASE (un servidor con datos demo frescos, p. ej. http://localhost:4260)'); process.exit(2); }
 const SHOTS = process.argv[2] || '';
 const PORT = 9955 + Math.floor(Math.random() * 40);
 const CHROME = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
@@ -174,8 +176,28 @@ if (process.env.WK_FLYER) {
   await ev(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))`); await sleep(900);
   const second = await ev(current);
   check('la flecha ↓ pasa al aviso siguiente', !!first && !!second && first !== second, `${first} → ${second}`);
-  await ev(`document.querySelector('.fslide[data-job="${second}"] .fact-main').click()`); await sleep(1200);
-  check('"Me interesa" lleva al aviso completo', (await ev('location.pathname')) === `/oferta/${second}`);
+  const mouse = (type, x, y) => send('Input.dispatchMouseEvent', { type, x, y, button: 'left', buttons: type === 'mouseReleased' ? 0 : 1, clickCount: type === 'mouseMoved' ? 0 : 1, pointerType: 'mouse' });
+  const box = (sel) => ev(`(() => { const r = document.querySelector(${JSON.stringify(sel)}).getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; })()`);
+  const cur = `.fslide[data-job="${second}"]`;
+  check('compartir va a la izquierda y guardar a la derecha', await ev(`(() => { const s = document.querySelector('${cur}').getBoundingClientRect();
+    const a = document.querySelector('${cur} [data-feed-share]').getBoundingClientRect(); const b = document.querySelector('${cur} [data-feed-save]').getBoundingClientRect();
+    return a.left - s.left < 40 && s.right - b.right < 40 && Math.abs(a.top - b.top) < 2; })()`));
+  check('ya no hay botones de más en la diapositiva', await ev(`document.querySelectorAll('${cur} button, ${cur} a').length === 3`));
+  const k = await box(`${cur} [data-swipe-knob]`);
+  const kx = k.x + k.w / 2; const ky = k.y + k.h / 2;
+  await mouse('mousePressed', kx, ky); await mouse('mouseReleased', kx, ky); await sleep(500);
+  check('tocar la barra sin deslizar no se va del modo flyers', (await ev('location.pathname')) === '/flyers');
+  const t = await box(`${cur} [data-swipe]`);
+  await mouse('mousePressed', kx, ky);
+  for (let i = 1; i <= 8; i++) { await mouse('mouseMoved', kx + (t.w * i) / 8, ky); await sleep(30); }
+  await mouse('mouseReleased', kx + t.w, ky); await sleep(1400);
+  check('deslizar la barra lleva al aviso completo', (await ev('location.pathname')) === `/oferta/${second}`);
+  await go('/flyers'); await sleep(600);
+  const m = await box('.fslide[data-job] .fslide-media');
+  await mouse('mousePressed', m.x + m.w / 2, m.y + m.h / 2); await sleep(600);
+  check('mantener apretado deja sólo el flyer', await ev(`document.querySelector('#feed').classList.contains('is-peek') && getComputedStyle(document.querySelector('.fslide-bottom')).pointerEvents === 'none'`));
+  await mouse('mouseReleased', m.x + m.w / 2, m.y + m.h / 2); await sleep(300);
+  check('al soltar vuelve todo', !(await ev(`document.querySelector('#feed').classList.contains('is-peek')`)));
   await go('/flyers'); await sleep(600);
   await ev(`document.querySelector('[data-feed-save]').click()`); await sleep(800);
   check('Guardar sin sesión lleva a ingresar', (await ev('location.pathname')) === '/acceder');
@@ -188,7 +210,10 @@ if (process.env.WK_FLYER) {
   check('bajando rápido aparecen todos los avisos, sin repetidos', ids.length === total && new Set(ids).size === total, `${ids.length}/${new Set(ids).size} de ${total}`);
   check('al final avisa que no hay más', /Viste todas las búsquedas/.test(await ev('document.body.innerText')));
   await go('/flyers'); await sleep(600);
-  await ev(`document.querySelector('[data-feed-filter="Tupungato"]').click()`); await sleep(1200);
+  check('el filtro de lugar arranca cerrado', await ev(`document.querySelector('#feed-menu').hidden`));
+  await click('#feed-place'); await sleep(200);
+  await ev(`document.querySelector('#feed-menu [data-feed-filter="Tupungato"]').click()`); await sleep(1200);
+  check('el botón de lugar dice Tupungato y el menú se cierra', await ev(`document.querySelector('#feed-place').textContent.trim() === 'Tupungato' && document.querySelector('#feed-menu').hidden`));
   check('el filtro Tupungato muestra sólo Tupungato', await ev(`(() => { const s = [...document.querySelectorAll('.fslide[data-job]')]; return s.length > 0 && s.every((x) => x.dataset.locality === 'Tupungato'); })()`));
   if (process.env.WK_FLYER2) {
     check('un flyer muy alto se ve entero dentro de la diapositiva', await ev(`(() => {
@@ -197,6 +222,18 @@ if (process.env.WK_FLYER) {
     })()`));
   }
   await shot('flyers-tupungato');
+  /* compatibilidad (con sesión de persona): se explica, se pliega y se vuelve a abrir al tocarla */
+  await ev(`fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role:'candidate',email:'martina@demo.workuco',password:'demo12345'})}).then(r=>r.status)`);
+  await go('/flyers'); await sleep(700);
+  const mb = '.fslide[aria-current] [data-feed-match]';
+  check('la compatibilidad aparece arriba a la derecha', await ev(`(() => { const b = document.querySelector('${mb}'); if (!b) return false; const s = b.closest('.fslide').getBoundingClientRect(); const r = b.getBoundingClientRect(); return r.top - s.top < 30 && s.right - r.right < 30; })()`));
+  check('al principio explica qué es', await ev(`document.querySelector('${mb}').getAttribute('aria-expanded') === 'true' && /compatible con tu perfil/.test(document.querySelector('${mb}').textContent)`));
+  await shot('flyers-match');
+  await sleep(4300);
+  check('después se esconde y queda el porcentaje', await ev(`document.querySelector('${mb}').getAttribute('aria-expanded') === 'false'`));
+  await click(mb); await sleep(200);
+  check('tocándola se vuelve a mostrar', await ev(`document.querySelector('${mb}').getAttribute('aria-expanded') === 'true'`));
+  check('modo flyers con sesión sin desbordes', await noOverflow());
 }
 check('sin errores de JS', errors.length === 0, JSON.stringify(errors.slice(0, 2)));
 console.log(`\n${ok} ok · ${fail} fail`);

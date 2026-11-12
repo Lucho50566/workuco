@@ -36,7 +36,7 @@ Es el portal del Valle de Uco, no un portal nacional: tres localidades, rubros d
 
 ## Brand Commitments
 
-- Nombre **Workuco**, logo propio (`public/logo-icon.png`, `public/logo-full.png`) y verde de marca `#0a8263`.
+- Nombre **Workuco** y logo propio: una sola línea que es la W de Workuco, los picos de la cordillera del Valle de Uco y, con el punto lima (cabeza / sol), una persona con los brazos en alto. Vive en SVG (`brandMark` en `server.js`, `public/favicon.svg`); los PNG se generan con `node tools/make-logo.mjs`. Verde de marca `#0a8263`.
 - Voz cercana y directa, de la zona ("acá nomás"), sin tecnicismos.
 
 ## Evidence on Hand

@@ -1800,17 +1800,66 @@ function feedSlide(j, saved) {
         ${flyers.length > 1 ? `<div class="flyer-dots fslide-dots">${flyers.map((_, i) => `<button type="button" class="flyer-dot${i === 0 ? ' is-on' : ''}" data-flyer-dot="${i}" aria-label="Ver flyer ${i + 1}"></button>`).join('')}</div>` : ''}`
         : genFlyer(j)}
     </div>
-    <div class="fslide-info">
-      <h2>${esc(j.title)}</h2>
-      <p>${esc(j.companyName)} · ${esc(j.locality)}${j.gig ? ' · <strong>Changa</strong>' : ''}</p>
-      <p class="fslide-pay">${esc(nbMoney(j.salaryLabel || 'Sueldo a convenir'))}</p>
-    </div>
-    <div class="fslide-actions">
-      <a class="fact fact-main" href="/oferta/${esc(j.id)}">${icon('arrow', 22)}<span>Me interesa</span></a>
-      <button class="fact${saved ? ' is-on' : ''}" type="button" data-feed-save="${esc(j.id)}" aria-pressed="${saved}">${icon('heart', 22)}<span>${saved ? 'Guardado' : 'Guardar'}</span></button>
-      <button class="fact" type="button" data-feed-share="${esc(j.id)}" data-title="${esc(j.title)}" data-company="${esc(j.companyName)}">${icon('share', 22)}<span>Compartir</span></button>
+    ${feedMatch(j.match)}
+    <div class="fslide-bottom">
+      <div class="fslide-row">
+        <button class="fround" type="button" data-feed-share="${esc(j.id)}" data-title="${esc(j.title)}" data-company="${esc(j.companyName)}" aria-label="Compartir aviso">${icon('share', 20)}</button>
+        <div class="fslide-info">
+          <h2>${esc(j.title)}</h2>
+          <p>${esc(j.companyName)} · ${esc(j.locality)}${j.gig ? ' · <strong>Changa</strong>' : ''}</p>
+        </div>
+        <button class="fround${saved ? ' is-on' : ''}" type="button" data-feed-save="${esc(j.id)}" aria-pressed="${saved}" aria-label="${saved ? 'Quitar de guardados' : 'Guardar aviso'}">${icon('heart', 20)}</button>
+      </div>
+      <div class="fswipe" data-swipe>
+        <span class="fswipe-label">Deslizá para postularte y ver todo</span>
+        <a class="fswipe-knob" href="/oferta/${esc(j.id)}" data-swipe-knob aria-label="Postularme y ver todo el aviso: ${esc(j.title)}">${icon('arrow', 20)}</a>
+      </div>
     </div>
   </article>`;
+}
+
+/* Compatibilidad con el perfil: arriba a la derecha; se explica la primera vez y después queda en "85%". */
+function feedMatch(m) {
+  if (!m || m.score == null) return '';
+  const cls = m.score >= 70 ? '' : m.score >= 45 ? ' is-mid' : ' is-low';
+  const why = (m.reasons || []).slice(0, 2).join(' · ');
+  return `<button class="fmatch${cls}" type="button" data-feed-match aria-expanded="false"${why ? ` title="${esc(why)}"` : ""} style="--pct:${Number(m.score)}">
+    <span class="fmatch-ring" aria-hidden="true"></span><b>${Number(m.score)}%</b>
+    <span class="fmatch-text"><span>compatible con tu perfil</span></span>
+  </button>`;
+}
+
+/* La barra de abajo: se arrastra la perilla hasta el final para ir al aviso completo. */
+function setupSwipe(track) {
+  const knob = $('[data-swipe-knob]', track);
+  let start = null; let max = 0; let x = 0; let moved = false;
+  const set = (v) => { x = v; knob.style.transform = `translateX(${v}px)`; track.style.setProperty('--swipe', String(max ? v / max : 0)); };
+  knob.addEventListener('pointerdown', (e) => {
+    start = e.clientX; moved = false; max = track.clientWidth - knob.offsetWidth - 8;
+    track.classList.remove('is-hint');
+    knob.setPointerCapture(e.pointerId); track.classList.add('is-drag');
+  });
+  knob.addEventListener('animationend', () => track.classList.remove('is-hint'));
+  knob.addEventListener('pointermove', (e) => {
+    if (start == null) return;
+    const v = Math.min(max, Math.max(0, e.clientX - start));
+    if (v > 4) moved = true;
+    set(v);
+  });
+  const end = () => {
+    if (start == null) return;
+    start = null; track.classList.remove('is-drag');
+    if (x >= max * 0.82) { set(max); track.classList.add('is-done'); location.href = knob.href; return; }
+    set(0);
+  };
+  knob.addEventListener('pointerup', end);
+  knob.addEventListener('pointercancel', end);
+  /* un toque sin deslizar no navega: muestra el gesto. El teclado (Enter) sí entra directo. */
+  knob.addEventListener('click', (e) => {
+    if (e.detail === 0) return;
+    e.preventDefault();
+    if (!moved) { track.classList.remove('is-hint'); void track.offsetWidth; track.classList.add('is-hint'); }
+  });
 }
 
 async function initFlyers() {
@@ -1826,6 +1875,13 @@ async function initFlyers() {
   fit();
   window.addEventListener('resize', fit);
 
+  /* la compatibilidad se explica abierta la primera vez y después se pliega; tocándola se vuelve a abrir */
+  let explained = false;
+  const openMatch = (b, ms) => {
+    b.setAttribute('aria-expanded', 'true');
+    clearTimeout(b._t);
+    b._t = setTimeout(() => b.setAttribute('aria-expanded', 'false'), ms);
+  };
   const visible = new IntersectionObserver((entries) => {
     for (const e of entries) {
       if (!e.isIntersecting) continue;
@@ -1833,8 +1889,31 @@ async function initFlyers() {
       bg.style.backgroundImage = src ? `url('${src.replace(/'/g, '%27')}')` : '';
       $$('.fslide[aria-current]', feed).forEach((s) => s.removeAttribute('aria-current'));
       e.target.setAttribute('aria-current', 'true');
+      const m = $('[data-feed-match]', e.target);
+      if (m && !explained) { explained = true; openMatch(m, 4000); }
     }
   }, { root: feed, threshold: 0.6 });
+
+  /* mantener apretado el flyer: se esconde todo y queda sólo la imagen */
+  let hold = null; let holdAt = null;
+  const peek = (on) => { feed.classList.toggle('is-peek', on); feed.parentElement.classList.toggle('is-peek', on); };
+  const peekOff = () => { clearTimeout(hold); hold = null; holdAt = null; peek(false); };
+  feed.addEventListener('pointerdown', (e) => {
+    if (!e.target.closest('.fslide-media') || e.target.closest('button, a')) return;
+    holdAt = [e.clientX, e.clientY];
+    hold = setTimeout(() => peek(true), 350);
+  });
+  feed.addEventListener('pointermove', (e) => {
+    if (holdAt && !feed.classList.contains('is-peek') && Math.hypot(e.clientX - holdAt[0], e.clientY - holdAt[1]) > 10) peekOff();
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach((t) => feed.addEventListener(t, peekOff));
+  feed.addEventListener('scroll', () => { if (hold && !feed.classList.contains('is-peek')) peekOff(); }, { passive: true });
+  feed.addEventListener('contextmenu', (e) => { if (e.target.closest('.fslide-media')) e.preventDefault(); });
+
+  /* lugar: un solo botón que abre la lista */
+  const placeBtn = $('#feed-place');
+  const placeMenu = $('#feed-menu');
+  const closeMenu = () => { placeMenu.hidden = true; placeBtn.setAttribute('aria-expanded', 'false'); };
   const more = new IntersectionObserver((entries) => {
     /* sólo se pide la página siguiente si no hay otra cargando: al terminar se vuelve a observar */
     if (!loading && entries.some((e) => e.isIntersecting) && page < pages) { page += 1; load(false); }
@@ -1861,7 +1940,7 @@ async function initFlyers() {
         if (page >= pages) feed.insertAdjacentHTML('beforeend', message('Viste todas las búsquedas', 'Volvé más tarde: cada día se suman avisos nuevos del Valle.', '<a class="btn btn-lime" href="/buscar">Ver la lista completa</a>'));
       }
       const slides = $$('.fslide[data-job]', feed);
-      slides.forEach((s) => { if (!s.dataset.ready) { s.dataset.ready = '1'; visible.observe(s); setupFlyerRail($('.fslide-media', s)); } });
+      slides.forEach((s) => { if (!s.dataset.ready) { s.dataset.ready = '1'; visible.observe(s); setupFlyerRail($('.fslide-media', s)); setupSwipe($('[data-swipe]', s)); } });
       more.disconnect();
       /* se vigila el último: si alguien baja de golpe hasta el final, igual se pide la página siguiente */
       if (slides.length && page < pages) more.observe(slides[slides.length - 1]);
@@ -1873,19 +1952,34 @@ async function initFlyers() {
 
   const go = (dir) => feed.scrollBy({ top: dir * feed.clientHeight, behavior: calm ? 'auto' : 'smooth' });
   document.addEventListener('keydown', (e) => {
-    if (e.target.closest && e.target.closest('input, textarea, select')) return;
+    if (e.target.closest && e.target.closest('input, textarea, select, #feed-menu')) { if (e.key === 'Escape' && !placeMenu.hidden) { closeMenu(); placeBtn.focus(); } return; }
+    if (e.key === 'Escape' && !placeMenu.hidden) { closeMenu(); placeBtn.focus(); return; }
     if (['ArrowDown', 'PageDown', 'j'].includes(e.key)) { e.preventDefault(); go(1); }
     if (['ArrowUp', 'PageUp', 'k'].includes(e.key)) { e.preventDefault(); go(-1); }
   });
 
   document.addEventListener('click', async (e) => {
+    if (e.target.closest('#feed-place')) {
+      const open = placeMenu.hidden;
+      placeMenu.hidden = !open;
+      placeBtn.setAttribute('aria-expanded', String(open));
+      return;
+    }
     const chip = e.target.closest('[data-feed-filter]');
     if (chip) {
       const v = chip.dataset.feedFilter;
       filter.gig = v === 'gig' ? '1' : '';
       filter.locality = v === 'gig' ? '' : v;
-      $$('.feed-chip').forEach((c) => c.classList.toggle('is-on', c.dataset.feedFilter === v));
+      $$('#feed-menu [data-feed-filter]').forEach((c) => c.setAttribute('aria-pressed', String(c.dataset.feedFilter === v)));
+      $('span', placeBtn).textContent = v === 'gig' ? 'Changas' : (v || 'Todo el Valle');
+      closeMenu();
       load(true);
+      return;
+    }
+    if (!placeMenu.hidden && !e.target.closest('#feed-menu')) closeMenu();
+    const mt = e.target.closest('[data-feed-match]');
+    if (mt) {
+      if (mt.getAttribute('aria-expanded') === 'true') { clearTimeout(mt._t); mt.setAttribute('aria-expanded', 'false'); } else openMatch(mt, 5000);
       return;
     }
     if (e.target.closest('[data-feed-retry]')) { load(true); return; }
@@ -1898,7 +1992,7 @@ async function initFlyers() {
         const { saved: on } = await api(`/api/candidate/saved/${sv.dataset.feedSave}`, { method: 'POST' });
         sv.classList.toggle('is-on', on);
         sv.setAttribute('aria-pressed', String(on));
-        $('span', sv).textContent = on ? 'Guardado' : 'Guardar';
+        sv.setAttribute('aria-label', on ? 'Quitar de guardados' : 'Guardar aviso');
         toast(on ? 'Guardado en Mi perfil' : 'Quitado de guardados', 'ok');
       } catch (err) { toast(err.message, 'err'); }
       return;
