@@ -137,15 +137,15 @@ async function main() {
     check('el reclamo no muestra datos de postulantes', !/martina|512345/i.test(view.text));
     check('código inventado: 404', (await pub.get(`/api/claim/${'0'.repeat(48)}`)).status === 404);
     const owner = client();
-    const taken = await owner.post(`/api/claim/${token1}/accept`, { email: 'bodega@demo.workuco', password: 'clave12345' });
+    const taken = await owner.post(`/api/claim/${token1}/accept`, { email: 'bodega@demo.workuco', password: 'clave12345', acceptTerms: true });
     check('reclamar con un email ya registrado: 409', taken.status === 409 && (await pub.get(`/api/companies/${co1.id}`)).data.company.claimed === false);
     check('contraseña corta: 400', (await owner.post(`/api/claim/${token1}/accept`, { email: 'elalamo@test.workuco', password: '123' })).status === 400);
-    const acc = await owner.post(`/api/claim/${token1}/accept`, { email: 'elalamo@test.workuco', password: 'clave12345' });
+    const acc = await owner.post(`/api/claim/${token1}/accept`, { email: 'elalamo@test.workuco', password: 'clave12345', acceptTerms: true });
     check('reclamar: 200 y queda logueada', acc.status === 200 && (await owner.get('/api/me')).data.user.role === 'company');
     const dash = await owner.get('/api/company/dashboard');
     check('la empresa ve a quien se postuló', dash.status === 200 && dash.data.applications.some((a) => a.name === 'Martina Salinas'));
     check('la ficha ya figura como reclamada', (await pub.get(`/api/companies/${co1.id}`)).data.company.claimed === true);
-    check('el mismo código no sirve dos veces', (await pub.get(`/api/claim/${token1}`)).status === 404 && (await client().post(`/api/claim/${token1}/accept`, { email: 'otra@test.workuco', password: 'clave12345' })).status === 404);
+    check('el mismo código no sirve dos veces', (await pub.get(`/api/claim/${token1}`)).status === 404 && (await client().post(`/api/claim/${token1}/accept`, { email: 'otra@test.workuco', password: 'clave12345', acceptTerms: true })).status === 404);
     const notes = (await martina.get('/api/notifications')).data.items || [];
     check('la persona se entera de que la empresa ya administra el aviso', notes.some((n) => /ya administra/.test(n.title + n.body)));
     check('el admin la ve como reclamada', ((await admin.get('/api/admin/import')).data.companies.find((c) => c.id === co1.id) || {}).claimed === true);
@@ -174,8 +174,8 @@ async function main() {
     const p4 = await admin.post('/api/admin/import/publish', { draft: { ...drafts[0], title: 'Lavacopas', companyName: 'Bar La Esquina', contactPhone: '2622 777888' }, sourceName: 'X' });
     const tok4 = ((await admin.get('/api/admin/import')).data.companies.find((c) => c.id === p4.data.company.id) || {}).claimUrl.split('/').pop();
     const [r1, r2] = await Promise.all([
-      client().post(`/api/claim/${tok4}/accept`, { email: 'esquina1@test.workuco', password: 'clave12345' }),
-      client().post(`/api/claim/${tok4}/accept`, { email: 'esquina2@test.workuco', password: 'clave12345' }),
+      client().post(`/api/claim/${tok4}/accept`, { email: 'esquina1@test.workuco', password: 'clave12345', acceptTerms: true }),
+      client().post(`/api/claim/${tok4}/accept`, { email: 'esquina2@test.workuco', password: 'clave12345', acceptTerms: true }),
     ]);
     check('dos reclamos a la vez: sólo uno gana', [r1.status, r2.status].filter((s) => s === 200).length === 1, `${r1.status} ${r2.status}`);
 

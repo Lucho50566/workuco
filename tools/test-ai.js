@@ -152,7 +152,7 @@ async function main() {
     await company.patch('/api/company/ai', { auto: true });
     const nuevo = client();
     const email = `auto-${Date.now()}@test.com`;
-    await nuevo.post('/api/auth/register', { role: 'candidate', name: 'Postulante Auto', email, phone: '2622009999', password: 'clave12345' });
+    await nuevo.post('/api/auth/register', { role: 'candidate', name: 'Postulante Auto', email, phone: '2622009999', password: 'clave12345', acceptTerms: true });
     const applied = await nuevo.post('/api/jobs/jdemo001/apply', { message: 'Me interesa la vendimia.' });
     check('postulación nueva', applied.status === 201);
     let auto = null;

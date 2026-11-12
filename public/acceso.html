@@ -97,7 +97,15 @@
             <input class="input" id="r-pass" name="password" type="password" autocomplete="new-password" required minlength="8">
             <span class="error-text" data-error="password" hidden></span>
           </div>
+          <div class="field">
+            <label class="check-row" for="r-terms">
+              <input type="checkbox" id="r-terms" required>
+              <span id="r-terms-text">Tengo 16 años o más y acepto los <a href="/terminos" target="_blank" rel="noopener">términos</a> y la <a href="/privacidad" target="_blank" rel="noopener">política de privacidad</a>.</span>
+            </label>
+            <span class="error-text" data-error="acceptTerms" hidden></span>
+          </div>
           <button class="btn btn-primary btn-block" type="submit" id="register-submit">Crear cuenta</button>
+          <p class="legal-note">Tus datos se usan sólo para el funcionamiento de Workuco. Podés descargarlos, corregirlos o borrar tu cuenta cuando quieras desde tu perfil. Más info en la <a href="/privacidad">política de privacidad</a>.</p>
         </form>
       </div>
 

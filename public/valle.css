@@ -697,3 +697,65 @@ html { scrollbar-color: #b9ad94 var(--cream); }
   .feed-bg, .fround, .fswipe-knob, .fmatch-text, .fmatch, .fslide-bottom, .fslide-dots, .feed-top { transition: none; }
   .fswipe.is-hint .fswipe-knob { animation: none; }
 }
+
+/* =====================================================================
+   ANIMACIÓN DE INICIO (una vez por visita) Y DESLIZAMIENTOS SUAVES
+   ===================================================================== */
+:root { --ease-in-out: cubic-bezier(.77, 0, .175, 1); }
+.wk-intro {
+  position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center;
+  background: var(--night); color: var(--cream); transition: opacity .34s var(--ease-out);
+}
+.wk-intro[hidden] { display: none; }
+.wk-intro.is-out { opacity: 0; pointer-events: none; }
+.wk-intro-word { font: 800 clamp(58px, 16vw, 112px)/1 var(--font-display); letter-spacing: -.045em; white-space: nowrap; }
+/* la W del logo mide lo mismo que una mayúscula y se apoya en la línea de base */
+.wk-intro-w { display: inline-block; width: 1.036em; height: .888em; vertical-align: baseline; overflow: visible; margin-right: -.03em; }
+.wk-intro-w path {
+  fill: none; stroke: currentColor; stroke-width: 4.4; stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 1; stroke-dashoffset: 1; opacity: 0;
+  animation: wk-draw .62s var(--ease-in-out) .1s forwards;
+}
+.wk-intro-w circle { fill: var(--lime); transform-box: fill-box; transform-origin: center; opacity: 0; transform: scale(.6); animation: wk-pop .28s var(--ease-out) .58s forwards; }
+.wk-intro-rest { display: inline-block; clip-path: inset(-.2em 100% -.3em 0); transform: translateX(-.14em); animation: wk-rest .52s var(--ease-out) .72s forwards; }
+.wk-intro-rest b { color: var(--lime); font-weight: inherit; }
+@keyframes wk-draw { 0% { opacity: 1; } 100% { opacity: 1; stroke-dashoffset: 0; } }
+@keyframes wk-pop { to { opacity: 1; transform: scale(1); } }
+@keyframes wk-rest { to { clip-path: inset(-.2em -.1em -.3em 0); transform: translateX(0); } }
+
+.reveal-ready .reveal {
+  opacity: 0; transform: translateY(14px);
+  transition: opacity .48s var(--ease-out), transform .48s var(--ease-out);
+  transition-delay: calc(var(--i, 0) * 60ms);
+}
+.reveal-ready .reveal.is-in { opacity: 1; transform: none; }
+
+/* menú del celular: baja apenas al abrirse (al cerrarse se va sin animación) */
+.mobile-menu:not([hidden]) { animation: menu-in .22s var(--ease-out); }
+@keyframes menu-in { from { opacity: 0; transform: translateY(-8px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal-ready .reveal { transform: none; transition: opacity .3s ease; }
+  .mobile-menu:not([hidden]) { animation: none; }
+}
+
+/* =====================================================================
+   LEGAL: consentimiento, leyenda AAIP, tus datos, avisos discriminatorios
+   ===================================================================== */
+.check-row { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.45; color: var(--text); cursor: pointer; }
+.check-row input { flex: 0 0 auto; width: 18px; height: 18px; margin-top: 2px; accent-color: var(--green); }
+.check-row a { color: var(--green); text-decoration: underline; text-underline-offset: 2px; }
+.legal-note { margin-top: 12px; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+.legal-note a { color: inherit; text-decoration: underline; }
+.footer-legal { padding-top: 14px; padding-bottom: 22px; display: grid; gap: 8px; }
+.footer-legal p { margin: 0; font-size: 11.5px; line-height: 1.55; color: var(--night-muted); opacity: .85; max-width: 1000px; }
+.account-data { margin-top: 18px; }
+.account-data h2 { font-size: 20px; margin-bottom: 4px; }
+.account-data-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.btn-danger-text { color: var(--red); }
+.baja-form { margin-top: 14px; padding: 14px; border-radius: 14px; background: var(--red-soft); }
+.baja-form p { margin: 0 0 10px; color: var(--red); }
+.legal-hints { margin: 14px 0; padding: 14px 16px; border-radius: 14px; background: var(--amber-soft); color: #6b4506; font-size: 14px; line-height: 1.45; }
+.legal-hints ul { margin: 6px 0; padding-left: 18px; }
+.legal-hints small { color: #6b4506; opacity: .85; }
+.legal-flag { margin-top: 4px; font-size: 12px; font-weight: 600; color: var(--amber); }

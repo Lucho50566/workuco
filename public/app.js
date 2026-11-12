@@ -710,7 +710,7 @@ async function initJob() {
 
         <div class="detail-block">
           <h2>Contacto</h2>
-          <p>${job.contactEmail ? `<a href="mailto:${esc(job.contactEmail)}" class="link-inline">${esc(job.contactEmail)}</a>` : 'Postulate desde esta página y la empresa recibe tus datos.'}</p>
+          <p>${job.contactEmail ? `<a href="mailto:${esc(job.contactEmail)}" class="link-inline">${esc(job.contactEmail)}</a>` : job.companyClaimed === false ? 'Postulate desde esta página: Workuco le hace llegar tu postulación a la empresa.' : 'Postulate desde esta página y la empresa recibe tus datos.'}</p>
           ${job.contactPhone ? `<p class="muted" style="margin-top:4px">Teléfono: ${esc(job.contactPhone)}</p>` : ''}
         </div>
       </article>
@@ -1196,7 +1196,7 @@ async function initPublish() {
     $('#wizard-next').hidden = s.step === steps.length;
     $('#job-submit').hidden = s.step !== steps.length; // el botón de enviar sólo en el último paso
     window.scrollTo({ top: $('#publish-app').offsetTop - 90, behavior: 'smooth' });
-    if (s.step === steps.length) renderPreview();
+    if (s.step === steps.length) { renderPreview(); renderLegalHints(); }
   };
 
   const validateStep = () => {
@@ -1256,6 +1256,19 @@ async function initPublish() {
     const n = Number(d.dataset.step);
     if (n < s.step || validateStep()) showStep(n);
   }));
+
+  /* Aviso (no bloquea) si el texto pide edad, sexo, "buena presencia", etc. Mismas reglas que el servidor. */
+  async function renderLegalHints() {
+    const box = $('#legal-hints');
+    if (!box) return;
+    let rules = [];
+    try { rules = (await loadMeta()).discriminationRules || []; } catch (_) { return; }
+    const text = [$('#j-title').value, $('#j-description').value, ...(s.responsibilities || []), ...(s.requirements || [])].join('\n');
+    const hits = [];
+    for (const [src, msg] of rules) { const m = text.match(new RegExp(src, 'iu')); if (m && !hits.some((h) => h.msg === msg)) hits.push({ word: m[0], msg }); }
+    box.hidden = !hits.length;
+    box.innerHTML = hits.length ? `<strong>Revisá esto antes de enviar</strong><ul>${hits.map((h) => `<li><b>"${esc(h.word)}"</b>: ${esc(h.msg)}</li>`).join('')}</ul><small>La ley prohíbe pedir requisitos discriminatorios (Ley 23.592 y Ley de Contrato de Trabajo). Si lo dejás, el equipo puede rechazar el aviso.</small>` : '';
+  }
 
   function renderPreview() {
     s.contactEmail = $('#j-contact-email').value.trim();
@@ -1351,6 +1364,9 @@ async function initAuth() {
       ? 'Postulate en un toque y seguí tus postulaciones.'
       : 'Publicá búsquedas y gestioná postulantes.';
     $('#r-locality-wrap').hidden = r !== 'candidate';
+    $('#r-terms-text').innerHTML = r === 'candidate'
+      ? 'Tengo 16 años o más y acepto los <a href="/terminos" target="_blank" rel="noopener">términos</a> y la <a href="/privacidad" target="_blank" rel="noopener">política de privacidad</a>.'
+      : 'Acepto los <a href="/terminos" target="_blank" rel="noopener">términos</a> y la <a href="/privacidad" target="_blank" rel="noopener">política de privacidad</a>, y declaro que represento a esta empresa.';
     $('#r-name-label').textContent = r === 'candidate' ? 'Nombre y apellido' : 'Nombre de la empresa';
     $('#l-email-label').textContent = r === 'candidate' ? 'Email personal' : 'Email de la empresa';
     setTab(isRegister ? 'register' : 'login');
@@ -1408,6 +1424,7 @@ async function initAuth() {
         phone: $('#r-phone').value.trim(),
         password: $('#r-pass').value,
         locality: currentRole === 'candidate' ? $('#r-locality').value : '',
+        acceptTerms: $('#r-terms').checked,
       } });
       location.href = next || (currentRole === 'candidate' ? '/mi-perfil' : '/panel');
     } catch (err) {
@@ -1514,34 +1531,137 @@ const INFO = {
     <h2>Para empresas</h2>
     <p>Si necesitás ayuda para publicar tu primera búsqueda, escribinos con el asunto “Publicar empleo” y te acompañamos.</p>`,
   faq: `<h1>Preguntas frecuentes</h1>
-    <h2>¿Publicar tiene costo?</h2><p>No. Publicar una búsqueda y postularse son gratuitos. En el futuro habrá opciones pagas para destacar ofertas, pero el uso básico va a seguir siendo gratis.</p>
-    <h2>¿Cuánto tarda en aprobarse una publicación?</h2><p>Revisamos las publicaciones dentro de las 24 horas hábiles. Si falta información, la rechazamos con un motivo para que puedas corregirla y reenviarla.</p>
+    <h2>¿Publicar tiene costo?</h2><p>No. Publicar una búsqueda y postularse son gratuitos. Si en el futuro hay opciones pagas, se van a informar con su precio antes de contratarlas y el uso básico va a seguir siendo gratis.</p>
+    <h2>¿Cuánto tarda en aprobarse una publicación?</h2><p>Revisamos las publicaciones dentro de las 24 horas hábiles. Si falta información o el aviso incumple los términos (por ejemplo, pide "buena presencia" o una edad determinada), lo rechazamos con un motivo para que puedas corregirlo.</p>
     <h2>¿Necesito CV para postularme?</h2><p>No es obligatorio. Podés cargar tu CV en tu perfil (PDF de hasta 4 MB) y postularte en un toque, o postularte solo con tus datos.</p>
-    <h2>¿Qué es el análisis con IA?</h2><p>Es una ayuda opcional para empresas: ordena y resume los CV recibidos. La empresa conecta su propia API de IA y puede activarla o desactivarla cuando quiera. Workuco no usa tus datos para entrenar modelos.</p>
-    <h2>¿Quién ve mis datos?</h2><p>Solo la empresa a la que te postulás y el equipo de administración de Workuco. No vendemos datos ni los compartimos con terceros.</p>
+    <h2>¿Desde qué edad puedo usar Workuco?</h2><p>Desde los 16 años, que es la edad mínima para trabajar en Argentina. Entre los 16 y los 18 años rigen reglas especiales de jornada y tareas que la empresa tiene que respetar.</p>
+    <h2>¿Quién ve mis datos?</h2><p>Tu teléfono, tu mail y tu CV los ve sólo la empresa a la que te postulás (y el equipo de Workuco). Si activás <strong>"Estoy disponible para trabajar"</strong>, las empresas registradas ven tu nombre, foto, titular, localidad, rubros y habilidades en la base de talento, pero no tu teléfono ni tu mail. Si activás el <strong>perfil público</strong>, cualquiera con el link ve esa misma información. Las dos opciones están apagadas hasta que las prendas, y las podés apagar cuando quieras. No vendemos datos.</p>
+    <h2>¿Qué es el análisis con IA?</h2><p>Es una ayuda opcional para empresas: resume los CV recibidos. La empresa conecta su propia IA y puede activarla o desactivarla. Para hacerlo, el texto de tu CV se envía a ese proveedor, que puede estar fuera del país. Workuco no usa tus datos para entrenar modelos.</p>
+    <h2>Vi un aviso "tomado de un canal". ¿Qué es?</h2><p>Para que las búsquedas del Valle no se pierdan en grupos de WhatsApp, a veces publicamos avisos que circulan en canales públicos de empleo, citando de dónde salieron. La empresa puede reclamar el aviso o pedir que lo borremos. Mientras no lo reclame, no mostramos su teléfono ni su mail: te postulás por Workuco y te avisamos.</p>
     <h2>¿Puedo postularme a la misma oferta dos veces?</h2><p>No. El sistema toma tu email como referencia para evitar postulaciones duplicadas a la misma búsqueda.</p>
-    <h2>¿Cómo elimino mi cuenta?</h2><p>Escribinos a hola@workuco.com.ar desde el email registrado y la eliminamos junto con tus datos.</p>`,
+    <h2>¿Cómo elimino mi cuenta?</h2><p>Desde <a class="link-inline" href="/baja">Botón de baja</a> o desde tu perfil, en "Tus datos": borra tu cuenta, tu CV, tus fotos y tus postulaciones en el momento. También podés descargar una copia de tus datos antes.</p>`,
   terminos: `<h1>Términos y condiciones</h1>
-    <p class="lead">Última actualización: noviembre de 2026.</p>
-    <h2>Uso de la plataforma</h2><p>Workuco es un espacio de publicación y búsqueda de empleo. No somos empleadores ni participamos en la relación laboral entre empresas y candidatos. No garantizamos la obtención de un empleo ni la cobertura de una búsqueda.</p>
-    <h2>Publicaciones</h2><ul><li>Las empresas son responsables de la veracidad de los datos que publican.</li><li>No se permiten ofertas discriminatorias, engañosas ni que soliciten pagos a los postulantes.</li><li>Workuco puede rechazar o eliminar publicaciones que incumplan estas condiciones.</li></ul>
-    <h2>Postulaciones</h2><p>Al postularte, autorizás que tus datos y tu CV sean compartidos con la empresa responsable de la oferta. La empresa debe usarlos únicamente para evaluar tu candidatura.</p>
-    <h2>Cuentas</h2><p>Las cuentas son personales e intransferibles. Sos responsable de mantener tu contraseña segura y de la actividad realizada desde tu cuenta.</p>
-    <h2>Cambios</h2><p>Podemos actualizar estos términos. Los cambios importantes se comunican en la plataforma.</p>`,
+    <p class="lead">Versión {{TERMS_VERSION}} · Última actualización: noviembre de 2026.</p>
+    <div class="info-card"><p style="margin:0">{{RESPONSABLE}}</p></div>
+    <h2>1. Qué es Workuco</h2><p>Workuco es un portal gratuito de publicación y búsqueda de empleo para el Valle de Uco (San Carlos, Tunuyán y Tupungato, Mendoza). No somos empleadores, no somos una agencia de colocación ni cobramos a los postulantes, y no participamos en la relación laboral entre empresas y personas. No garantizamos conseguir empleo ni cubrir una búsqueda.</p>
+    <h2>2. Cuentas</h2><ul><li>Para crear una cuenta de persona hay que tener <strong>16 años o más</strong>. Entre los 16 y los 18 años, la contratación tiene que respetar el régimen de trabajo adolescente (jornada reducida, sin tareas nocturnas, penosas, peligrosas ni insalubres).</li><li>Quien crea una cuenta de empresa declara que la representa.</li><li>Las cuentas son personales. Cuidá tu contraseña: sos responsable de lo que se haga desde tu cuenta.</li><li>Podés darte de baja cuando quieras desde el <a class="link-inline" href="/baja">Botón de baja</a>, sin trámites y sin costo.</li></ul>
+    <h2>3. Publicaciones de empresas</h2><ul><li>La empresa es responsable de que el aviso sea verdadero, de cumplir la legislación laboral y de usar los datos de los postulantes sólo para esa búsqueda.</li><li><strong>No se permiten avisos discriminatorios</strong> (Ley 23.592 y arts. 17 y 81 de la Ley de Contrato de Trabajo): no se puede pedir una edad, un sexo o género, estado civil, no tener hijos, "buena presencia", aspecto físico, religión, nacionalidad u opinión política o gremial, salvo que una ley lo exija para la tarea (por ejemplo, ser mayor de 18).</li><li>No se permiten avisos engañosos, de esquemas piramidales, ni que pidan pagos, cursos pagos o inversiones a los postulantes.</li><li>Al subir textos, fotos o flyers, la empresa declara que tiene derecho a usarlos y autoriza a Workuco a mostrarlos en el sitio y compartirlos para difundir la búsqueda.</li><li>Workuco revisa los avisos y puede rechazar, editar el formato o dar de baja los que incumplan estas reglas.</li></ul>
+    <h2>4. Avisos tomados de canales públicos</h2><p>Para reunir las búsquedas del Valle, el equipo puede publicar avisos difundidos en canales públicos de empleo, indicando la fuente. Sólo se toma lo necesario para que la búsqueda llegue a más gente; mientras la empresa no reclame el aviso, no se muestran su teléfono ni su mail. La empresa recibe un link para <strong>reclamar</strong> el aviso (y manejar sus postulantes) o <strong>borrarlo</strong> con un toque, y no volvemos a publicarla. También puede pedirlo escribiendo a {{EMAIL}}: lo borramos dentro de los 5 días hábiles.</p>
+    <h2>5. Postulaciones</h2><p>Al postularte, autorizás que tus datos, tu mensaje y tu CV se compartan con la empresa del aviso, que debe usarlos sólo para evaluar tu candidatura. Workuco nunca te va a pedir dinero para postularte: si una empresa lo hace, avisanos.</p>
+    <h2>6. Uso aceptable</h2><p>No está permitido usar el sitio para juntar datos de otras personas, mandar publicidad no pedida, suplantar identidades ni afectar el funcionamiento del servicio.</p>
+    <h2>7. Responsabilidad</h2><p>Workuco pone los medios razonables para que el servicio funcione y los avisos sean reales, pero no responde por el contenido que publican terceros ni por las decisiones de contratación. Nada de esto limita los derechos que te da la Ley 24.240 de Defensa del Consumidor.</p>
+    <h2>8. Cambios</h2><p>Si cambiamos estos términos, lo avisamos en el sitio antes de que rijan. Si no estás de acuerdo, podés darte de baja.</p>
+    <h2>9. Ley aplicable</h2><p>Se aplican las leyes de la República Argentina. Si sos consumidor, podés reclamar ante los tribunales y las oficinas de Defensa del Consumidor de tu domicilio.</p>`,
   privacidad: `<h1>Política de privacidad</h1>
-    <p class="lead">Cómo tratamos tus datos en Workuco.</p>
-    <h2>Qué datos recopilamos</h2><ul><li><strong>Empresas:</strong> nombre, email, teléfono, sitio web, logo, fotos y descripción.</li><li><strong>Personas:</strong> nombre, email, teléfono, localidad, foto de perfil, CV, experiencia y habilidades.</li><li><strong>Uso:</strong> datos técnicos básicos para seguridad y funcionamiento del servicio.</li></ul>
-    <h2>Para qué los usamos</h2><p>Para publicar ofertas, recibir postulaciones, permitir el contacto entre empresas y candidatos, y mantener la seguridad de la plataforma.</p>
-    <h2>Con quién se comparten</h2><p>Las postulaciones se comparten únicamente con la empresa que publicó la oferta. No vendemos ni cedemos datos a terceros con fines publicitarios.</p>
-    <h2>Análisis con IA</h2><p>Si una empresa activa el análisis con IA, el texto de tu CV y los datos de tu perfil se envían al proveedor de IA que esa empresa configuró, sólo para generar un resumen de idoneidad. Workuco no entrena modelos con tus datos.</p>
-    <h2>Conservación y seguridad</h2><p>Los CV y fotos se almacenan en un servidor privado y solo son accesibles para la empresa destinataria y el equipo de administración. Las contraseñas se guardan cifradas. Podés pedir la eliminación de tus datos escribiendo a hola@workuco.com.ar.</p>
-    <h2>Tus derechos</h2><p>Podés solicitar acceso, corrección o eliminación de tus datos personales en cualquier momento.</p>`,
+    <p class="lead">Cómo tratamos tus datos en Workuco, según la Ley 25.326 de Protección de Datos Personales.</p>
+    <div class="info-card"><p style="margin:0">{{RESPONSABLE}}</p>{{REGISTRO}}</div>
+    <h2>Qué datos recopilamos y para qué</h2>
+    <ul>
+      <li><strong>Personas:</strong> nombre, email, teléfono y contraseña (obligatorios para crear la cuenta). Localidad, foto, titular, experiencia, estudios, habilidades, rubros, sueldo pretendido y CV son opcionales: sin ellos podés usar el sitio, pero las empresas tienen menos información para elegirte y el cálculo de compatibilidad es menos preciso.</li>
+      <li><strong>Empresas:</strong> nombre, email, teléfono, sitio web, logo, fotos, descripción y los avisos que publican.</li>
+      <li><strong>Postulaciones:</strong> los datos que mandás, tu mensaje y tu CV, para que la empresa evalúe tu candidatura.</li>
+      <li><strong>Avisos tomados de canales públicos:</strong> el texto o flyer del aviso y el nombre y contacto del anunciante, para difundir la búsqueda y avisarle que puede reclamarla o borrarla.</li>
+      <li><strong>Uso técnico:</strong> una cookie de sesión (<code>wk_sess</code>) para mantenerte conectado, y preferencias guardadas en tu navegador. No usamos cookies de publicidad ni de seguimiento.</li>
+    </ul>
+    <p>No pedimos ni queremos datos sensibles (salud, religión, origen étnico, opiniones políticas, afiliación sindical, vida sexual). No los pongas en tu CV ni en tu perfil.</p>
+    <h2>Quién ve tus datos</h2>
+    <ul>
+      <li>La empresa a la que te postulás: los datos de tu postulación y tu CV.</li>
+      <li>Si activás "Estoy disponible para trabajar": las empresas registradas ven tu nombre, foto, titular, localidad, rubros y habilidades (nunca tu teléfono ni tu mail hasta que te postulás).</li>
+      <li>Si activás el perfil público: cualquiera con el link ve esa misma información.</li>
+      <li>El equipo de Workuco, para operar y moderar el sitio.</li>
+    </ul>
+    <p>No vendemos ni cedemos datos con fines publicitarios.</p>
+    <h2>Proveedores y transferencia internacional</h2>
+    <p>Para funcionar usamos proveedores que tratan datos por cuenta nuestra: el servicio de alojamiento del sitio y, sólo si una empresa lo activa, el proveedor de inteligencia artificial que esa empresa elige para resumir los CV que recibe. Algunos de ellos pueden estar fuera de Argentina, en países que la AAIP no considera con nivel adecuado de protección. Al aceptar esta política consentís esa transferencia, que se limita a lo necesario para prestar el servicio. El sitio también carga tipografías de Google Fonts, que recibe la dirección IP de tu navegador.</p>
+    <h2>Cuánto tiempo los guardamos</h2>
+    <p>Mientras tengas la cuenta; las sesiones vencen solas.</p>
+    <ul><li><strong>Si una persona se da de baja</strong>, borramos en el momento su cuenta, su foto de perfil, su CV, sus postulaciones (también las que hizo sin cuenta con el mismo mail), alertas, guardados, invitaciones y los avisos de "nueva postulación" con su nombre que recibieron las empresas.</li><li><strong>Si una empresa se da de baja</strong>, borramos en el momento su cuenta, su logo, sus fotos, sus avisos y las postulaciones que recibió.</li><li>Mientras la empresa tenga la cuenta, sus avisos y las postulaciones que recibió se conservan hasta que los borre.</li></ul>
+    <h2>Seguridad</h2>
+    <p>Las contraseñas se guardan cifradas, el sitio funciona con conexión segura (HTTPS) y los CV sólo se descargan con una sesión autorizada.</p>
+    <h2>Tus derechos</h2>
+    <p>Podés acceder a tus datos, corregirlos, actualizarlos y pedir que se borren:</p>
+    <ul>
+      <li><strong>Descargar tus datos</strong> y <strong>borrar tu cuenta</strong> en el momento, desde tu perfil ("Tus datos") o desde el <a class="link-inline" href="/baja">Botón de baja</a>.</li>
+      <li><strong>Corregir</strong> tus datos desde tu perfil o tu panel.</li>
+      <li>O escribiendo a {{EMAIL}}: respondemos los pedidos de acceso dentro de los 10 días corridos y los de corrección o supresión dentro de los 5 días hábiles.</li>
+    </ul>
+    <p class="legal-note">El titular de los datos personales tiene la facultad de ejercer el derecho de acceso a los mismos en forma gratuita a intervalos no inferiores a seis meses, salvo que se acredite un interés legítimo al efecto conforme lo establecido en el artículo 14, inciso 3 de la Ley Nº 25.326. La AGENCIA DE ACCESO A LA INFORMACIÓN PÚBLICA, en su carácter de Órgano de Control de la Ley N° 25.326, tiene la atribución de atender las denuncias y reclamos que interpongan quienes resulten afectados en sus derechos por incumplimiento de las normas vigentes en materia de protección de datos personales.</p>`,
+  baja: `<h1>Botón de baja</h1>
+    <p class="lead">Darte de baja de Workuco es gratis, inmediato y no tiene trámites.</p>
+    <div data-baja></div>
+    <h2>¿Qué se borra?</h2>
+    <ul><li><strong>Personas:</strong> tu cuenta, tu perfil, tu foto, tu CV, tus postulaciones (también las que hiciste sin cuenta con el mismo mail), alertas, guardados e invitaciones.</li><li><strong>Empresas:</strong> tu cuenta, tus avisos con sus postulaciones, tu logo y tus fotos.</li></ul>
+    <h2>¿Sin acceso a tu cuenta?</h2><p>Escribinos a {{EMAIL}} desde el mail con el que te registraste: verificamos que el pedido venga de esa dirección, borramos la cuenta dentro de los 5 días hábiles y te respondemos confirmándolo. Si sos una empresa con un aviso "tomado de un canal", usá el link que te mandamos o escribinos y lo borramos.</p>`,
 };
 
-function initInfo() {
+/* "Tus datos": descargar una copia (derecho de acceso) y darse de baja (supresión). Va en el
+   perfil, en el panel de empresa y en /baja. La baja pide la contraseña y borra todo en el momento. */
+function accountDataHtml(role) {
+  const who = role === 'company' ? 'la cuenta de la empresa, sus avisos con sus postulaciones, el logo y las fotos' : 'tu cuenta, tu perfil, tu foto, tu CV, tus postulaciones, alertas y guardados';
+  return `<div class="card account-data" data-account-data>
+    <h2>Tus datos</h2>
+    <p class="sub">Podés bajarte una copia de todo lo que Workuco guarda sobre ${role === 'company' ? 'tu empresa' : 'vos'}, o darte de baja.</p>
+    <div class="account-data-actions">
+      <a class="btn btn-outline btn-sm" href="/api/account/export" download>${icon('file', 16)} Descargar mis datos</a>
+      <button class="btn btn-ghost btn-sm btn-danger-text" type="button" data-baja-open aria-expanded="false" aria-controls="baja-form">${icon('trash', 16)} Darme de baja</button>
+    </div>
+    <form class="baja-form" id="baja-form" hidden novalidate>
+      <p><strong>Se borra ${who}.</strong> No se puede deshacer.</p>
+      <div class="field"><label for="baja-pass">Escribí tu contraseña para confirmar</label><input class="input" id="baja-pass" type="password" autocomplete="current-password" required><span class="error-text" data-error="password" hidden></span></div>
+      <div id="baja-alert" hidden></div>
+      <div class="gate-actions"><button class="btn btn-danger" type="submit">Borrar mi cuenta definitivamente</button><button class="btn btn-ghost" type="button" data-baja-cancel>Cancelar</button></div>
+    </form>
+  </div>`;
+}
+function setupAccountData(root) {
+  const box = $('[data-account-data]', root);
+  if (!box) return;
+  const form = $('#baja-form', box);
+  const open = $('[data-baja-open]', box);
+  const toggle = (on) => { form.hidden = !on; open.setAttribute('aria-expanded', String(on)); if (on) $('#baja-pass', form).focus(); };
+  open.addEventListener('click', () => toggle(form.hidden));
+  $('[data-baja-cancel]', form).addEventListener('click', () => toggle(false));
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideAlert($('#baja-alert', form));
+    setFieldErrors(form, {});
+    const btn = $('[type=submit]', form);
+    btn.disabled = true;
+    try {
+      await api('/api/account/delete', { method: 'POST', body: { password: $('#baja-pass', form).value } });
+      state.user = null;
+      location.href = '/?baja=1';
+    } catch (err) {
+      showAlert($('#baja-alert', form), err.message, 'error');
+      setFieldErrors(form, err.fields);
+      btn.disabled = false;
+    }
+  });
+}
+
+async function initInfo() {
   const key = location.pathname.replace('/', '');
   const root = $('[data-info]');
-  if (root && INFO[key]) root.innerHTML = INFO[key];
+  if (!root || !INFO[key]) return;
+  let meta = {};
+  try { meta = await loadMeta(); } catch (_) { /* sin meta, quedan los datos por defecto */ }
+  const l = meta.legal || {};
+  const mail = esc(l.email || 'hola@workuco.com.ar');
+  const resp = [l.name ? `<strong>Responsable:</strong> ${esc(l.name)}` : '<strong>Responsable:</strong> Workuco',
+    l.cuit ? `CUIT ${esc(l.cuit)}` : '', l.address ? `Domicilio legal: ${esc(l.address)}` : '',
+    `Contacto: <a class="link-inline" href="mailto:${mail}">${mail}</a>`].filter(Boolean).join(' · ');
+  root.innerHTML = INFO[key]
+    .replace(/\{\{RESPONSABLE\}\}/g, resp)
+    .replace(/\{\{EMAIL\}\}/g, `<a class="link-inline" href="mailto:${mail}">${mail}</a>`)
+    .replace(/\{\{TERMS_VERSION\}\}/g, esc(l.termsVersion || ''))
+    .replace(/\{\{REGISTRO\}\}/g, l.dbRegistry ? `<p style="margin:6px 0 0">Base de datos inscripta en el Registro Nacional de Bases de Datos Personales: ${esc(l.dbRegistry)}.</p>` : '');
+  const baja = $('[data-baja]', root);
+  if (baja) {
+    const u = state.user;
+    if (u && (u.role === 'candidate' || u.role === 'company')) { baja.innerHTML = accountDataHtml(u.role); setupAccountData(baja); }
+    else baja.innerHTML = `<div class="card"><p style="margin-top:0">Ingresá a tu cuenta y tocá <strong>Darme de baja</strong>. Se borra todo en el momento.</p><a class="btn btn-primary" href="/acceder?next=/baja">Ingresar para darme de baja</a></div>`;
+  }
 }
 
 /* ================================================================== */
@@ -1753,6 +1873,7 @@ async function initClaim() {
         <form id="claim-form" novalidate>
           <div class="field"><label for="cl-email">Email</label><input class="input" id="cl-email" name="email" type="email" autocomplete="email" required><span class="error-text" data-error="email" hidden></span></div>
           <div class="field"><label for="cl-pass">Contraseña <span class="hint">(mínimo 8)</span></label><input class="input" id="cl-pass" name="password" type="password" autocomplete="new-password" minlength="8" required><span class="error-text" data-error="password" hidden></span></div>
+          <div class="field"><label class="check-row" for="cl-terms"><input type="checkbox" id="cl-terms" required><span>Acepto los <a href="/terminos" target="_blank" rel="noopener">términos</a> y la <a href="/privacidad" target="_blank" rel="noopener">política de privacidad</a>, y declaro que represento a esta empresa.</span></label><span class="error-text" data-error="acceptTerms" hidden></span></div>
           <div class="gate-actions"><button class="btn btn-primary" type="submit">Es nuestra, entrar al panel</button><button class="btn btn-ghost" type="button" data-claim-cancel>Cancelar</button></div>
         </form>`;
       $('#claim-form').addEventListener('submit', async (e) => {
@@ -1761,7 +1882,7 @@ async function initClaim() {
         const btn = $('#claim-form [type=submit]');
         btn.disabled = true;
         try {
-          await api(`/api/claim/${encodeURIComponent(token)}/accept`, { method: 'POST', body: { email: $('#cl-email').value.trim(), password: $('#cl-pass').value } });
+          await api(`/api/claim/${encodeURIComponent(token)}/accept`, { method: 'POST', body: { email: $('#cl-email').value.trim(), password: $('#cl-pass').value, acceptTerms: $('#cl-terms').checked } });
           location.href = mode === 'fix' ? '/panel#ofertas' : '/panel';
         } catch (err) {
           btn.disabled = false;
@@ -2021,15 +2142,43 @@ window.WK = {
   jobCard, jobRow, gigCard, shrinkImage, flyerFrame, setupFlyerRail, matchPill, payHtml, responseHtml, profileCompleteness, setupCarousel, fileToBase64, ready: null,
 };
 
+/* Deslizamiento suave al aparecer (sólo en la portada, que es la página de presentación):
+   cada sección sube 14px y aparece una sola vez; las tarjetas de una grilla, escalonadas. */
+function setupReveal() {
+  if (!('IntersectionObserver' in window)) return;
+  const items = [];
+  $$('main > .section').forEach((sec) => {
+    const head = $('.section-head', sec);
+    if (head) items.push([head, 0]);
+    $$('.container > :not(.section-head)', sec).forEach((el) => {
+      const kids = el.children.length >= 3 && el.children.length <= 12 ? [...el.children] : [el];
+      kids.forEach((k, i) => items.push([k, Math.min(i, 5)]));
+    });
+  });
+  if (!items.length) return;
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('is-in'); io.unobserve(e.target); } });
+  }, { rootMargin: '0px 0px -8% 0px' });
+  items.forEach(([el, i]) => { el.classList.add('reveal'); el.style.setProperty('--i', i); io.observe(el); });
+  document.documentElement.classList.add('reveal-ready');
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   initNav();
   const page = document.body.dataset.page;
+  if (page === 'home') setupReveal();
   let resolveReady;
   window.WK.ready = new Promise((r) => { resolveReady = r; });
   try {
     await loadMe();
   } catch (_) {}
   resolveReady();
+  if (new URLSearchParams(location.search).get('baja') === '1') toast('Tu cuenta y tus datos se borraron', 'ok');
+  /* "Tus datos" en el perfil y en el panel de empresa */
+  $$('[data-account-slot]').forEach((slot) => {
+    const u = state.user;
+    if (u && u.role === slot.dataset.accountSlot) { slot.innerHTML = accountDataHtml(u.role); setupAccountData(slot); }
+  });
   try {
     switch (page) {
       case 'home': await initHome(); break;
@@ -2039,7 +2188,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       case 'auth': await initAuth(); break;
       case 'companies': await initCompanies(); break;
       case 'company': await initCompanyPage(); break;
-      case 'info': initInfo(); break;
+      case 'info': await initInfo(); break;
       case 'gigs': await initGigs(); break;
       case 'cv': await initCv(); break;
       case 'public-profile': await initPublicProfile(); break;

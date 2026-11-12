@@ -97,6 +97,7 @@ try {
   await setVal('#r-email', mail);
   await setVal('#r-phone', '2622111222');
   await setVal('#r-pass', 'clave12345');
+  await evalJs(`document.querySelector('#r-terms').checked = true`);
   await setVal('#r-locality', 'Tunuyán');
   await click('#register-submit');
   await sleep(1400);

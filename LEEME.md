@@ -237,11 +237,46 @@ Admin: `POST /api/admin/login`, `GET /api/admin/stats|jobs|applications|companie
 - Todo texto de usuario nuevo (habilidades, alertas, mensajes de invitación, avisos) se escapa al mostrarse.
 - Links de reclamo: 24 bytes aleatorios, de un solo uso, con límite de intentos (8 fallos → 10 minutos).
   Las fichas sin reclamar no pueden iniciar sesión.
+- `/media/` sólo entrega imágenes (jpg, png, webp): los CV en PDF se bajan únicamente por `/api/cv/...` con permiso.
+
+## Cumplimiento legal (Argentina)
+
+Lo que ya hace el sitio:
+
+- **Ley 25.326 (datos personales):** casilla obligatoria al crear cuenta y al reclamar una ficha (se guarda
+  `terms_at` y `terms_version`); aviso informativo al postularse; política de privacidad con finalidad,
+  destinatarios, datos obligatorios y opcionales, transferencia internacional, conservación y derechos; leyenda
+  de la AAIP en el pie de todas las páginas; **descargar mis datos** (`GET /api/account/export`) y **darme de
+  baja** (`POST /api/account/delete`, pide la contraseña y borra todo en el momento) desde el perfil, el panel
+  y `/baja`. Para pedidos de baja por mail: `node tools/borrar-cuenta.js <email> [--borrar]`.
+- **Edad mínima (Ley 26.390):** al crear cuenta y al postularse se declara tener 16 años o más.
+- **Avisos discriminatorios (Ley 23.592; LCT arts. 17 y 81):** `lib/legal.js` detecta edad, sexo, "buena
+  presencia", estado civil, aspecto, religión o nacionalidad. No bloquea: avisa a la empresa en el último paso
+  del asistente y marca el aviso en la revisión del admin.
+- **Avisos importados:** se cita la fuente, la empresa puede reclamar o borrar, y mientras no reclame no se
+  muestran su teléfono ni su mail (se postula por Workuco).
+- **Defensa del consumidor:** link "Botón de baja" en el pie de todas las páginas; el botón de arrepentimiento
+  no aplica mientras el servicio sea gratis (habrá que sumarlo si se cobra algo).
+
+Variables de entorno para producción (aparecen en el pie, los términos y la privacidad):
+
+| Variable | Qué es |
+|---|---|
+| `WORKUCO_LEGAL_NAME` | Nombre o razón social del responsable |
+| `WORKUCO_LEGAL_CUIT` | CUIT |
+| `WORKUCO_LEGAL_ADDRESS` | Domicilio legal en Argentina |
+| `WORKUCO_LEGAL_EMAIL` | Mail para pedidos de datos (por defecto `hola@workuco.com.ar`) |
+| `WORKUCO_DB_REGISTRY` | Número de inscripción de la base en el Registro Nacional de Bases de Datos (AAIP) |
+
+Lo que tiene que hacer el responsable (no se resuelve con código): inscribir las bases de datos en la AAIP
+(trámite gratuito en TAD), completar las variables de arriba, tener activo el mail de contacto y contestar en
+plazo (10 días corridos el acceso; 5 días hábiles corrección y baja), y pedir permiso a los canales y empresas
+antes de importar sus avisos.
 
 ## Pruebas
 
 ```
-npm test                     # importador, IA con imágenes, match, API, v3 y v4 (cada uno con su servidor temporal)
+npm test                     # importador, IA con imágenes, match, API, v3, v4 y legal (cada uno con su servidor temporal)
 node tools/test-api.js       # 82 pruebas (servidor temporal + datos demo)
 WK_BASE=http://localhost:4250 node tools/test-ui-v3.mjs   # con un servidor con demo fresca
 WK_BASE=http://localhost:4250 node tools/test-ui-v4.mjs   # idem, con WORKUCO_IMPORT_AI_FAKE=1

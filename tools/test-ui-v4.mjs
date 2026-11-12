@@ -104,6 +104,7 @@ await go(`/reclamar/${tokResto}`);
 await click('[data-claim-open="mine"]'); await sleep(300);
 await setVal('#cl-email', `elalamo${Date.now()}@test.workuco`);
 await setVal('#cl-pass', 'clave12345');
+await ev(`document.querySelector('#cl-terms').checked = true`);
 await click('#claim-form [type=submit]'); await sleep(2000);
 check('reclamar lleva al panel de la empresa', (await ev('location.pathname')) === '/panel');
 /* 5. una empresa publica con flyer (si se pasó WK_FLYER con la ruta de una imagen) */

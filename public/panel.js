@@ -1202,7 +1202,7 @@
       wrap.innerHTML = jobs.length ? `<div class="table-wrap"><table class="data">
         <thead><tr><th>Oferta</th><th>Empresa</th><th>Estado</th><th>Post.</th><th></th></tr></thead>
         <tbody>${jobs.map((j) => `<tr>
-          <td><div class="cell-title">${esc(j.title)}</div><div class="cell-sub">${esc(j.locality)} · ${esc(j.category)} · ${timeAgo(j.createdAt)}</div></td>
+          <td><div class="cell-title">${esc(j.title)}</div><div class="cell-sub">${esc(j.locality)} · ${esc(j.category)} · ${timeAgo(j.createdAt)}</div>${(j.warnings || []).length ? `<div class="legal-flag" title="${esc(j.warnings.map((w) => w.message).join(' '))}">⚠ Posible requisito discriminatorio: ${j.warnings.map((w) => `"${esc(w.match)}"`).join(', ')}</div>` : ''}</td>
           <td class="cell-sub">${esc(j.companyName)}${j.companyVerified ? ' ✓' : ''}</td>
           <td>${W.statusBadge(j.status)}${j.featured ? '<div style="margin-top:4px"><span class="badge badge-featured">Destacada</span></div>' : ''}</td>
           <td>${j.applications}</td>

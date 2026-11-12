@@ -118,7 +118,7 @@ async function main() {
     const regBad = await pub.post('/api/auth/register', { name: '', email: 'x', phone: '', password: '123' });
     check('valida registro', regBad.status === 400 && Object.keys(regBad.data.fields).length >= 3);
 
-    const reg = await comp.post('/api/auth/register', { name: 'Empresa Test SA', email: 'empresa@test.com', phone: '2622555555', password: 'clave12345' });
+    const reg = await comp.post('/api/auth/register', { name: 'Empresa Test SA', email: 'empresa@test.com', phone: '2622555555', password: 'clave12345', acceptTerms: true });
     check('registro de empresa', reg.status === 201);
     const me = await comp.get('/api/me');
     check('sesión de empresa activa', me.data.user && me.data.user.role === 'company');
@@ -202,7 +202,7 @@ async function main() {
     const cvDenied = await pub.get('/api/company/cv/' + appId);
     check('sin sesión no se accede al CV', cvDenied.status === 401);
 
-    await other.post('/api/auth/register', { name: 'Otra Empresa', email: 'otra@test.com', phone: '2622666666', password: 'clave12345' });
+    await other.post('/api/auth/register', { name: 'Otra Empresa', email: 'otra@test.com', phone: '2622666666', password: 'clave12345', acceptTerms: true });
     const cvForbidden = await other.get(`/api/company/cv/${appId}`);
     check('empresa ajena no accede al CV', cvForbidden.status === 403);
 
@@ -213,14 +213,14 @@ async function main() {
     const cand = client();
     const candReg = await cand.post('/api/auth/register', {
       role: 'candidate', name: 'Sofía Herrera', email: 'sofia@test.com', phone: '2622000111',
-      password: 'clave12345', locality: 'San Carlos',
+      password: 'clave12345', acceptTerms: true, locality: 'San Carlos',
     });
     check('registro de persona', candReg.status === 201);
     const candMe = await cand.get('/api/me');
     check('sesión de persona activa', candMe.data.user && candMe.data.user.role === 'candidate');
     check('persona no puede publicar ofertas', (await cand.post('/api/company/jobs', { title: 'x' })).status === 401);
 
-    const dupCand = await pub.post('/api/auth/register', { role: 'candidate', name: 'Otra', email: 'sofia@test.com', phone: '2622000111', password: 'clave12345' });
+    const dupCand = await pub.post('/api/auth/register', { role: 'candidate', name: 'Otra', email: 'sofia@test.com', phone: '2622000111', password: 'clave12345', acceptTerms: true });
     check('email de persona duplicado rechazado', dupCand.status === 400);
 
     const tinyPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
@@ -312,7 +312,7 @@ async function main() {
     console.log('\n— Seguridad —');
     const spoof = await fetch(`${BASE}/api/auth/register`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://evil.example' },
-      body: JSON.stringify({ name: 'Evil', email: 'evil@test.com', phone: '2622777777', password: 'clave12345' }),
+      body: JSON.stringify({ name: 'Evil', email: 'evil@test.com', phone: '2622777777', password: 'clave12345', acceptTerms: true }),
     });
     check('bloquea Origin externo', spoof.status === 403);
 

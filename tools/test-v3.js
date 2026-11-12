@@ -82,9 +82,9 @@ async function main() {
     await bodega.post('/api/auth/login', { email: 'bodega@demo.workuco', password: PASS });
     await finca.post('/api/auth/login', { email: 'finca@demo.workuco', password: PASS });
     await admin.post('/api/admin/login', { email: ADMIN.email, password: ADMIN.pass });
-    const reg = await nuevo.post('/api/auth/register', { role: 'candidate', name: 'Persona Nueva', email: 'nueva@test.workuco', password: 'clave12345', phone: '2622 400400' });
+    const reg = await nuevo.post('/api/auth/register', { role: 'candidate', name: 'Persona Nueva', email: 'nueva@test.workuco', password: 'clave12345', acceptTerms: true, phone: '2622 400400' });
     const nuevoId = reg.data.candidate && reg.data.candidate.id;
-    await fresh.post('/api/auth/register', { role: 'company', name: 'Empresa Recién Creada', email: 'fresh@test.workuco', password: 'clave12345', phone: '2622 400401' });
+    await fresh.post('/api/auth/register', { role: 'company', name: 'Empresa Recién Creada', email: 'fresh@test.workuco', password: 'clave12345', acceptTerms: true, phone: '2622 400401' });
 
     /* ------------------------------------------------------------ */
     console.log('\n— Sueldo, habilidades y changas —');
@@ -295,7 +295,7 @@ async function main() {
     check('reaprobar un aviso no vuelve a avisar a las alertas', afterSecond === afterFirst, `${afterFirst} -> ${afterSecond}`);
 
     const fakeCo = client();
-    await fakeCo.post('/api/auth/register', { role: 'company', name: 'Empresa Inflada', email: 'inflada@test.workuco', password: 'clave12345', phone: '2622 400402' });
+    await fakeCo.post('/api/auth/register', { role: 'company', name: 'Empresa Inflada', email: 'inflada@test.workuco', password: 'clave12345', acceptTerms: true, phone: '2622 400402' });
     const fj = await fakeCo.post('/api/company/jobs', validJob({ title: 'Puesto para inflar' }));
     await admin.patch(`/api/admin/jobs/${fj.data.job.id}`, { status: 'approved' });
     for (let i = 0; i < 3; i++) {
