@@ -152,7 +152,8 @@
     const meta = await W.loadMeta().catch(() => ({}));
     const u = W.state.user;
     const isAdmin = u && u.role === 'admin';
-    const tel = (p.phone || p.whatsapp || '').replace(/[^\d+]/g, '');
+    /* el servidor arma el número sin el 15 (tel:+54 + 10 dígitos) */
+    const tel = (p.telUrl || '').replace(/^tel:/, '');
     const actions = [
       p.waUrl ? `<a class="btn btn-wa" href="${esc(p.waUrl)}" target="_blank" rel="noopener" data-contact="whatsapp" data-place="${esc(p.id)}">${waIcon} WhatsApp</a>` : '',
       tel ? `<a class="btn btn-outline" href="tel:${esc(tel)}" data-contact="calls" data-place="${esc(p.id)}">${W.icon('phone', 17)} Llamar</a>` : '',
