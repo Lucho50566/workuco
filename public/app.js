@@ -411,6 +411,7 @@ function setupCarousel(root) {
 /* HOME                                                               */
 /* ================================================================== */
 async function initHome() {
+  if (window.WKGuia) window.WKGuia.initHomeBand();
   const root = $('main.home');
   const meta = await loadMeta();
   const calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -2288,6 +2289,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       case 'public-profile': await initPublicProfile(); break;
       case 'claim': await initClaim(); break;
       case 'flyers': await initFlyers(); break;
+      case 'guide': await window.WKGuia.initGuia(); break;
+      case 'place': await window.WKGuia.initPlace(); break;
+      case 'claim-place': await window.WKGuia.initClaimPlace(); break;
       case 'reset': initReset(); break;
       default: break;
     }

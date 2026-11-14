@@ -446,7 +446,7 @@ const NAV_ITEMS = [
   ['/buscar', 'Buscar empleo'],
   ['/changas', 'Changas'],
   ['/flyers', 'Flyers'],
-  ['/empresas', 'Empresas'],
+  ['/guia', 'Guía'],
   ['/publicar', 'Para empresas'],
 ];
 
@@ -2191,6 +2191,24 @@ const server = http.createServer(async (req, res) => {
       const head = seo.jobMeta(j, origin, { noindex: !live }) + (live && !DEMO ? `\n  ${seo.jobPostingLd(j, origin)}` : '');
       return renderPage(res, 'oferta.html', { req, active: '/buscar', title: `${j.title} en ${j.companyName} · WorkUco`, head });
     }
+    if (url.pathname === '/guia' && req.method === 'GET') {
+      return renderPage(res, 'guia.html', { req, active: '/guia', title: 'Guía del Valle: oficios, servicios, salidas y comida · WorkUco' });
+    }
+    if (/^\/guia\/[a-z0-9-]+$/.test(url.pathname) && req.method === 'GET') {
+      const pl = store.placeBySlug(url.pathname.split('/').pop());
+      const viewer = current(req);
+      const o = ownerOf(viewer);
+      const privileged = !!(pl && ((viewer && viewer.role === 'admin') || (o && pl.ownerType === o[0] && pl.ownerId === o[1])));
+      if (!pl || (pl.status !== 'approved' && !privileged)) return notFound(req, res);
+      /* sólo van a Google las aprobadas que tienen dueño (las cargadas por el admin, recién cuando se reclaman) */
+      const indexable = pl.status === 'approved' && pl.claimed;
+      const origin = originOf(req);
+      const head = seo.placeMeta(pl, origin, { noindex: !indexable }) + (indexable && !DEMO ? `\n  ${seo.localBusinessLd(pl, origin)}` : '');
+      return renderPage(res, 'ficha.html', { req, active: '/guia', title: `${seo.placeTitle(pl)} · WorkUco`, head });
+    }
+    if (/^\/reclamar-ficha\/[a-f0-9]{48}$/.test(url.pathname) && req.method === 'GET') {
+      return renderPage(res, 'reclamar-ficha.html', { req, title: 'Tu ficha en la Guía del Valle · WorkUco', noindex: true });
+    }
     if (url.pathname === '/restablecer' && req.method === 'GET') {
       return renderPage(res, 'restablecer.html', { req, title: 'Recuperar contraseña · WorkUco', noindex: true });
     }
@@ -2215,7 +2233,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/sitemap.xml' && req.method === 'GET') {
       const today = todayAR();
-      const pages = ['/', '/buscar', '/changas', '/flyers', '/empresas', '/publicar', ...Object.keys(INFO_PAGES)]
+      const pages = ['/', '/buscar', '/changas', '/flyers', '/guia', '/empresas', '/publicar', ...Object.keys(INFO_PAGES)]
         .map((p) => ({ path: p, priority: p === '/' ? '1.0' : '0.6' }));
       /* una consulta para avisos y otra para empresas (las reclamadas con avisos vigentes); 45.000 URL entran en un solo sitemap */
       const live = "status='approved' AND (closes_at IS NULL OR closes_at='' OR closes_at>=?)";
@@ -2224,7 +2242,9 @@ const server = http.createServer(async (req, res) => {
         WHERE (c.claimed IS NULL OR c.claimed<>0) AND j.status='approved'
           AND (j.closes_at IS NULL OR j.closes_at='' OR j.closes_at>=?)`, today)
         .map((c) => ({ path: `/empresa/${c.id}`, priority: '0.5' }));
-      const out = seo.sitemapXml(originOf(req), [...pages, ...jobs.map((j) => ({ path: `/oferta/${j.id}`, lastmod: j.published_at || j.created_at, priority: '0.8' })), ...cos]);
+      const fichas = DEMO ? [] : store.all("SELECT slug, updated_at FROM places WHERE status='approved' AND owner_id IS NOT NULL ORDER BY updated_at DESC LIMIT 20000")
+        .map((x) => ({ path: `/guia/${x.slug}`, lastmod: x.updated_at, priority: '0.7' }));
+      const out = seo.sitemapXml(originOf(req), [...pages, ...jobs.map((j) => ({ path: `/oferta/${j.id}`, lastmod: j.published_at || j.created_at, priority: '0.8' })), ...cos, ...fichas]);
       res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': PUBLIC_URL ? 'public, max-age=3600' : 'no-store' });
       return res.end(out);
     }

@@ -167,6 +167,34 @@ async function main() {
     const otra = await admin.post('/api/admin/places', ficha({ name: 'Gomería Tito', section: 'servicios', category: 'Gomería', whatsapp: '2622 111222' }));
     check('no se puede volver a cargar: 409', otra.status === 409);
 
+    console.log('— Páginas, menú y Google —');
+    const html = (p) => pub.get(p, { headers: { Accept: 'text/html' } });
+    const meta = (h, prop) => { const m = new RegExp(`<meta (?:property|name)="${prop}" content="([^"]*)">`).exec(h); return m ? m[1] : null; };
+    const ldOf = (h) => { const m = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(h); return m ? JSON.parse(m[1]) : null; };
+    const g = await html('/guia');
+    const nav = (/<nav class="main-nav"[\s\S]*?<\/nav>/.exec(g.text) || [''])[0];
+    check('/guia responde', g.status === 200 && /data-page="guide"/.test(g.text));
+    check('el menú tiene Guía y no Empresas', nav.includes('href="/guia"') && !nav.includes('href="/empresas"'));
+    check('el pie sigue teniendo Empresas', /<footer[\s\S]*href="\/empresas"/.test(g.text));
+    const pizza = await nuevo.post('/api/my/places', { ...ficha({ name: 'Pizzería del Lavadero', section: 'comida', category: 'Pizzería' }), photos: [PNG] });
+    await admin.patch(`/api/admin/places/${pizza.data.place.id}`, { status: 'approved' });
+    const fp = await html(`/guia/${pizza.data.place.slug}`);
+    check('la ficha tiene su título', /<title>Pizzería del Lavadero · Pizzería en Tunuyán · WorkUco<\/title>/.test(fp.text));
+    check('og:image es la foto, absoluta', /^https:\/\/workuco\.com\.ar\/media\/place-[^"]+\.png$/.test(meta(fp.text, 'og:image') || ''), meta(fp.text, 'og:image'));
+    check('en modo demo la ficha no va a Google', /noindex/.test(fp.text) && !ldOf(fp.text));
+    const juan = await html(`/guia/${conAuto.data.place.slug}`);
+    check('la cargada por el admin se ve igual', juan.status === 200 && /Electricista Juan/.test(juan.text));
+    const smap = (await pub.get('/sitemap.xml')).text;
+    check('en modo demo el mapa del sitio no lista fichas', !smap.includes('/guia/'));
+    check('el mapa del sitio lista /guia', smap.includes('https://workuco.com.ar/guia<'));
+    check('una ficha que no existe da 404', (await html('/guia/no-existe-esta')).status === 404);
+    const xss = await nuevo.post('/api/my/places', ficha({ name: '<img src=x onerror=alert(1)>', section: 'comida', category: 'Café' }));
+    await admin.patch(`/api/admin/places/${xss.data.place.id}`, { status: 'approved' });
+    const xp = await html(`/guia/${xss.data.place.slug}`);
+    check('un nombre con HTML no rompe la página', xp.status === 200 && !xp.text.includes('<img src=x onerror') && xp.text.includes('&lt;img src=x onerror'));
+    check('/reclamar-ficha responde y es noindex', /noindex/.test((await html(`/reclamar-ficha/${'b'.repeat(48)}`)).text));
+    check('la portada tiene la banda de la guía', /id="guia-band"/.test((await html('/')).text));
+
     console.log('— Dueño borra su ficha —');
     check('otro no puede borrarla', (await emp.del(`/api/my/places/${id}`)).status === 404);
     check('el dueño sí', (await tito.del(`/api/my/places/${id}`)).status === 200 && (await pub.get(`/api/places/${slug}`)).status === 404);

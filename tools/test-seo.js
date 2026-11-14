@@ -98,6 +98,22 @@ async function main() {
     check('la descripción incluye tareas y requisitos', ld && /Fraccionar vino/.test(ld.description) && /Secundario completo/.test(ld.description));
     check('el JSON no puede cerrar la etiqueta <script>', !/<\/script>[\s\S]*Bodega <Prueba>/.test(page.text) && page.text.includes('\\u003cPrueba\\u003e'));
 
+    console.log('— Guía del Valle: vista previa y Google —');
+    const fichaBase = { section: 'comida', category: 'Pizzería', localities: ['Tunuyán'], address: 'San Martín 100', description: 'Pizzas a la piedra y empanadas todos los días.', whatsapp: '2622 555123', hours: { mode: '24h' } };
+    const pz = await emp.post('/api/my/places', { ...fichaBase, name: 'Pizzería de la Bodega', photos: [PNG] });
+    await admin.patch(`/api/admin/places/${pz.data.place.id}`, { status: 'approved' });
+    const fp = await pub.get(`/guia/${pz.data.place.slug}`);
+    check('la ficha tiene su título', /<title>Pizzería de la Bodega · Pizzería en Tunuyán · WorkUco<\/title>/.test(fp.text));
+    check('og:image es la foto, absoluta', /^https:\/\/workuco\.com\.ar\/media\/place-[^"]+\.png$/.test(meta(fp.text, 'og:image') || ''), meta(fp.text, 'og:image'));
+    const lb = ldOf(fp.text);
+    check('datos para Google: Restaurant con dirección, teléfono y horario', lb && lb['@type'] === 'Restaurant' && lb.address.streetAddress === 'San Martín 100' && lb.address.addressLocality === 'Tunuyán' && lb.telephone === '+542622555123' && lb.openingHoursSpecification.length === 1);
+    check('la ficha con dueño no es noindex', !/noindex/.test(fp.text));
+    const cargada = await admin.post('/api/admin/places', { ...fichaBase, name: 'Lavadero del Centro', section: 'servicios', category: 'Lavadero', whatsapp: '2622 999000' });
+    const fc = await pub.get(`/guia/${cargada.data.place.slug}`);
+    check('cargada por el admin sin reclamar: noindex y sin datos para Google', /noindex/.test(fc.text) && !ldOf(fc.text));
+    const smg = (await pub.get('/sitemap.xml')).text;
+    check('el mapa del sitio lista la ficha con dueño y no la sin reclamar', smg.includes(`/guia/${pz.data.place.slug}<`) && !smg.includes(`/guia/${cargada.data.place.slug}<`) && smg.includes('https://workuco.com.ar/guia<'));
+
     console.log('— Mapa del sitio —');
     const sm = await pub.get('/sitemap.xml');
     check('es XML', /xml/.test(sm.type) && sm.text.startsWith('<?xml'));

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{TITLE}}</title>
+  <meta name="description" content="Oficios, servicios, salidas y comida de San Carlos, Tunuyán y Tupungato: mirá quién está abierto ahora y escribile por WhatsApp.">
+  <meta name="theme-color" content="#0b1612">
+  <link rel="icon" href="/favicon.png" type="image/png" sizes="64x64">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body data-page="guide">
+{{NAV}}
+<main>
+  <section class="guia-hero">
+    <div class="container">
+      <p class="eyebrow">Guía del Valle</p>
+      <h1>Todo lo que necesitás, <span class="lime">cerca.</span></h1>
+      <p class="guia-lead">Oficios, servicios, salidas y comida de San Carlos, Tunuyán y Tupungato. Mirá quién está abierto y escribile por WhatsApp.</p>
+      <form class="guia-search" id="guia-search" role="search">
+        <div class="guia-search-q">
+          <span class="field-ico" aria-hidden="true">{{ICON_SEARCH}}</span>
+          <label for="guia-q" class="sr-only">Qué buscás</label>
+          <input class="input" id="guia-q" type="search" placeholder="Gasista, pizzería, lavadero…" autocomplete="off">
+        </div>
+        <label for="guia-place" class="sr-only">Dónde</label>
+        <select class="input" id="guia-place">
+          <option value="">Todo el Valle</option>
+          <option value="San Carlos">San Carlos</option>
+          <option value="Tunuyán">Tunuyán</option>
+          <option value="Tupungato">Tupungato</option>
+        </select>
+        <button class="btn btn-lime" type="submit">Buscar</button>
+      </form>
+      <div class="guia-tabs" id="guia-tabs" role="tablist" aria-label="Secciones de la guía"></div>
+    </div>
+  </section>
+
+  <section class="container guia-body">
+    <div class="guia-filters">
+      <div class="filter-chips" id="guia-cats" hidden></div>
+      <label class="check-row guia-open"><input type="checkbox" id="guia-open"><span>Abierto ahora</span></label>
+    </div>
+    <p class="results-count" id="guia-count" aria-live="polite"></p>
+    <div class="place-grid" id="guia-list"></div>
+    <div class="load-more" id="guia-more-wrap" hidden><button class="btn btn-outline" type="button" id="guia-more">Ver más</button></div>
+    <aside class="guia-cta">
+      <div>
+        <h2>¿Tenés un oficio o un comercio?</h2>
+        <p>Sumá tu ficha gratis: fotos, horario, WhatsApp y cuánta gente te contacta cada semana.</p>
+      </div>
+      <a class="btn btn-lime" href="/mi-perfil?tab=servicios">Sumar mi ficha</a>
+    </aside>
+  </section>
+</main>
+{{FOOTER}}
+<script src="/app.js"></script>
+<script src="/guia.js"></script>
+</body>
+</html>

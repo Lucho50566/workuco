@@ -790,3 +790,150 @@ html { scrollbar-color: #b9ad94 var(--cream); }
 .seg-opt input:focus-visible + span { outline: 2px solid var(--green); outline-offset: 2px; }
 .account-mail { margin-top: 12px; }
 .pass-form { margin-top: 14px; padding: 14px; border-radius: 14px; background: var(--surface-2); }
+
+/* =====================================================================
+   GUÍA DEL VALLE
+   ===================================================================== */
+.btn-wa { background: #1f9d55; color: #fff; border-color: #1f9d55; }
+.btn-wa:hover { background: #188546; border-color: #188546; color: #fff; }
+.breadcrumbs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13.5px; color: var(--muted); margin: 18px 0 14px; }
+.breadcrumbs a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+
+/* encabezado de /guia */
+.guia-hero { background: radial-gradient(120% 120% at 10% 0%, var(--night-3), var(--night) 60%); color: #fff; padding: 46px 0 0; }
+.guia-hero .eyebrow { color: var(--lime); background: rgba(200, 245, 96, .12); }
+.guia-hero h1 { font-size: clamp(34px, 7vw, 56px); line-height: 1; letter-spacing: -.035em; margin: 10px 0 12px; color: #fff; text-wrap: balance; }
+.guia-lead { color: var(--night-muted); font-size: 17px; max-width: 620px; }
+.guia-search { display: grid; grid-template-columns: 1fr 190px auto; gap: 8px; margin-top: 22px; max-width: 760px; }
+.guia-search-q { position: relative; }
+.guia-search-q .field-ico { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); display: flex; }
+.guia-search-q .input { padding-left: 42px; }
+.guia-search .input { height: 50px; }
+.guia-tabs { display: flex; gap: 6px; margin-top: 26px; overflow-x: auto; scrollbar-width: none; }
+.guia-tabs::-webkit-scrollbar { display: none; }
+.guia-tab {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 8px; padding: 12px 16px 14px; border: 0;
+  border-radius: 14px 14px 0 0; background: rgba(255, 255, 255, .06); color: #dbe6df; font-weight: 700; font-size: 15px;
+  transition: background .2s, color .2s;
+}
+.guia-tab:hover { background: rgba(255, 255, 255, .12); }
+.guia-tab.is-active { background: var(--cream); color: var(--night); }
+.guia-tab.is-active .icon { color: var(--green); }
+.guia-body { padding-top: 22px; padding-bottom: 60px; }
+.guia-filters { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.guia-open { font-weight: 650; }
+
+/* tarjeta de ficha */
+.place-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+.place-card {
+  position: relative; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 16px; background: var(--surface);
+  overflow: hidden; transition: transform .35s var(--ease-out), box-shadow .35s var(--ease-out), border-color .2s;
+}
+@media (hover: hover) and (pointer: fine) {
+  .place-card:hover { transform: translateY(-4px); border-color: var(--line-strong); box-shadow: 0 18px 40px -18px rgba(15, 26, 21, .35); }
+}
+.place-cover { position: relative; display: block; height: 150px; background: var(--night); }
+.place-cover .flyer-frame, .place-cover .place-ph { height: 100%; border-radius: 0; }
+.place-feat { position: absolute; top: 10px; left: 10px; }
+.place-body { padding: 14px 16px 10px; display: grid; gap: 4px; flex: 1; }
+.place-cat { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--green-dark); }
+.place-name { font: 700 18px/1.2 var(--font-display); letter-spacing: -.02em; color: var(--ink); overflow-wrap: anywhere; }
+.place-name a { color: inherit; }
+.place-name a::after { content: ""; position: absolute; inset: 0; z-index: 0; }
+.place-loc { color: var(--muted); font-size: 13.5px; }
+.place-open { font-size: 13px; font-weight: 650; display: inline-flex; align-items: center; gap: 6px; }
+.place-open::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.place-open.is-open { color: #1f8a4c; }
+.place-open.is-closed { color: var(--muted); }
+.place-open.is-turno { color: var(--amber); }
+.place-wa { position: relative; z-index: 1; margin: 4px 16px 16px; align-self: flex-start; }
+
+/* sin foto: inicial sobre la cordillera, con el color de la sección */
+.place-ph { position: relative; display: grid; place-items: center; overflow: hidden; background: linear-gradient(160deg, var(--night-3), var(--night)); }
+.place-ph.is-oficios { background: linear-gradient(160deg, #1d4d3c, #0b1612); }
+.place-ph.is-servicios { background: linear-gradient(160deg, #23384a, #0b1612); }
+.place-ph.is-salidas { background: linear-gradient(160deg, var(--malbec), #1a0b13); }
+.place-ph.is-comida { background: linear-gradient(160deg, #5c4a12, #14110a); }
+.place-ph-letter { position: relative; z-index: 1; font: 800 64px/1 var(--font-display); color: rgba(255, 255, 255, .9); letter-spacing: -.04em; }
+.place-ph-ridge { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 60%; }
+
+.guia-empty { grid-column: 1 / -1; }
+.guia-cta {
+  margin-top: 40px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between;
+  padding: 26px 28px; border-radius: 20px; background: var(--night); color: #fff;
+}
+.guia-cta h2 { color: #fff; font-size: 24px; letter-spacing: -.02em; }
+.guia-cta p { color: var(--night-muted); margin-top: 4px; }
+
+/* banda de la portada */
+.guia-band { background: var(--cream-2); }
+.guia-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
+.guia-tile {
+  display: grid; gap: 4px; padding: 18px; border-radius: 16px; color: #fff; min-height: 120px; align-content: end;
+  transition: transform .3s var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) { .guia-tile:hover { transform: translateY(-3px); } }
+.guia-tile .icon { color: var(--lime); margin-bottom: auto; }
+.guia-tile strong { font: 800 20px/1.1 var(--font-display); letter-spacing: -.02em; }
+.guia-tile small { color: rgba(255, 255, 255, .72); font-size: 12.5px; }
+.guia-tile.is-oficios { background: linear-gradient(160deg, #1d4d3c, var(--night)); }
+.guia-tile.is-servicios { background: linear-gradient(160deg, #23384a, var(--night)); }
+.guia-tile.is-salidas { background: linear-gradient(160deg, var(--malbec), #1a0b13); }
+.guia-tile.is-comida { background: linear-gradient(160deg, #5c4a12, #14110a); }
+.guia-home-empty { color: var(--muted); }
+
+/* ficha */
+.ficha { padding-bottom: 90px; }
+.ficha-owner, .ficha-claim { display: flex; gap: 10px; align-items: flex-start; padding: 12px 16px; border-radius: 14px; margin-bottom: 14px; font-size: 14.5px; }
+.ficha-owner { background: var(--green-soft); color: var(--green-dark); }
+.ficha-claim { background: var(--amber-soft); color: #6b4506; margin-top: 18px; }
+.ficha-claim .icon { flex: 0 0 auto; margin-top: 2px; }
+.ficha-claim p, .ficha-owner { min-width: 0; overflow-wrap: anywhere; }
+.ficha-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+.ficha-media { position: relative; }
+.ficha-rail .flyer-frame, .ficha-ph .place-ph { height: clamp(260px, 42vw, 420px); border-radius: 18px; }
+.ficha-ph .place-ph-letter { font-size: 110px; }
+.ficha-info { display: grid; gap: 10px; align-content: start; }
+.ficha-info .badge { justify-self: start; }
+.ficha-name { font-size: clamp(30px, 5vw, 44px); line-height: 1.02; letter-spacing: -.03em; text-wrap: balance; overflow-wrap: anywhere; }
+.ficha-loc { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; color: var(--muted); }
+.ficha-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.ficha-links { font-size: 14.5px; }
+.ficha-cols { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 28px; margin-top: 30px; }
+.ficha-block h2 { font-size: 20px; margin-bottom: 10px; }
+.ficha-block .prose { white-space: pre-line; overflow-wrap: anywhere; }
+.hours-table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+.hours-table th, .hours-table td { padding: 8px 4px; border-bottom: 1px solid var(--line); text-align: left; font-variant-numeric: tabular-nums; }
+.hours-table th { font-weight: 600; color: var(--muted); width: 45%; }
+.hours-table tr.is-today th, .hours-table tr.is-today td { color: var(--ink); font-weight: 700; }
+.hours-table small { color: var(--green); font-weight: 700; }
+.hours-mode { font-weight: 600; }
+.ficha-sticky { display: none; }
+
+/* reclamar ficha */
+.claim-place { padding-top: 28px; padding-bottom: 60px; }
+.claim-place-head h1 { font-size: clamp(28px, 5vw, 40px); letter-spacing: -.03em; margin: 8px 0; }
+.claim-place-head .sub { max-width: 640px; color: var(--muted); }
+.claim-place-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 24px; margin-top: 22px; align-items: start; }
+.claim-place-actions h2 { font-size: 20px; margin-bottom: 8px; }
+.claim-sep { border: 0; border-top: 1px solid var(--line); margin: 20px 0; }
+
+@media (max-width: 860px) {
+  .ficha-grid, .ficha-cols, .claim-place-grid { grid-template-columns: 1fr; }
+  .guia-tiles { grid-template-columns: repeat(2, 1fr); }
+  .ficha-actions .btn-wa { display: none; }
+  .ficha-sticky {
+    display: flex; gap: 8px; position: fixed; z-index: 30; left: 0; right: 0; bottom: 0;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: rgba(255, 253, 248, .96); border-top: 1px solid var(--line);
+    backdrop-filter: blur(10px);
+  }
+  .ficha-sticky .btn { flex: 1; justify-content: center; }
+}
+@media (max-width: 600px) {
+  .guia-search { grid-template-columns: 1fr; }
+  .guia-hero { padding-top: 32px; }
+  .guia-cta { padding: 22px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .place-card, .guia-tile, .guia-tab { transition: none; }
+}
