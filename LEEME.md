@@ -239,6 +239,20 @@ Admin: `POST /api/admin/login`, `GET /api/admin/stats|jobs|applications|companie
   Las fichas sin reclamar no pueden iniciar sesión.
 - `/media/` sólo entrega imágenes (jpg, png, webp): los CV en PDF se bajan únicamente por `/api/cv/...` con permiso.
 
+## Vistas previas y Google
+
+- Cada aviso (`/oferta/:id`) sale del servidor con su título, descripción y **flyer** en etiquetas Open Graph:
+  al compartirlo por WhatsApp o Facebook se ve la tarjeta con el puesto, la empresa, el lugar y el sueldo.
+  Sin flyer usa una foto de la empresa o la imagen general `public/og-default.png` (se genera con `tools/make-logo.mjs`).
+- Los avisos aprobados y vigentes llevan datos **JobPosting** para Google for Jobs (puesto, empresa, lugar,
+  tipo de empleo, sueldo en ARS, vencimiento; sin fecha de cierre, 60 días desde la publicación).
+- `/sitemap.xml` lista páginas públicas, avisos vigentes y empresas; `/robots.txt` lo anuncia y bloquea
+  paneles y API. Cargalo en Google Search Console cuando tengas el dominio.
+- **Modo demo (`WORKUCO_DEMO=1`): nada se indexa** (robots bloquea todo, sin JobPosting), para que los
+  avisos ficticios no lleguen a Google. Configurá `PUBLIC_URL` con el dominio para que los links sean absolutos.
+- No se indexan: avisos sin aprobar o cerrados, fichas importadas sin reclamar, perfiles públicos, CV y paneles.
+- Página 404 propia para lo que no existe.
+
 ## Cumplimiento legal (Argentina)
 
 Lo que ya hace el sitio:

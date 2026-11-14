@@ -22,6 +22,8 @@ const demo = require('./lib/demo');
 const ai = require('./lib/ai');
 const { extractCv } = require('./lib/cvtext');
 const legal = require('./lib/legal');
+const seo = require('./lib/seo');
+const DEMO = process.env.WORKUCO_DEMO === '1';
 
 const ROOT = __dirname;
 const WEB = path.join(ROOT, 'public');
@@ -492,18 +494,47 @@ function legalIdentity() {
   return parts.filter(Boolean).join(' · ');
 }
 
-function renderPage(res, file, { active = '', title = 'WorkUco' } = {}) {
+/* Página no encontrada: a quien navega le mostramos una página amable; a archivos e imágenes, texto plano. */
+function notFound(req, res) {
+  const p = new URL(req.url || '/', 'http://x').pathname;
+  const wantsPage = req.method === 'GET' && (!path.extname(p) || /\.html?$/i.test(p)) && /text\/html|\*\/\*/.test(req.headers.accept || '*/*');
+  if (!wantsPage) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('No encontrado'); }
+  return renderPage(res, '404.html', { req, title: 'Página no encontrada · WorkUco', status: 404, noindex: true });
+}
+
+/* Origen público (https://dominio) para links absolutos en vistas previas y en el mapa del sitio. */
+/* En producción se usa PUBLIC_URL (confiable). Sin ella, el Host del pedido se limpia: sólo letras,
+   números, puntos, guiones y puerto, para que nadie pueda meter un dominio raro en los links. */
+function originOf(req) {
+  if (PUBLIC_URL) return PUBLIC_URL;
+  const proto = /https/i.test(String((req && req.headers['x-forwarded-proto']) || '')) ? 'https' : 'http';
+  const host = String((req && req.headers.host) || '').toLowerCase();
+  return `${proto}://${/^[a-z0-9.-]+(:\d{1,5})?$/.test(host) ? host : 'localhost'}`;
+}
+
+/* head: etiquetas propias de la página (aviso, empresa); si no hay, se arman las generales.
+   En modo demo nada se indexa: los avisos ficticios no tienen que aparecer en Google. */
+function renderPage(res, file, { active = '', title = 'WorkUco', req = null, head = '', status = 200, noindex = false } = {}) {
   fs.readFile(path.join(WEB, file), 'utf8', (err, html) => {
     if (err) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('No encontrado'); }
+    const hidden = noindex || DEMO || /<meta name="robots" content="noindex">/.test(html);
+    if (!head && req) {
+      const own = /<meta name="description" content="([^"]*)">/.exec(html);
+      head = seo.pageMeta({ origin: originOf(req), path: new URL(req.url || '/', 'http://x').pathname, title, description: own ? own[1] : undefined, noindex: hidden });
+    } else if (head && hidden && !/name="robots"/.test(head)) head += '\n  <meta name="robots" content="noindex">';
+    if (head) {
+      html = html.replace(/\s*<meta name="description" content="[^"]*">/, '').replace(/\s*<meta name="robots" content="noindex">/, '');
+      html = html.replace('</head>', () => `  ${head}\n</head>`);
+    }
     const out = html
-      .replace('{{TITLE}}', title)
+      .replace('{{TITLE}}', () => seo.escAttr(title))
       .replace('{{NAV}}', navHtml(active))
       .replace('{{FOOTER}}', footerHtml())
       .replace(/{{BRAND_MARK}}/g, brandMark())
       .replace('<link rel="stylesheet" href="/styles.css">', HEAD_EXTRA)
       .replace(/<meta name="theme-color" content="[^"]*">/, '<meta name="theme-color" content="#0b1612">')
       .replace(/\{\{ICON_([A-Z]+)\}\}/g, (_, name) => pageIcon(name));
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
     res.end(out);
   });
 }
@@ -1742,56 +1773,80 @@ const server = http.createServer(async (req, res) => {
 
     /* páginas */
     if (url.pathname === '/' && req.method === 'GET') {
-      return renderPage(res, 'index.html', { active: '/', title: 'WorkUco · Empleos en el Valle de Uco' });
+      return renderPage(res, 'index.html', { req, active: '/', title: 'WorkUco · Empleos en el Valle de Uco' });
     }
     if (url.pathname === '/buscar' && req.method === 'GET') {
-      return renderPage(res, 'buscar.html', { active: '/buscar', title: 'Buscar empleo · WorkUco' });
+      return renderPage(res, 'buscar.html', { req, active: '/buscar', title: 'Buscar empleo · WorkUco' });
     }
     if (/^\/reclamar\/[A-Za-z0-9]+$/.test(url.pathname) && req.method === 'GET') {
-      return renderPage(res, 'reclamar.html', { title: 'Tu empresa en WorkUco' });
+      return renderPage(res, 'reclamar.html', { req, title: 'Tu empresa en WorkUco' });
     }
     if (url.pathname === '/flyers' && req.method === 'GET') {
-      return renderPage(res, 'flyers.html', { active: '/flyers', title: 'Modo flyers · WorkUco' });
+      return renderPage(res, 'flyers.html', { req, active: '/flyers', title: 'Modo flyers · WorkUco' });
     }
     if (url.pathname === '/changas' && req.method === 'GET') {
-      return renderPage(res, 'changas.html', { active: '/changas', title: 'Changas y trabajos por temporada · WorkUco' });
+      return renderPage(res, 'changas.html', { req, active: '/changas', title: 'Changas y trabajos por temporada · WorkUco' });
     }
     if (/^\/cv\/[a-z0-9]+$/.test(url.pathname) && req.method === 'GET') {
-      return renderPage(res, 'cv.html', { title: 'CV · WorkUco' });
+      return renderPage(res, 'cv.html', { req, title: 'CV · WorkUco' });
     }
     if (/^\/p\/[a-z0-9-]+$/.test(url.pathname) && req.method === 'GET') {
-      return renderPage(res, 'perfil-publico.html', { title: 'Perfil · WorkUco' });
+      return renderPage(res, 'perfil-publico.html', { req, title: 'Perfil · WorkUco' });
     }
     if (url.pathname === '/empresas' && req.method === 'GET') {
-      return renderPage(res, 'empresas.html', { active: '/empresas', title: 'Empresas del Valle de Uco · WorkUco' });
+      return renderPage(res, 'empresas.html', { req, active: '/empresas', title: 'Empresas del Valle de Uco · WorkUco' });
     }
     if (/^\/empresa\/[a-z0-9]+$/.test(url.pathname) && req.method === 'GET') {
-      return renderPage(res, 'empresa.html', { active: '/empresas', title: 'Empresa · WorkUco' });
+      const c = store.company(url.pathname.split('/').pop());
+      if (!c) return notFound(req, res);
+      /* las fichas importadas sin reclamar se ven, pero no se indexan */
+      return renderPage(res, 'empresa.html', { req, active: '/empresas', title: `${c.name} · WorkUco`, head: seo.companyMeta(publicCompany(c), originOf(req)), noindex: c.claimed === 0 });
     }
     if (url.pathname === '/publicar' && req.method === 'GET') {
-      return renderPage(res, 'publicar.html', { active: '/publicar', title: 'Publicar empleo · WorkUco' });
+      return renderPage(res, 'publicar.html', { req, active: '/publicar', title: 'Publicar empleo · WorkUco' });
     }
     if (/^\/oferta\/[a-z0-9]+$/.test(url.pathname) && req.method === 'GET') {
-      return renderPage(res, 'oferta.html', { active: '/buscar', title: 'Oferta laboral · WorkUco' });
+      const j = store.job(url.pathname.split('/').pop());
+      if (!j) return notFound(req, res);
+      /* sin aprobar (lo ve su empresa o el admin) o cerrado: se muestra, pero no va a Google */
+      const live = j.status === 'approved' && !(j.closesAt && j.closesAt < todayAR());
+      const origin = originOf(req);
+      const head = seo.jobMeta(j, origin, { noindex: !live }) + (live && !DEMO ? `\n  ${seo.jobPostingLd(j, origin)}` : '');
+      return renderPage(res, 'oferta.html', { req, active: '/buscar', title: `${j.title} en ${j.companyName} · WorkUco`, head });
     }
     if (url.pathname === '/acceder' && req.method === 'GET') {
-      return renderPage(res, 'acceso.html', { title: 'Acceder · WorkUco' });
+      return renderPage(res, 'acceso.html', { req, title: 'Acceder · WorkUco' });
     }
     if (url.pathname === '/panel' && req.method === 'GET') {
-      return renderPage(res, 'panel.html', { title: 'Panel de empresa · WorkUco' });
+      return renderPage(res, 'panel.html', { req, title: 'Panel de empresa · WorkUco' });
     }
     if (url.pathname === '/mi-perfil' && req.method === 'GET') {
-      return renderPage(res, 'mi-perfil.html', { title: 'Mi perfil · WorkUco' });
+      return renderPage(res, 'mi-perfil.html', { req, title: 'Mi perfil · WorkUco' });
     }
     if (url.pathname === '/admin' && req.method === 'GET') {
-      return renderPage(res, 'admin.html', { title: 'Administración · WorkUco' });
+      return renderPage(res, 'admin.html', { req, title: 'Administración · WorkUco' });
     }
     if (INFO_PAGES[url.pathname] && req.method === 'GET') {
-      return renderPage(res, 'info.html', { title: `${INFO_PAGES[url.pathname]} · WorkUco` });
+      return renderPage(res, 'info.html', { req, title: `${INFO_PAGES[url.pathname]} · WorkUco` });
     }
     if (url.pathname === '/robots.txt') {
-      res.writeHead(200, { 'Content-Type': 'text/plain' });
-      return res.end('User-agent: *\nAllow: /\n');
+      res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+      return res.end(seo.robotsTxt(originOf(req), { demo: DEMO }));
+    }
+    if (url.pathname === '/sitemap.xml' && req.method === 'GET') {
+      const today = todayAR();
+      const pages = ['/', '/buscar', '/changas', '/flyers', '/empresas', '/publicar', ...Object.keys(INFO_PAGES)]
+        .map((p) => ({ path: p, priority: p === '/' ? '1.0' : '0.6' }));
+      /* una consulta para avisos y otra para empresas (las reclamadas con avisos vigentes); 45.000 URL entran en un solo sitemap */
+      const live = "status='approved' AND (closes_at IS NULL OR closes_at='' OR closes_at>=?)";
+      const jobs = DEMO ? [] : store.all(`SELECT id, published_at, created_at FROM jobs WHERE ${live} ORDER BY published_at DESC LIMIT 45000`, today);
+      const cos = DEMO ? [] : store.all(`SELECT DISTINCT c.id FROM companies c JOIN jobs j ON j.company_id=c.id
+        WHERE (c.claimed IS NULL OR c.claimed<>0) AND j.status='approved'
+          AND (j.closes_at IS NULL OR j.closes_at='' OR j.closes_at>=?)`, today)
+        .map((c) => ({ path: `/empresa/${c.id}`, priority: '0.5' }));
+      const out = seo.sitemapXml(originOf(req), [...pages, ...jobs.map((j) => ({ path: `/oferta/${j.id}`, lastmod: j.published_at || j.created_at, priority: '0.8' })), ...cos]);
+      res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': PUBLIC_URL ? 'public, max-age=3600' : 'no-store' });
+      return res.end(out);
     }
 
     /* estáticos */
@@ -1799,7 +1854,7 @@ const server = http.createServer(async (req, res) => {
     const file = path.join(WEB, safe);
     if (!file.startsWith(WEB)) { res.writeHead(403); return res.end('Prohibido'); }
     fs.stat(file, (err, st) => {
-      if (err || !st.isFile()) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('No encontrado'); }
+      if (err || !st.isFile()) return notFound(req, res);
       const ext = path.extname(file).toLowerCase();
       res.writeHead(200, {
         'Content-Type': MIME[ext] || 'application/octet-stream',
@@ -1829,6 +1884,7 @@ server.listen(PORT, HOST, () => {
   console.log(`WorkUco en http://localhost:${PORT}`);
   console.log(`Base de datos: ${DB_FILE}`);
   if (PUBLIC_URL) console.log(`URL pública: ${PUBLIC_URL}`);
+  else if (!DEMO) console.warn('Aviso: falta PUBLIC_URL (p. ej. https://workuco.com.ar). Los links de vistas previas y del mapa del sitio usan el dominio del pedido.');
 });
 
 module.exports = { server, store };

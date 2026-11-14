@@ -764,3 +764,15 @@ html { scrollbar-color: #b9ad94 var(--cream); }
 .brand-name b, .auth-logo b { font-weight: inherit; }
 .brand-name b { color: var(--lime); }
 .auth-logo b { color: var(--green); }
+
+/* =====================================================================
+   404
+   ===================================================================== */
+.nf { position: relative; overflow: hidden; background: var(--night); color: #fff; min-height: 70vh; display: grid; align-items: center; }
+.nf-inner { position: relative; z-index: 1; padding-top: 64px; padding-bottom: 150px; max-width: 760px; }
+.nf-ridge { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 140px; z-index: -1; }
+.nf-code { font: 800 clamp(72px, 18vw, 140px)/.9 var(--font-display); letter-spacing: -.05em; color: var(--lime); }
+.nf h1 { font-size: clamp(28px, 6vw, 44px); line-height: 1.05; letter-spacing: -.03em; margin: 12px 0; text-wrap: balance; color: #fff; }
+.nf-text { color: var(--night-muted); font-size: 17px; max-width: 540px; }
+.nf-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+.nf-ghost { color: #fff; border-color: rgba(255, 255, 255, .3); background: transparent; }
