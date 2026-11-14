@@ -23,6 +23,7 @@ const ai = require('./lib/ai');
 const { extractCv } = require('./lib/cvtext');
 const legal = require('./lib/legal');
 const seo = require('./lib/seo');
+const placesLib = require('./lib/places');
 const { createMailer, emailHtml, emailText } = require('./lib/mail');
 const DEMO = process.env.WORKUCO_DEMO === '1';
 
@@ -663,6 +664,260 @@ async function analyzeAndSave(applicationId, companyId) {
 }
 
 /* ------------------------------------------------------------------ */
+/* GUÍA DEL VALLE: fichas de oficios, servicios, salidas y comida       */
+/* ------------------------------------------------------------------ */
+const MAX_PLACES = 5;
+const MAX_PLACE_PHOTOS = 6;
+const placeOrigin = (req) => PUBLIC_URL || originOf(req);
+const mapsUrl = (p) => (p.address
+  ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${p.address}, ${p.localities[0] || ''}, Mendoza`)}`
+  : '');
+/* Lo que ve cualquiera en la lista */
+function placeSummary(p) {
+  return {
+    id: p.id, slug: p.slug, name: p.name, section: p.section, category: p.category, localities: p.localities,
+    cover: p.photos[0] || null, featured: p.featured, claimed: p.claimed, homeService: p.homeService,
+    status: p.status, open: placesLib.openStatus(p.hours), waUrl: placesLib.waLink(p.whatsapp),
+  };
+}
+/* El detalle; el dueño y el admin ven además estado de moderación y estadísticas */
+function placeDetail(p, { owner = false } = {}) {
+  const out = {
+    ...placeSummary(p), description: p.description, address: p.address, whatsapp: p.whatsapp, phone: p.phone,
+    instagram: p.instagram, website: p.website, hours: p.hours, photos: p.photos, mapsUrl: mapsUrl(p),
+    imported: p.imported, updatedAt: p.updatedAt,
+  };
+  if (owner) {
+    Object.assign(out, {
+      rejectReason: p.rejectReason, featuredUntil: p.featuredUntil,
+      ownerType: p.ownerType, consentBy: p.consentBy, consentAt: p.consentAt, stats: store.placeStats(p.id),
+    });
+  }
+  return out;
+}
+function claimPlaceLinks(req, p) {
+  if (!p.claimToken) return {};
+  const claimUrl = `${placeOrigin(req)}/reclamar-ficha/${p.claimToken}`;
+  const msg = `Hola, ¿cómo están? Les escribo de WorkUco, el portal del Valle de Uco. Armamos una ficha de "${p.name}" en la Guía del Valle con los datos que tienen publicados, para que más gente los encuentre. Pueden reclamarla gratis para editarla y ver cuánta gente los contacta, o pedir que la borremos con un toque: ${claimUrl}. ¡Gracias!`;
+  const n = normPhone(p.whatsapp || p.phone);
+  return { claimUrl, waUrl: n ? `https://wa.me/549${n}?text=${encodeURIComponent(msg)}` : '' };
+}
+/* Fotos: las que se conservan (URLs propias de la ficha) + las nuevas (data URL) */
+function placePhotos(cur, b) {
+  const own = new Map(((cur && cur.photoFiles) || []).map((f) => [`/media/${f}`, f]));
+  const keep = Array.isArray(b.keepPhotos) ? b.keepPhotos.map((u) => own.get(u)).filter(Boolean) : ((cur && cur.photoFiles) || []);
+  const added = Array.isArray(b.photos) ? b.photos.filter(Boolean) : [];
+  if (keep.length + added.length > MAX_PLACE_PHOTOS) {
+    const e = new Error(`Podés subir hasta ${MAX_PLACE_PHOTOS} fotos`); e.status = 400; e.fields = { photos: `Hasta ${MAX_PLACE_PHOTOS} fotos` }; throw e;
+  }
+  return { files: [...new Set(keep), ...added.map((f) => saveImage(f, 'place'))], dropped: ((cur && cur.photoFiles) || []).filter((f) => !keep.includes(f)) };
+}
+function notifyPlaceOwner(p, title, body = '') {
+  if (p && p.ownerType && p.ownerId) {
+    tryNotify(p.ownerType, p.ownerId, { kind: 'guia', title, body, link: p.ownerType === 'candidate' ? '/mi-perfil?tab=servicios' : '/panel#guia' });
+  }
+}
+/* un toque por IP, ficha y tipo cada 6 horas */
+const placeContactSeen = new Map();
+function firstContact(req, id, kind) {
+  const key = `${throttleKey(req)}|${id}|${kind}`;
+  const last = placeContactSeen.get(key);
+  if (last && Date.now() - last < 6 * 3600e3) return false;
+  if (placeContactSeen.size > 20000) placeContactSeen.clear();
+  placeContactSeen.set(key, Date.now());
+  return true;
+}
+const ownerOf = (me) => (me && me.role === 'candidate' ? ['candidate', me.candidate.id] : me && me.role === 'company' ? ['company', me.company.id] : null);
+
+/* Devuelve false si la ruta no es de la guía. */
+async function handlePlacesApi(req, res, p, method, q, me) {
+  /* ---- públicas ---- */
+  if (p === '/api/places' && method === 'GET') {
+    const section = Object.prototype.hasOwnProperty.call(placesLib.SECTIONS, q.get('section')) ? q.get('section') : '';
+    const category = section && placesLib.SECTIONS[section].categories.includes(q.get('category')) ? q.get('category') : '';
+    const locality = LOCALITIES.includes(q.get('locality')) ? q.get('locality') : '';
+    const query = clean(q.get('q'), 60);
+    const limit = Math.min(24, Math.max(3, Number(q.get('limit')) || 12));
+    const page = Math.max(1, Number(q.get('page')) || 1);
+    const sections = placesLib.SECTIONS;
+    if (q.get('open') === '1') {
+      const all = store.searchPlaces({ section, category, locality, q: query, limit: 5000 }).places
+        .filter((x) => ['open', 'always'].includes(placesLib.openStatus(x.hours).state));
+      const pages = Math.max(1, Math.ceil(all.length / limit));
+      return send(res, 200, { places: all.slice((page - 1) * limit, page * limit).map(placeSummary), total: all.length, pages, sections });
+    }
+    const r = store.searchPlaces({ section, category, locality, q: query, page, limit });
+    return send(res, 200, { places: r.places.map(placeSummary), total: r.total, pages: r.pages, sections });
+  }
+  const contact = p.match(/^\/api\/places\/([a-z0-9]+)\/contact$/);
+  if (contact && method === 'POST') {
+    const b = await readBody(req);
+    if (!['whatsapp', 'calls', 'maps'].includes(b.kind)) return send(res, 400, { error: 'Tipo de contacto inválido' });
+    const pl = store.place(contact[1]);
+    if (!pl || pl.status !== 'approved') return send(res, 404, { error: 'Ficha no encontrada' });
+    if (firstContact(req, pl.id, b.kind)) store.bumpPlaceStat(pl.id, b.kind);
+    res.writeHead(204); return res.end();
+  }
+  const bySlug = p.match(/^\/api\/places\/([a-z0-9-]+)$/);
+  if (bySlug && method === 'GET') {
+    const pl = store.placeBySlug(bySlug[1]);
+    const o = ownerOf(me);
+    const isOwner = !!(pl && o && pl.ownerType === o[0] && pl.ownerId === o[1]);
+    const isAdmin = !!(me && me.role === 'admin');
+    if (!pl || (pl.status !== 'approved' && !isOwner && !isAdmin)) return send(res, 404, { error: 'Ficha no encontrada' });
+    if (!isOwner && !isAdmin) store.bumpPlaceStat(pl.id, 'views');
+    const out = placeDetail(pl, { owner: isOwner || isAdmin });
+    if (isAdmin) Object.assign(out, claimPlaceLinks(req, pl));
+    return send(res, 200, { place: out, canEdit: isOwner });
+  }
+
+  /* ---- dueños (persona o empresa) ---- */
+  if (p === '/api/my/places' || p.startsWith('/api/my/places/')) {
+    const o = ownerOf(me);
+    if (!o) return send(res, 401, { error: 'Iniciá sesión para manejar tus fichas' });
+    if (p === '/api/my/places' && method === 'GET') {
+      return send(res, 200, { places: store.placesOf(o[0], o[1]).map((x) => placeDetail(x, { owner: true })), max: MAX_PLACES });
+    }
+    if (p === '/api/my/places' && method === 'POST') {
+      if (store.countPlacesOf(o[0], o[1]) >= MAX_PLACES) return send(res, 400, { error: `Llegaste al máximo de ${MAX_PLACES} fichas por cuenta` });
+      const b = await readBody(req);
+      const v = placesLib.validatePlace(b);
+      if (!v.ok) return send(res, 400, { error: 'Revisá los datos de la ficha', fields: v.errors });
+      const ph = placePhotos(null, b);
+      const pl = store.insertPlace({ ...v.data, photoFiles: ph.files, status: 'pending', ownerType: o[0], ownerId: o[1] });
+      return send(res, 201, { place: placeDetail(pl, { owner: true }), message: 'Tu ficha quedó en revisión. Te avisamos cuando esté publicada.' });
+    }
+    const mine = p.match(/^\/api\/my\/places\/([a-z0-9]+)$/);
+    const cur = mine ? store.place(mine[1]) : null;
+    if (!cur || cur.ownerType !== o[0] || cur.ownerId !== o[1]) return send(res, 404, { error: 'Ficha no encontrada' });
+    if (method === 'DELETE') {
+      store.deletePlace(cur.id).forEach(removeUpload);
+      return send(res, 200, { ok: true });
+    }
+    if (method === 'PUT') {
+      const b = await readBody(req);
+      const v = placesLib.validatePlace(b);
+      if (!v.ok) return send(res, 400, { error: 'Revisá los datos de la ficha', fields: v.errors });
+      const ph = placePhotos(cur, b);
+      store.updatePlace(cur.id, { ...v.data, photoFiles: ph.files });
+      ph.dropped.forEach(removeUpload);
+      /* nombre, sección o rubro nuevos (o una ficha rechazada que se corrige) vuelven a revisión */
+      const review = v.data.name !== cur.name || v.data.section !== cur.section || v.data.category !== cur.category || cur.status === 'rejected';
+      const pl = review ? store.setPlaceStatus(cur.id, 'pending') : store.place(cur.id);
+      return send(res, 200, { place: placeDetail(pl, { owner: true }), message: review ? 'Los cambios quedaron en revisión.' : 'Cambios publicados.' });
+    }
+    return send(res, 405, { error: 'Método no permitido' });
+  }
+
+  /* ---- admin ---- */
+  if (p === '/api/admin/places' || p.startsWith('/api/admin/places/')) {
+    if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
+    if (p === '/api/admin/places' && method === 'GET') {
+      const st = q.get('status') || '';
+      const list = st === 'recent' ? store.recentPlaceChanges()
+        : st === 'unclaimed' ? store.allPlaces().filter((x) => !x.claimed)
+          : ['pending', 'approved', 'rejected', 'hidden'].includes(st) ? store.allPlaces({ status: st }) : store.allPlaces();
+      return send(res, 200, { places: list.map((x) => ({ ...placeDetail(x, { owner: true }), ...claimPlaceLinks(req, x) })) });
+    }
+    if (p === '/api/admin/places' && method === 'POST') {
+      const b = await readBody(req);
+      const v = placesLib.validatePlace(b, { admin: true });
+      const fields = { ...v.errors };
+      if (v.data.section === 'oficios' && b.consent !== true) fields.consent = 'Para cargar un oficio, la persona tiene que haberte autorizado';
+      if (Object.keys(fields).length) return send(res, 400, { error: 'Revisá los datos de la ficha', fields });
+      if (store.placeBlocked(normPhone(v.data.whatsapp || v.data.phone), normName(v.data.name))) {
+        return send(res, 409, { code: 'blocked', error: 'Este comercio o persona pidió no aparecer en la guía' });
+      }
+      const ph = placePhotos(null, b);
+      const pl = store.insertPlace({
+        ...v.data, photoFiles: ph.files, status: 'approved', imported: 1, claimToken: crypto.randomBytes(24).toString('hex'),
+        consentBy: b.consent === true ? me.email : null, consentAt: b.consent === true ? now() : null,
+      });
+      return send(res, 201, { place: placeDetail(pl, { owner: true }), ...claimPlaceLinks(req, pl) });
+    }
+    const adm = p.match(/^\/api\/admin\/places\/([a-z0-9]+)$/);
+    const cur = adm ? store.place(adm[1]) : null;
+    if (!cur) return send(res, 404, { error: 'Ficha no encontrada' });
+    if (method === 'DELETE') {
+      store.deletePlace(cur.id).forEach(removeUpload);
+      return send(res, 200, { ok: true });
+    }
+    if (method === 'PATCH') {
+      const b = await readBody(req);
+      let pl = cur;
+      if (b.status !== undefined) {
+        if (!['approved', 'rejected', 'hidden', 'pending'].includes(b.status)) return send(res, 400, { error: 'Estado inválido' });
+        const reason = b.status === 'rejected' ? clean(b.reason, 300) || 'Revisá los datos de la ficha' : null;
+        pl = store.setPlaceStatus(cur.id, b.status, reason);
+        if (b.status !== cur.status) {
+          if (b.status === 'approved') notifyPlaceOwner(pl, `Tu ficha "${pl.name}" ya está en la Guía del Valle`, 'Ya la puede ver todo el Valle.');
+          if (b.status === 'rejected') notifyPlaceOwner(pl, `Tu ficha "${pl.name}" necesita cambios`, reason);
+          if (b.status === 'hidden') notifyPlaceOwner(pl, `Tu ficha "${pl.name}" quedó oculta`, 'Escribinos si querés saber por qué.');
+        }
+      }
+      if (b.featuredDays !== undefined) {
+        const d = b.featuredDays;
+        pl = store.setPlaceFeatured(cur.id, d === null ? null : Number(d) === 0 ? 0 : Date.now() + Math.min(365, Math.max(1, Number(d) || 7)) * 86400000);
+      }
+      return send(res, 200, { place: placeDetail(pl, { owner: true }) });
+    }
+    return send(res, 405, { error: 'Método no permitido' });
+  }
+
+  /* ---- reclamo de fichas cargadas por el admin ---- */
+  const cl = p.match(/^\/api\/claim-place\/([a-f0-9]{48})(\/accept|\/delete)?$/);
+  if (cl) {
+    const wait = throttled(req);
+    if (wait) return send(res, 429, { error: `Demasiados intentos. Probá en ${wait} s.` });
+    const pl = store.placeByClaimToken(cl[1]);
+    if (!pl) { loginFailed(req); return send(res, 404, { error: 'Este link ya se usó o no existe' }); }
+    if (!cl[2] && method === 'GET') return send(res, 200, { place: placeDetail(pl) });
+    if (cl[2] === '/delete' && method === 'POST') {
+      store.addPlaceBlock(normPhone(pl.whatsapp || pl.phone), normName(pl.name), pl.name);
+      store.deletePlace(pl.id).forEach(removeUpload);
+      return send(res, 200, { ok: true });
+    }
+    if (cl[2] === '/accept' && method === 'POST') {
+      let o = ownerOf(me);
+      if (o) {
+        if (store.countPlacesOf(o[0], o[1]) >= MAX_PLACES) return send(res, 409, { error: `Ya tenés ${MAX_PLACES} fichas en tu cuenta. Borrá una para sumar esta.` });
+      } else {
+        const b = await readBody(req);
+        const role = b.role === 'company' ? 'company' : 'candidate';
+        const name = clean(b.name, 120);
+        const email = clean(b.email, 160).toLowerCase();
+        const password = String(b.password || '');
+        const phone = clean(b.phone, 60);
+        const errs = {};
+        if (name.length < 2) errs.name = role === 'candidate' ? 'Ingresá tu nombre' : 'Ingresá el nombre de la empresa';
+        if (!isEmail(email)) errs.email = 'Email inválido';
+        if (password.length < 8) errs.password = 'La contraseña debe tener al menos 8 caracteres';
+        if (!phoneOk(phone)) errs.phone = 'Ingresá un teléfono válido';
+        if (store.companyByEmail(email) || store.candidateByEmail(email)) errs.email = 'Ya hay una cuenta con ese email: ingresá con ella';
+        if (b.acceptTerms !== true) errs.acceptTerms = 'Para crear la cuenta tenés que aceptar los términos y la política de privacidad';
+        if (Object.keys(errs).length) return send(res, 400, { error: 'Revisá los datos', fields: errs });
+        if (role === 'candidate') {
+          const c = store.insertCandidate({ id: uid('u'), name, email, phone, password: hashPassword(password), locality: pl.localities[0] || '' });
+          store.acceptTerms('candidates', c.id, legal.TERMS_VERSION);
+          o = ['candidate', c.id];
+        } else {
+          const c = store.insertCompany({ id: uid('c'), name, email, phone, website: '', description: '', password: hashPassword(password), verified: 0, plan: 'free', createdAt: now(), locality: pl.localities[0] || '' });
+          store.acceptTerms('companies', c.id, legal.TERMS_VERSION);
+          o = ['company', c.id];
+        }
+        setSession(res, o[0], req, o[0] === 'candidate' ? { candidateId: o[1] } : { companyId: o[1] });
+      }
+      const done = store.claimPlace(pl.id, o[0], o[1]);
+      if (!done) return send(res, 404, { error: 'Este link ya se usó o no existe' });
+      notifyPlaceOwner(done, `La ficha "${done.name}" ya es tuya`, 'Podés editarla y ver cuánta gente te contacta.');
+      return send(res, 200, { ok: true, role: o[0] });
+    }
+    return send(res, 405, { error: 'Método no permitido' });
+  }
+  return false;
+}
+
+/* ------------------------------------------------------------------ */
 /* API                                                                 */
 /* ------------------------------------------------------------------ */
 async function handleApi(req, res, url) {
@@ -969,6 +1224,10 @@ async function handleApi(req, res, url) {
 
   /* ---------- empresa ---------- */
   const me = current(req);
+
+  /* ---------- guía del valle ---------- */
+  const placeHandled = await handlePlacesApi(req, res, p, method, q, me);
+  if (placeHandled !== false) return placeHandled;
 
   /* ---------- tus datos: descarga (derecho de acceso) y baja (supresión, "botón de baja") ---------- */
   if (p === '/api/account/export' && method === 'GET') {

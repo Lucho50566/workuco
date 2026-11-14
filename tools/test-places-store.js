@@ -21,6 +21,8 @@ try {
   const p = s.insertPlace(base);
   check('crea la ficha con id y slug legible', !!p.id && p.slug === 'pizzeria-uco');
   check('localidades como lista', Array.isArray(p.localities) && p.localities[0] === 'Tunuyán');
+  const h = s.insertPlace({ ...base, name: 'Con Horario', section: 'servicios', category: 'Lavadero', description: 'Lavado de ropa por kilo.', ownerId: 'c9', hours: { mode: '24h', days: {} } });
+  check('el horario se lee como objeto', !!h.hours && h.hours.mode === '24h', JSON.stringify(h.hours));
   const p2 = s.insertPlace({ ...base });
   check('slug repetido lleva sufijo', p2.slug === 'pizzeria-uco-2');
   check('placeBySlug', s.placeBySlug('pizzeria-uco-2').id === p2.id);
