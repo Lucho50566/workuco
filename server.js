@@ -702,6 +702,7 @@ function placeSummary(p) {
     id: p.id, slug: p.slug, name: p.name, section: p.section, category: p.category, localities: p.localities,
     cover: p.photos[0] || null, featured: p.featured, claimed: p.claimed, homeService: p.homeService,
     status: p.status, open: placesLib.openStatus(p.hours), waUrl: placesLib.waLink(p.whatsapp),
+    telUrl: ((n) => (n && n.length === 10 ? `tel:+54${n}` : ''))(normPhone(p.phone || p.whatsapp)),
   };
 }
 /* El detalle; el dueño y el admin ven además estado de moderación y estadísticas */
