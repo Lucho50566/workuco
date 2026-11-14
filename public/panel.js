@@ -110,11 +110,12 @@
       $$('[data-panel]').forEach((p) => { p.hidden = p.dataset.panel !== name; });
       if (name === 'ai') renderAiTab();
       if (name === 'talent') loadTalent();
+      if (name === 'guide' && !showTab.places && window.WKGuia) { showTab.places = true; window.WKGuia.initMyPlaces($('#company-places')); }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     };
     $$('[data-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
     /* links directos: /panel#talento, #postulantes, #ofertas */
-    const HASH_TAB = { talento: 'talent', postulantes: 'applicants', ofertas: 'jobs', empresa: 'company', ia: 'ai' };
+    const HASH_TAB = { talento: 'talent', postulantes: 'applicants', ofertas: 'jobs', empresa: 'company', ia: 'ai', guia: 'guide' };
     const hashTab = () => HASH_TAB[location.hash.replace('#', '')];
     window.addEventListener('hashchange', () => { if (hashTab()) showTab(hashTab()); });
     document.addEventListener('click', (e) => {
@@ -770,15 +771,17 @@
     let alerts = [];
     let recs = [];
 
+    let placesReady = false;
     const showTab = (name) => {
       $$('[data-tab]').forEach((b) => b.classList.toggle('is-active', b.dataset.tab === name));
       $$('[data-panel]').forEach((p) => { p.hidden = p.dataset.panel !== name; });
+      if (name === 'services' && !placesReady && window.WKGuia) { placesReady = true; window.WKGuia.initMyPlaces($('#my-places')); }
     };
     $$('[data-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
     /* las notificaciones abren la pestaña justa: /mi-perfil?tab=postulaciones */
-    const TAB_ALIAS = { postulaciones: 'apps', alertas: 'alerts', invitaciones: 'foryou', guardadas: 'saved' };
+    const TAB_ALIAS = { postulaciones: 'apps', alertas: 'alerts', invitaciones: 'foryou', guardadas: 'saved', servicios: 'services' };
     const wanted = new URLSearchParams(location.search).get('tab');
-    const tabName = TAB_ALIAS[wanted] || (['profile', 'foryou', 'apps', 'alerts', 'saved'].includes(wanted) ? wanted : '');
+    const tabName = TAB_ALIAS[wanted] || (['profile', 'foryou', 'apps', 'alerts', 'saved', 'services'].includes(wanted) ? wanted : '');
     if (tabName) showTab(tabName);
 
     async function load() {
@@ -1028,9 +1031,11 @@
     $$('[data-close-edit]').forEach((b) => b.addEventListener('click', closeEdit));
     $('#edit-modal').addEventListener('click', (e) => { if (e.target.id === 'edit-modal') closeEdit(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#edit-modal').hidden) closeEdit(); });
+    let adminPlacesReady = false;
     $$('.tab').forEach((tab) => tab.addEventListener('click', () => {
       $$('.tab').forEach((t) => t.classList.toggle('is-active', t === tab));
       $$('[data-panel]').forEach((p) => { p.hidden = p.dataset.panel !== tab.dataset.tab; });
+      if (tab.dataset.tab === 'guide' && !adminPlacesReady && window.WKGuia) { adminPlacesReady = true; window.WKGuia.initAdminPlaces($('#admin-places')); }
     }));
     $('#jobs-filter').addEventListener('change', () => adminJobs($('#jobs-filter').value));
   }

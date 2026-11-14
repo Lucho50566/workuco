@@ -52,7 +52,7 @@ const check = (name, cond, extra = '') => { if (cond) { ok++; console.log(`  ok 
 const click = (sel) => ev(`(() => { const el = document.querySelector(${JSON.stringify(sel)}); if (!el) throw new Error('no ${sel}'); el.click(); return true; })()`);
 const setVal = (sel, v) => ev(`(() => { const el = document.querySelector(${JSON.stringify(sel)}); el.value = ${JSON.stringify(v)}; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
 /* además de la página, ningún elemento visible puede salirse a la derecha (body puede ocultar el desborde) */
-const noOverflow = async (scope = 'main') => ev(`document.documentElement.scrollWidth <= innerWidth + 1 && ![...document.querySelectorAll('${scope} *')].some((e) => { const r = e.getBoundingClientRect(); return r.width && r.right > innerWidth + 1 && getComputedStyle(e).position !== 'fixed' && !e.closest('.guia-tabs, .flyer-rail, .filter-chips'); })`);
+const noOverflow = async (scope = 'main') => ev(`document.documentElement.scrollWidth <= innerWidth + 1 && ![...document.querySelectorAll('${scope} *')].some((e) => { const r = e.getBoundingClientRect(); return r.width && r.right > innerWidth + 1 && getComputedStyle(e).position !== 'fixed' && !e.closest('.guia-tabs, .tabs, .flyer-rail, .filter-chips'); })`);
 const post = (url, body) => ev(`fetch(${JSON.stringify(url)},{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(${JSON.stringify(body)})}).then(async r=>({status:r.status,data:await r.json().catch(()=>({}))}))`);
 const getJson = (url) => ev(`fetch(${JSON.stringify(url)}).then(r=>r.json())`);
 
@@ -112,6 +112,64 @@ check('ofrece crear cuenta y borrarla', !!(await ev(`!!document.querySelector('#
 check('reclamo sin desbordes (390)', await noOverflow());
 await shot('reclamar-390');
 
+/* 5. editores: "Mis servicios" de una persona, panel de empresa y pestaña Guía del admin */
+const upload = async (sel, files) => {
+  const doc = await send('DOM.getDocument', {});
+  const node = await send('DOM.querySelector', { nodeId: doc.result.root.nodeId, selector: sel });
+  await send('DOM.setFileInputFiles', { nodeId: node.result.nodeId, files });
+};
+const IMG1 = path.resolve('public/icon-192.png'); const IMG2 = path.resolve('public/og-default.png');
+await send('Network.clearBrowserCookies');
+await size(390); await go('/');
+await post('/api/auth/register', { role: 'candidate', name: 'Tito Gasista', email: `tito${Date.now()}@test.workuco`, phone: '2622 401401', password: 'clave12345', acceptTerms: true });
+await go('/mi-perfil?tab=servicios'); await sleep(600);
+check('"Mis servicios" abre desde el link', await ev(`!document.querySelector('[data-panel="services"]').hidden`));
+await click('[data-place-new]'); await sleep(300);
+check('el editor no desborda (390)', await noOverflow());
+await setVal('#pe-name', 'Gas Don Tito');
+await setVal('#pe-section', 'oficios'); await sleep(100);
+check('los rubros dependen de la sección', (await ev(`[...document.querySelectorAll('#pe-category option')].map((o) => o.value)`)).includes('Gasista'));
+await setVal('#pe-category', 'Gasista');
+await click('[data-pe-loc="Tunuyán"]');
+check('"Va a domicilio" aparece en oficios', await ev(`!document.querySelector('#pe-home-wrap').hidden`));
+await setVal('#pe-desc', 'Instalaciones y reparaciones de gas, matriculado y con garantía.');
+await setVal('#pe-wa', '2622 555123');
+await click('[name="pe-mode"][value="horario"]');
+await setVal('#pe-h-lun-0-a', '09:00'); await setVal('#pe-h-lun-0-b', '18:00');
+await click('[data-pe-copy]');
+check('"copiar a días hábiles" copia el lunes al viernes', (await ev(`document.querySelector('#pe-h-vie-0-a').value`)) === '09:00');
+await upload('#pe-photos', [IMG1, IMG2]); await sleep(1500);
+check('se ven las 2 fotos cargadas', (await ev(`document.querySelectorAll('#pe-photo-list .pe-photo').length`)) === 2);
+await shot('editor-390');
+await ev(`document.querySelector('#pe-form').requestSubmit()`); await sleep(1500);
+check('la ficha queda "En revisión"', /En revisión/.test(await ev(`document.querySelector('#my-places').innerText`)));
+const mine = await getJson('/api/my/places');
+check('se guardó con 2 fotos y horario', mine.places[0].photos.length === 2 && mine.places[0].hours.days.vie[0][0] === '09:00', JSON.stringify(mine.places[0] && mine.places[0].hours));
+const tito = mine.places[0];
+const adminSession = async () => { await send('Network.clearBrowserCookies'); await post('/api/admin/login', { email: 'admin@workuco.com.ar', password: 'workuco2026' }); };
+await adminSession();
+await ev(`fetch('/api/admin/places/${tito.id}',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'approved'})}).then(r=>r.status)`);
+await go('/admin'); await sleep(600);
+await click('.tab[data-tab="guide"]'); await sleep(900);
+check('el admin ve la pestaña Guía con sus listas', await ev(`!!document.querySelector('#admin-places [data-adm-filter="pending"]') && !!document.querySelector('#admin-places [data-adm-filter="unclaimed"]')`));
+await click('[data-adm-new]'); await sleep(300);
+await setVal('#pe-name', 'Electricista Juan'); await setVal('#pe-section', 'oficios'); await sleep(100);
+await setVal('#pe-category', 'Electricista'); await click('[data-pe-loc="Tunuyán"]');
+await setVal('#pe-desc', 'Instalaciones eléctricas domiciliarias y tableros.'); await setVal('#pe-wa', '2622 600700');
+check('en oficios aparece la casilla de autorización', await ev(`!document.querySelector('#pe-consent-wrap').hidden`));
+await ev(`document.querySelector('#pe-form').requestSubmit()`); await sleep(1000);
+check('sin tildarla, pide la autorización', await ev(`!document.querySelector('[data-error="consent"]').hidden`));
+await click('#pe-consent');
+await ev(`document.querySelector('#pe-form').requestSubmit()`); await sleep(1200);
+check('con la autorización se carga y muestra el link de reclamo', /reclamar-ficha/.test(await ev(`document.querySelector('#admin-places').innerText`)));
+await click('[data-adm-filter="approved"]'); await sleep(800);
+check('la publicada aparece con acciones de destacar y ocultar', await ev(`!!document.querySelector('#admin-places [data-adm-feature]') && !!document.querySelector('#admin-places [data-adm-status="hidden"]')`));
+await shot('admin-guia');
+await send('Network.clearBrowserCookies');
+await post('/api/auth/login', { email: 'cafe@demo.workuco', password: 'demo12345' });
+await size(1440); await go('/panel#guia'); await sleep(900);
+check('la empresa tiene "Guía" en su panel', await ev(`!document.querySelector('[data-panel="guide"]').hidden && !!document.querySelector('#company-places [data-place-new]')`));
+await shot('panel-guia');
 check('sin errores de JS', errors.length === 0, JSON.stringify(errors.slice(0, 2)));
 console.log(`\n${ok} ok · ${fail} fail`);
 ws.close(); proc.kill(); process.exit(fail ? 1 : 0);

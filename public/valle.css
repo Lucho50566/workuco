@@ -937,3 +937,60 @@ html { scrollbar-color: #b9ad94 var(--cream); }
 @media (prefers-reduced-motion: reduce) {
   .place-card, .guia-tile, .guia-tab { transition: none; }
 }
+
+/* ---------- editores de fichas ---------- */
+.place-editor h2 { font-size: 22px; margin-bottom: 4px; }
+.place-editor .form-grid { margin-top: 14px; }
+.place-editor .check-row { align-items: center; }
+.pe-count { display: block; text-align: right; font-size: 12px; color: var(--muted); margin-top: 4px; }
+.pe-hours { border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin: 16px 0; min-width: 0; }
+.pe-hours legend { font-weight: 700; padding: 0 6px; }
+.seg-3 { grid-template-columns: repeat(3, 1fr); }
+.pe-day { display: grid; grid-template-columns: 92px 1fr 1fr; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.pe-day-name { font-weight: 600; font-size: 14px; }
+.pe-range { display: flex; gap: 6px; align-items: center; min-width: 0; }
+.pe-range span { color: var(--muted); font-size: 13px; }
+.pe-range .input { min-width: 0; padding: 8px 6px; height: 40px; }
+.pe-range-2 .input { opacity: .8; }
+.pe-photo-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.pe-photo { position: relative; width: 96px; height: 96px; border-radius: 12px; overflow: hidden; background: var(--surface-2); }
+.pe-photo img { width: 100%; height: 100%; object-fit: cover; }
+.pe-cover { position: absolute; left: 6px; bottom: 6px; background: var(--lime); color: var(--night); font-size: 11px; font-weight: 800; border-radius: 99px; padding: 2px 7px; }
+.pe-ph-btn { position: absolute; top: 5px; left: 5px; width: 28px; height: 28px; border-radius: 50%; border: 0; background: rgba(11, 22, 18, .72); color: #fff; font-size: 13px; }
+.pe-ph-del { left: auto; right: 5px; }
+.pe-consent { margin: 8px 0 4px; padding: 12px 14px; border-radius: 12px; background: var(--amber-soft); }
+.input-sm { height: 34px; padding: 4px 8px; font-size: 13px; width: auto; }
+
+/* "Mis servicios" y panel */
+.my-places-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; justify-content: space-between; margin-bottom: 14px; }
+.my-places-head h2 { font-size: 22px; }
+.my-place { display: grid; grid-template-columns: 140px 1fr; gap: 16px; padding: 14px; margin-bottom: 12px; }
+.my-place-media .flyer-frame, .my-place-media .place-ph { height: 120px; border-radius: 12px; }
+.my-place-media .place-ph-letter { font-size: 44px; }
+.my-place-body { display: grid; gap: 4px; min-width: 0; }
+.my-place-body h3 { font: 700 18px/1.2 var(--font-display); overflow-wrap: anywhere; }
+.my-place-top { display: flex; gap: 6px; flex-wrap: wrap; }
+.my-place-stats { font-size: 13.5px; color: var(--text); }
+.my-place-stats span { color: var(--muted); margin: 0 4px; }
+.my-place-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.my-places-empty { text-align: center; }
+.my-places-empty .icon { display: block; margin: 0 auto 8px; color: var(--green); }
+/* en el panel de empresa el título ya está arriba: queda sólo el botón */
+#company-places .my-places-head > div { display: none; }
+#company-places .my-places-head { justify-content: flex-end; }
+.place-status.is-approved { background: var(--green-soft); color: var(--green-dark); }
+.place-status.is-pending { background: var(--amber-soft); color: var(--amber); }
+.place-status.is-rejected { background: var(--red-soft); color: var(--red); }
+.place-status.is-hidden { background: var(--surface-2); color: var(--muted); }
+
+/* admin */
+.admin-places-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.adm-created { margin-bottom: 12px; overflow-wrap: anywhere; }
+.adm-claim code, .adm-created code { font-size: 11.5px; word-break: break-all; }
+
+@media (max-width: 600px) {
+  .pe-day { grid-template-columns: 1fr; gap: 6px; }
+  .pe-range .input { flex: 1; }
+  .my-place { grid-template-columns: 1fr; }
+  .my-place-media .flyer-frame, .my-place-media .place-ph { height: 150px; }
+}

@@ -32,6 +32,7 @@
         <button type="button" class="panel-nav-item" data-tab="applicants">{{ICON_USERS}}<span>Postulantes</span></button>
         <button type="button" class="panel-nav-item" data-tab="talent">{{ICON_SEARCH}}<span>Talento</span></button>
         <button type="button" class="panel-nav-item" data-tab="company">{{ICON_BUILDING}}<span>Mi empresa</span></button>
+        <button type="button" class="panel-nav-item" data-tab="guide">{{ICON_PIN}}<span>Guía</span></button>
         <button type="button" class="panel-nav-item" data-tab="ai">{{ICON_SPARKLES}}<span>IA</span></button>
       </nav>
       <a class="btn btn-primary btn-block" href="/publicar">{{ICON_PLUS}} Nueva publicación</a>
@@ -178,6 +179,14 @@
           <div class="muted" id="gallery-status" style="margin-top:8px"></div>
         </div>
         <div data-account-slot="company"></div>
+      </div>
+
+      <!-- GUÍA DEL VALLE -->
+      <div data-panel="guide" hidden>
+        <header class="panel-head">
+          <div><h1>Guía del Valle</h1><p>Tu comercio en la guía: fotos, horario, WhatsApp y cuánta gente te contacta.</p></div>
+        </header>
+        <div id="company-places"></div>
       </div>
 
       <!-- IA -->
