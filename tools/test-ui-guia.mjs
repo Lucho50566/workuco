@@ -170,6 +170,25 @@ await post('/api/auth/login', { email: 'cafe@demo.workuco', password: 'demo12345
 await size(1440); await go('/panel#guia'); await sleep(900);
 check('la empresa tiene "Guía" en su panel', await ev(`!document.querySelector('[data-panel="guide"]').hidden && !!document.querySelector('#company-places [data-place-new]')`));
 await shot('panel-guia');
+/* 6. preferencias de la persona */
+await send('Network.clearBrowserCookies');
+await size(390); await go('/');
+await post('/api/auth/login', { role: 'candidate', email: 'martina@demo.workuco', password: 'demo12345' });
+await go('/mi-perfil?tab=preferencias'); await sleep(700);
+check('la pestaña Preferencias abre desde el link', await ev(`!document.querySelector('[data-panel="prefs"]').hidden && !!document.querySelector('#prefs-box [data-pref="localities"]')`));
+check('"Tus datos" está en Preferencias', await ev(`!!document.querySelector('[data-panel="prefs"] [data-account-data]') && document.querySelectorAll('[data-panel="prefs"] [data-mail-type]').length === 4`));
+await click('#prefs-box [data-pref="localities"][data-value="Tunuyán"]'); await sleep(500);
+await click('#prefs-box [data-pref="localities"][data-value="Tupungato"]'); await sleep(500);
+const me1 = await getJson('/api/me');
+check('tocar una localidad la guarda', JSON.stringify(me1.user.candidate.prefs.localities) === '["Tunuyán","Tupungato"]', JSON.stringify(me1.user.candidate.prefs));
+check('Preferencias sin desbordes (390)', await noOverflow());
+await shot('prefs-390');
+await go('/buscar'); await sleep(900);
+check('/buscar arranca con "Tus localidades"', await ev(`/Tus localidades/.test((document.querySelector('#chips-locality .filter-chip.is-active') || {}).textContent || '')`));
+check('y los avisos son de esas localidades', await ev(`[...document.querySelectorAll('#results .job-card, #results .job-row')].length > 0 && ![...document.querySelectorAll('#results')].some((r) => /San Carlos/.test(r.innerText) && !/Tunuyán|Tupungato/.test(r.innerText))`));
+await ev(`document.querySelector('#chips-locality [data-value=""]').click()`); await sleep(800);
+check('se puede sacar el filtro', await ev(`(document.querySelector('#chips-locality .filter-chip.is-active') || {}).textContent === 'Toda la zona'`));
+await ev(`fetch('/api/account/prefs',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({localities:[]})}).then(r=>r.status)`);
 check('sin errores de JS', errors.length === 0, JSON.stringify(errors.slice(0, 2)));
 console.log(`\n${ok} ok · ${fail} fail`);
 ws.close(); proc.kill(); process.exit(fail ? 1 : 0);

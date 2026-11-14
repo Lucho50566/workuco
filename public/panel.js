@@ -772,16 +772,18 @@
     let recs = [];
 
     let placesReady = false;
+    let prefsReady = false;
     const showTab = (name) => {
       $$('[data-tab]').forEach((b) => b.classList.toggle('is-active', b.dataset.tab === name));
       $$('[data-panel]').forEach((p) => { p.hidden = p.dataset.panel !== name; });
       if (name === 'services' && !placesReady && window.WKGuia) { placesReady = true; window.WKGuia.initMyPlaces($('#my-places')); }
+      if (name === 'prefs' && !prefsReady) { prefsReady = true; W.initPrefs($('#prefs-box')); }
     };
     $$('[data-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
     /* las notificaciones abren la pestaña justa: /mi-perfil?tab=postulaciones */
-    const TAB_ALIAS = { postulaciones: 'apps', alertas: 'alerts', invitaciones: 'foryou', guardadas: 'saved', servicios: 'services' };
+    const TAB_ALIAS = { postulaciones: 'apps', alertas: 'alerts', invitaciones: 'foryou', guardadas: 'saved', servicios: 'services', preferencias: 'prefs', datos: 'prefs' };
     const wanted = new URLSearchParams(location.search).get('tab');
-    const tabName = TAB_ALIAS[wanted] || (['profile', 'foryou', 'apps', 'alerts', 'saved', 'services'].includes(wanted) ? wanted : '');
+    const tabName = TAB_ALIAS[wanted] || (['profile', 'foryou', 'apps', 'alerts', 'saved', 'services', 'prefs'].includes(wanted) ? wanted : '');
     if (tabName) showTab(tabName);
 
     async function load() {

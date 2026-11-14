@@ -38,6 +38,7 @@
           <button class="tab" data-tab="alerts" type="button">Alertas</button>
           <button class="tab" data-tab="saved" type="button">Guardadas</button>
           <button class="tab" data-tab="services" type="button">Mis servicios</button>
+          <button class="tab" data-tab="prefs" type="button">Preferencias</button>
         </div>
 
         <section data-panel="profile">
@@ -159,7 +160,6 @@
               <button class="btn btn-primary btn-lg" type="submit" id="profile-save">Guardar perfil</button>
             </div>
           </form>
-          <div data-account-slot="candidate"></div>
         </section>
 
         <section data-panel="foryou" hidden>
@@ -201,6 +201,11 @@
 
         <section data-panel="services" hidden>
           <div id="my-places"></div>
+        </section>
+
+        <section data-panel="prefs" hidden>
+          <div id="prefs-box"></div>
+          <div data-account-slot="candidate"></div>
         </section>
       </section>
     </div>

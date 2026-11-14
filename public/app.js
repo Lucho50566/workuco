@@ -527,6 +527,9 @@ async function initSearch() {
     gig: params.get('gig') === '1' ? '1' : '',
   };
   const isCand = !!(state.user && state.user.role === 'candidate');
+  const prefLocs = isCand && state.user.candidate.prefs ? state.user.candidate.prefs.localities : [];
+  const prefKey = prefLocs.join(',');
+  if (prefKey && !params.has('locality')) f.locality = prefKey;
   $$('[data-candidate-only]').forEach((o) => { o.hidden = !isCand; });
   if (f.sort === 'match' && !isCand) f.sort = 'recent';
   $('#save-alert').hidden = !isCand;
@@ -537,6 +540,7 @@ async function initSearch() {
   const chip = (group, value, label, active) => `<button type="button" class="filter-chip${active ? ' is-active' : ''}" data-filter="${group}" data-value="${esc(value)}">${esc(label)}</button>`;
   const renderChips = () => {
     $('#chips-locality').innerHTML = chip('locality', '', 'Toda la zona', !f.locality) +
+      (prefKey && prefLocs.length > 1 ? chip('locality', prefKey, `Tus localidades (${prefLocs.join(', ')})`, f.locality === prefKey) : '') +
       meta.localities.map((l) => chip('locality', l, l, f.locality === l)).join('');
     $('#chips-category').innerHTML = chip('category', '', 'Todas', !f.category) +
       meta.categories.map((c) => chip('category', c, c, f.category === c)).join('');
@@ -1597,6 +1601,45 @@ const INFO = {
     <h2>¿Sin acceso a tu cuenta?</h2><p>Escribinos a {{EMAIL}} desde el mail con el que te registraste: verificamos que el pedido venga de esa dirección, borramos la cuenta dentro de los 5 días hábiles y te respondemos confirmándolo. Si sos una empresa con un aviso "tomado de un canal", usá el link que te mandamos o escribinos y lo borramos.</p>`,
 };
 
+/* Tipos de aviso por mail que cada cuenta puede prender o apagar */
+const MAIL_LABELS = {
+  candidate: [['postulaciones', 'Novedades de mis postulaciones'], ['invitaciones', 'Invitaciones de empresas'], ['alertas', 'Alertas de búsquedas que guardé'], ['guia', 'Novedades de mis fichas en la guía']],
+  company: [['postulantes', 'Postulantes nuevos'], ['avisos', 'Novedades de mis avisos (publicado, con cambios)'], ['guia', 'Novedades de mis fichas en la guía']],
+};
+
+/* Pestaña "Preferencias" de la persona: dónde, jornada, modalidad y changas. Se guarda sola al tocar. */
+async function initPrefs(root) {
+  if (!root) return;
+  const meta = await loadMeta();
+  const pr = (state.user && state.user.candidate && state.user.candidate.prefs) || { localities: [], types: [], modalities: [], gigs: true };
+  const chips = (group, list, sel) => list.map((v) => `<button type="button" class="filter-chip${sel.includes(v) ? ' is-active' : ''}" data-pref="${group}" data-value="${esc(v)}" aria-pressed="${sel.includes(v)}">${esc(v)}</button>`).join('');
+  root.innerHTML = `<div class="card prefs-card">
+    <h2>Tus preferencias</h2>
+    <p class="sub">Con esto armamos "Para vos", calculamos la compatibilidad y filtramos la búsqueda al entrar. Siempre podés sacar el filtro.</p>
+    <div class="prefs-group"><h3>Dónde querés trabajar</h3><p class="soft-text">Además de donde vivís.</p><div class="filter-chips">${chips('localities', meta.localities, pr.localities)}</div></div>
+    <div class="prefs-group"><h3>Jornada</h3><p class="soft-text">Si no elegís ninguna, te mostramos todas.</p><div class="filter-chips">${chips('types', meta.types, pr.types)}</div></div>
+    <div class="prefs-group"><h3>Modalidad</h3><div class="filter-chips">${chips('modalities', meta.modalities, pr.modalities)}</div></div>
+    <label class="switch-row prefs-group"><input type="checkbox" id="pref-gigs" ${pr.gigs === false ? '' : 'checked'}><span class="switch" aria-hidden="true"></span><span><strong>Me interesan las changas</strong><small>Trabajos por día o por temporada (cosecha, eventos, obra).</small></span></label>
+    <p class="soft-text prefs-note">Los avisos por mail se eligen más abajo, en "Tus datos".</p>
+  </div>`;
+  const save = async (body) => {
+    try {
+      const r = await api('/api/account/prefs', { method: 'PATCH', body });
+      if (state.user && state.user.candidate) state.user.candidate.prefs = r.prefs;
+      toast('Preferencias guardadas', 'ok');
+    } catch (err) { toast(err.message, 'err'); }
+  };
+  root.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-pref]');
+    if (!b) return;
+    const on = !b.classList.contains('is-active');
+    b.classList.toggle('is-active', on); b.setAttribute('aria-pressed', String(on));
+    const group = b.dataset.pref;
+    save({ [group]: $$(`[data-pref="${group}"].is-active`, root).map((x) => x.dataset.value) });
+  });
+  $('#pref-gigs', root).addEventListener('change', (e) => save({ gigs: e.target.checked }));
+}
+
 /* "Tus datos": descargar una copia (derecho de acceso) y darse de baja (supresión). Va en el
    perfil, en el panel de empresa y en /baja. La baja pide la contraseña y borra todo en el momento. */
 function accountDataHtml(role) {
@@ -1605,11 +1648,10 @@ function accountDataHtml(role) {
   return `<div class="card account-data" data-account-data>
     <h2>Tus datos</h2>
     <p class="sub">Tu contraseña, los avisos por mail y todo lo que WorkUco guarda sobre ${role === 'company' ? 'tu empresa' : 'vos'}.</p>
-    <label class="switch-row account-mail">
-      <input type="checkbox" data-mail-notices ${acc.mailNotices === false ? '' : 'checked'}>
-      <span class="switch" aria-hidden="true"></span>
-      <span><strong>Avisos por mail</strong><small>${role === 'company' ? 'Postulantes nuevos y novedades de tus avisos.' : 'Novedades de tus postulaciones, invitaciones y alertas de búsqueda.'}</small></span>
-    </label>
+    <fieldset class="account-mail">
+      <legend>Qué avisos te llegan por mail <small>(la campanita de la página recibe todo)</small></legend>
+      ${MAIL_LABELS[role].map(([k, label]) => `<label class="check-row"><input type="checkbox" data-mail-type="${k}" ${((acc.prefs || {}).mail || {})[k] === false ? '' : 'checked'}><span>${label}</span></label>`).join('')}
+    </fieldset>
     <div class="account-data-actions">
       <button class="btn btn-outline btn-sm" type="button" data-pass-open aria-expanded="false" aria-controls="pass-form">${icon('lock', 16)} Cambiar contraseña</button>
       <a class="btn btn-outline btn-sm" href="/api/account/export" download>${icon('file', 16)} Descargar mis datos</a>
@@ -1633,13 +1675,12 @@ function setupAccountData(root) {
   const box = $('[data-account-data]', root);
   if (!box) return;
   /* avisos por mail */
-  const mail = $('[data-mail-notices]', box);
-  mail.addEventListener('change', async () => {
+  $$('[data-mail-type]', box).forEach((cb) => cb.addEventListener('change', async () => {
     try {
-      await api('/api/account/prefs', { method: 'PATCH', body: { mailNotices: mail.checked } });
-      toast(mail.checked ? 'Vas a recibir los avisos por mail' : 'Listo: no te mandamos más avisos por mail', 'ok');
-    } catch (err) { mail.checked = !mail.checked; toast(err.message, 'err'); }
-  });
+      await api('/api/account/prefs', { method: 'PATCH', body: { mail: { [cb.dataset.mailType]: cb.checked } } });
+      toast(cb.checked ? 'Ese aviso te va a llegar por mail' : 'Listo: ese aviso ya no te llega por mail', 'ok');
+    } catch (err) { cb.checked = !cb.checked; toast(err.message, 'err'); }
+  }));
   /* cambiar contraseña */
   const pform = $('#pass-form', box);
   const popen = $('[data-pass-open]', box);
@@ -2083,6 +2124,12 @@ async function initFlyers() {
   const bg = $('#feed-bg');
   const calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const filter = { locality: '', gig: '' };
+  const fPrefs = state.user && state.user.role === 'candidate' && state.user.candidate.prefs ? state.user.candidate.prefs.localities : [];
+  if (fPrefs.length) {
+    filter.locality = fPrefs.join(',');
+    const pb = $('#feed-place span');
+    if (pb) pb.textContent = fPrefs.length > 1 ? 'Tus localidades' : fPrefs[0];
+  }
   let page = 1; let pages = 1; let loading = false; let loadedOnce = false;
   const saved = new Set();
 
@@ -2234,7 +2281,7 @@ async function initFlyers() {
 window.WK = {
   $, $$, api, esc, toast, showAlert, hideAlert, setFieldErrors, icon, logoHtml, avatarHtml,
   state, loadMe, loadMeta, fmtDate, timeAgo, initials, stageBadge, STAGE_LABEL, statusBadge,
-  jobCard, jobRow, gigCard, shrinkImage, flyerFrame, setupFlyerRail, matchPill, payHtml, responseHtml, profileCompleteness, setupCarousel, fileToBase64, ready: null,
+  initPrefs, jobCard, jobRow, gigCard, shrinkImage, flyerFrame, setupFlyerRail, matchPill, payHtml, responseHtml, profileCompleteness, setupCarousel, fileToBase64, ready: null,
 };
 
 /* Deslizamiento suave al aparecer (sólo en la portada, que es la página de presentación):

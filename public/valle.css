@@ -994,3 +994,14 @@ html { scrollbar-color: #b9ad94 var(--cream); }
   .my-place { grid-template-columns: 1fr; }
   .my-place-media .flyer-frame, .my-place-media .place-ph { height: 150px; }
 }
+
+/* ---------- preferencias y avisos por mail ---------- */
+.prefs-card h2 { font-size: 22px; margin-bottom: 4px; }
+.prefs-group { margin-top: 20px; }
+.prefs-group h3 { font-size: 16px; margin-bottom: 2px; }
+.prefs-group .filter-chips { margin-top: 8px; }
+.prefs-note { margin-top: 18px; }
+.prefs-card + .account-data, [data-panel="prefs"] .account-data { margin-top: 16px; }
+fieldset.account-mail { border: 0; padding: 0; margin: 14px 0 4px; display: grid; gap: 8px; min-width: 0; }
+fieldset.account-mail legend { font-weight: 700; margin-bottom: 6px; padding: 0; }
+fieldset.account-mail legend small { font-weight: 500; color: var(--muted); }

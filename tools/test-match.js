@@ -102,5 +102,17 @@ test('el puntaje siempre es entero entre 0 y 100', () => {
   assert.ok(Number.isInteger(m.score) && m.score >= 0 && m.score <= 100);
 });
 
+test('las localidades de interés suman como la de residencia', () => {
+  const sin = matchScore(cand({ skills: ['fraccionamiento'] }), job({ locality: 'Tunuyán' }));
+  const con = matchScore(cand({ skills: ['fraccionamiento'], localities: ['Tunuyán'] }), job({ locality: 'Tunuyán' }));
+  assert.equal(con.score - sin.score, 20);
+  assert.ok(con.reasons.includes('Es en Tunuyán, donde querés trabajar'), JSON.stringify(con.reasons));
+});
+
+test('la empresa ve la localidad de interés en tercera persona', () => {
+  const m = matchScore(cand({ skills: ['fraccionamiento'], localities: ['Tunuyán'] }), job({ locality: 'Tunuyán' }), { audience: 'company' });
+  assert.ok(m.reasons.includes('Quiere trabajar en Tunuyán'), JSON.stringify(m.reasons));
+});
+
 console.log(`\n${ok} ok, ${fail} fallas`);
 process.exit(fail ? 1 : 0);

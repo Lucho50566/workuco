@@ -184,6 +184,7 @@ function publicCompany(c, { privateView = false } = {}) {
   };
   if (privateView) {
     out.mailNotices = !c.mail_opt_out;
+    out.prefs = prefsOf('company', c);
     const cfg = ai.configOf(c);
     out.ai = {
       provider: cfg.provider, model: cfg.model, baseUrl: cfg.baseUrl,
@@ -210,6 +211,7 @@ function publicCandidate(c, { privateView = false } = {}) {
     out.email = c.email; out.cvUrl = c.cv_file ? `/api/cv/c/${c.id}` : null;
     out.salaryMin = c.salary_min || 0; out.isPublic = !!c.is_public; out.publicSlug = c.public_slug || '';
     out.mailNotices = !c.mail_opt_out;
+    out.prefs = prefsOf('candidate', c);
   }
   return out;
 }
@@ -324,7 +326,7 @@ function matchFor(c, j, audience = 'candidate') {
   if (!c || !j) return null;
   const f = MONTH_FACTOR[j.salaryPeriod] || 1;
   const m = matchScore({
-    skills: jparse(c.skills, []), locality: c.locality, headline: c.headline, experience: c.experience,
+    skills: jparse(c.skills, []), locality: c.locality, localities: jparse(c.pref_localities, []), headline: c.headline, experience: c.experience,
     availability: c.availability, categories: jparse(c.categories, []), salaryMin: c.salary_min || 0,
   }, { ...j, salaryMin: j.salaryMin * f, salaryMax: j.salaryMax * f }, { audience });
   return m.score == null ? null : m;
@@ -363,10 +365,32 @@ function sendMail(to, { subject, title, body, cta, why }) {
   });
 }
 
-/* Cada aviso de la campanita también llega por mail, salvo que la cuenta los haya apagado. */
+/* Tipos de aviso que cada cuenta puede prender o apagar por mail (la campanita recibe todo). */
+const MAIL_TYPES = { candidate: ['postulaciones', 'invitaciones', 'alertas', 'guia'], company: ['postulantes', 'avisos', 'guia'] };
+const MAIL_KIND = {
+  candidate: { etapa: 'postulaciones', invitacion: 'invitaciones', alerta: 'alertas', guia: 'guia' },
+  company: { postulacion: 'postulantes', oferta: 'avisos', guia: 'guia' },
+};
+const parseObj = (v) => { try { const o = JSON.parse(v); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch (_) { return {}; } };
+function mailPrefsOf(role, row) {
+  const saved = parseObj(row && row.mail_prefs);
+  return Object.fromEntries((MAIL_TYPES[role] || []).map((t) => [t, !(row && row.mail_opt_out) && saved[t] !== false]));
+}
+function prefsOf(role, row) {
+  const mail = mailPrefsOf(role, row);
+  if (role !== 'candidate') return { mail };
+  return {
+    localities: jparse(row.pref_localities, []), types: jparse(row.pref_types, []),
+    modalities: jparse(row.pref_modalities, []), gigs: row.pref_gigs !== 0, mail,
+  };
+}
+
+/* Cada aviso de la campanita también llega por mail, salvo que la cuenta haya apagado ese tipo. */
 function mailNotice(type, id, data) {
   const row = type === 'candidate' ? store.candidate(id) : type === 'company' ? store.company(id) : null;
   if (!row || row.mail_opt_out || (type === 'company' && row.claimed === 0)) return;
+  const kindType = (MAIL_KIND[type] || {})[data.kind];
+  if (kindType && mailPrefsOf(type, row)[kindType] === false) return;
   const settings = type === 'candidate' ? '/mi-perfil' : '/panel#empresa';
   /* el asunto puede verse en la pantalla bloqueada: sin el nombre de quien se postuló */
   const msg = data.kind === 'postulacion'
@@ -1092,7 +1116,8 @@ async function handleApi(req, res, url) {
     const limit = Math.min(30, Math.max(3, Number(q.get('limit') || 9)));
     const r = store.searchJobs({
       q: clean(q.get('q'), 80),
-      locality: LOCALITIES.includes(q.get('locality')) ? q.get('locality') : '',
+      /* una o varias localidades separadas por coma */
+      locality: String(q.get('locality') || '').split(',').map((x) => x.trim()).filter((x) => LOCALITIES.includes(x)),
       category: CATEGORIES.includes(q.get('category')) ? q.get('category') : '',
       type: TYPES.includes(q.get('type')) ? q.get('type') : '',
       modality: MODALITIES.includes(q.get('modality')) ? q.get('modality') : '',
@@ -1272,8 +1297,27 @@ async function handleApi(req, res, url) {
   if (p === '/api/account/prefs' && method === 'PATCH') {
     if (!me || (me.role !== 'candidate' && me.role !== 'company')) return send(res, 401, { error: 'Iniciá sesión' });
     const b = await readBody(req);
-    store.setMailOptOut(me.role, me.role === 'candidate' ? me.candidate.id : me.company.id, b.mailNotices === false);
-    return send(res, 200, { ok: true, mailNotices: b.mailNotices !== false });
+    const id = me.role === 'candidate' ? me.candidate.id : me.company.id;
+    const types = MAIL_TYPES[me.role];
+    if (b.mailNotices === false || b.mailNotices === true) {
+      store.setMailPrefs(me.role, id, Object.fromEntries(types.map((t) => [t, b.mailNotices])));
+      store.setMailOptOut(me.role, id, b.mailNotices === false);
+    }
+    if (b.mail && typeof b.mail === 'object') {
+      const row = me.role === 'candidate' ? store.candidate(id) : store.company(id);
+      const cur = mailPrefsOf(me.role, row);
+      for (const t of types) if (typeof b.mail[t] === 'boolean') cur[t] = b.mail[t];
+      store.setMailPrefs(me.role, id, cur);
+    }
+    if (me.role === 'candidate') {
+      const pick = (v, allowed) => (Array.isArray(v) ? [...new Set(v.filter((x) => allowed.includes(x)))] : undefined);
+      store.setCandidatePrefs(id, {
+        localities: pick(b.localities, LOCALITIES), types: pick(b.types, TYPES), modalities: pick(b.modalities, MODALITIES),
+        gigs: typeof b.gigs === 'boolean' ? b.gigs : undefined,
+      });
+    }
+    const row = me.role === 'candidate' ? store.candidate(id) : store.company(id);
+    return send(res, 200, { ok: true, prefs: prefsOf(me.role, row), mailNotices: !row.mail_opt_out });
   }
   if (p === '/api/account/delete' && method === 'POST') {
     if (!me || (me.role !== 'candidate' && me.role !== 'company')) return send(res, 401, { error: 'Iniciá sesión' });
@@ -1690,8 +1734,11 @@ async function handleApi(req, res, url) {
     if (!me || me.role !== 'candidate') return send(res, 401, { error: 'Iniciá sesión' });
     const c = store.candidate(me.candidate.id);
     const applied = new Set(store.applicationsForCandidate(c.id).map((a) => a.jobId));
+    const pr = prefsOf('candidate', c);
     const jobs = store.searchJobs({ limit: 1000 }).jobs
       .filter((j) => !applied.has(j.id))
+      /* jornada, modalidad y changas elegidas en Preferencias (sin elegir, no se filtra) */
+      .filter((j) => (!pr.types.length || pr.types.includes(j.type)) && (!pr.modalities.length || pr.modalities.includes(j.modality)) && (pr.gigs || !j.gig))
       .map((j) => ({ ...jobSummary(j), match: matchFor(c, j) }))
       .filter((j) => j.match && j.match.score >= 40)
       .sort(byMatchDesc).slice(0, 6);
