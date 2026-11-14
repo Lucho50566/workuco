@@ -47,6 +47,9 @@ para la base de talento, 3 con perfil público), postulaciones en todas las etap
 | `/buscar` | Búsqueda con filtros por palabra, localidad, categoría, tipo, modalidad, sueldo publicado y changas; orden por fecha, sueldo o compatibilidad; botón de alerta |
 | `/changas` | Trabajos por día o temporada: pago por jornada, inicio, duración y cupos |
 | `/flyers` | Modo flyers: avisos de a uno a pantalla completa, deslizando como TikTok: compartir (izquierda), guardar (derecha), barra para deslizar y postularse, compatibilidad arriba a la derecha y filtro de lugar |
+| `/guia` | Guía del Valle: oficios, servicios, salidas y comida, con "Abierto ahora" y WhatsApp |
+| `/guia/:slug` | Ficha de la guía (fotos, horario, contacto, cómo llegar) |
+| `/reclamar-ficha/:token` | El dueño de una ficha cargada por WorkUco la reclama o la borra |
 | `/reclamar/:código` | Link privado para que una empresa reclame o borre la ficha que armamos con sus avisos |
 | `/cv/:id` | CV WorkUco imprimible (A4) armado desde el perfil; "Descargar PDF" con la impresión del navegador |
 | `/p/:slug` | Perfil público opcional de la persona, sin teléfono ni mail |
@@ -239,6 +242,41 @@ Admin: `POST /api/admin/login`, `GET /api/admin/stats|jobs|applications|companie
   Las fichas sin reclamar no pueden iniciar sesión.
 - `/media/` sólo entrega imágenes (jpg, png, webp): los CV en PDF se bajan únicamente por `/api/cv/...` con permiso.
 
+## Guía del Valle
+
+Oficios, servicios, salidas y comida del Valle de Uco, con el mismo formato de ficha: fotos (hasta 6),
+horario con "Abierto ahora" (hora de Argentina; tramos que pasan la medianoche; 24 horas; con turno),
+localidades, dirección, "va a domicilio" (oficios), WhatsApp, teléfono, Instagram y sitio.
+
+- **Quién publica**: una persona desde "Mis servicios" en `/mi-perfil`, una empresa desde "Guía" en `/panel`
+  (hasta 5 fichas por cuenta), o el admin desde la pestaña "Guía" de `/admin`.
+- **Moderación**: la primera publicación queda en revisión. Cambiar nombre, sección o rubro vuelve a revisión;
+  horario, fotos, descripción y contacto se publican al instante y aparecen en "Cambios recientes" del admin.
+- **Fichas cargadas por el admin**: comercios con datos que el comercio publicó (con contacto, `noindex` y fuera
+  del mapa del sitio hasta que se reclaman). Oficios de personas sólo con la casilla "La persona me autorizó a
+  publicarla" (se guarda quién y cuándo). El dueño recibe `/reclamar-ficha/:token` para quedársela (con su
+  cuenta o creando una) o borrarla; borrada, su teléfono y nombre quedan en la lista de bloqueo de la guía.
+- **Para cobrar más adelante**: "Destacado" (7 días, 30 días o sin vencimiento) que pone el admin, siempre con
+  la etiqueta visible; estadísticas para el dueño (vistas y contactos de la semana y del mes; sólo contadores).
+- **Google y WhatsApp**: `/guia/:slug` sale del servidor con vista previa y datos `LocalBusiness`
+  (`Restaurant`, `HomeAndConstructionBusiness`, `EntertainmentBusiness`); las fichas con dueño van al mapa del sitio.
+- Código: `lib/places.js` (rubros, validación, horario), métodos `*Place*` de `lib/store.js`, `handlePlacesApi`
+  en `server.js`, `public/guia.js` (páginas y editores).
+
+API: `GET /api/places`, `GET /api/places/:slug`, `POST /api/places/:id/contact`,
+`GET|POST /api/my/places`, `PUT|DELETE /api/my/places/:id`, `GET|POST /api/admin/places`,
+`PATCH|DELETE /api/admin/places/:id`, `GET /api/claim-place/:token`, `POST /api/claim-place/:token/accept|delete`.
+
+## Preferencias de la cuenta
+
+- **Persona** (pestaña "Preferencias" de `/mi-perfil`): localidades donde quiere trabajar (suman en la
+  compatibilidad y son el filtro por defecto de `/buscar` y del modo flyers, que se puede sacar), jornada,
+  modalidad y changas (filtran "Para vos").
+- **Qué avisos llegan por mail**, por tipo, en "Tus datos": personas (postulaciones, invitaciones, alertas, guía)
+  y empresas (postulantes, avisos, guía). La campanita recibe todo.
+- API: `PATCH /api/account/prefs { localities, types, modalities, gigs, mail: { tipo: bool } }`;
+  `GET /api/jobs?locality=San Carlos,Tunuyán` acepta varias localidades.
+
 ## Mails (Resend)
 
 Qué manda la página:
@@ -313,7 +351,8 @@ antes de importar sus avisos.
 ## Pruebas
 
 ```
-npm test                     # importador, IA con imágenes, match, API, v3, v4 y legal (cada uno con su servidor temporal)
+npm test                     # todo: importador, IA, match, API, v3, v4, legal, SEO, mails, guía y preferencias
+WK_BASE=http://localhost:4260 node tools/test-ui-guia.mjs # guía, editores y preferencias en Chrome (demo fresca)
 node tools/test-api.js       # 82 pruebas (servidor temporal + datos demo)
 WK_BASE=http://localhost:4250 node tools/test-ui-v3.mjs   # con un servidor con demo fresca
 WK_BASE=http://localhost:4250 node tools/test-ui-v4.mjs   # idem, con WORKUCO_IMPORT_AI_FAKE=1

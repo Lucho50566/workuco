@@ -1270,6 +1270,8 @@ async function handleApi(req, res, url) {
       data.empresa = strip(store.company(me.company.id));
       data.avisos = store.all('SELECT * FROM jobs WHERE company_id=?', me.company.id);
     }
+    data.fichas = store.placesOf(me.role, me.role === 'candidate' ? me.candidate.id : me.company.id)
+      .map(({ claimToken, photoFiles, ...pl }) => ({ ...pl, estadisticas: store.placeStats(pl.id) }));
     res.writeHead(200, {
       'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store',
       'Content-Disposition': 'attachment; filename="mis-datos-workuco.json"',

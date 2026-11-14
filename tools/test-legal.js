@@ -38,7 +38,7 @@ function client() {
     try { data = JSON.parse(text); } catch (_) {}
     return { status: res.status, data: data || {}, text, headers: res.headers };
   }
-  return { get: (p) => req(p), post: (p, b = {}) => req(p, { method: 'POST', body: b }), put: (p, b) => req(p, { method: 'PUT', body: b }) };
+  return { get: (p) => req(p), post: (p, b = {}) => req(p, { method: 'POST', body: b }), put: (p, b) => req(p, { method: 'PUT', body: b }), patch: (p, b) => req(p, { method: 'PATCH', body: b }) };
 }
 async function waitServer() {
   for (let i = 0; i < 60; i++) {
@@ -111,6 +111,23 @@ async function main() {
     await admin.post('/api/admin/login', { email: ADMIN.email, password: ADMIN.pass });
     const apps = await admin.get('/api/admin/stats');
     check('el admin sigue funcionando después de la baja', apps.status === 200);
+
+    console.log('— Guía del Valle: baja y descarga —');
+    const PNG = `data:image/png;base64,${fs.readFileSync(path.join(ROOT, 'public', 'icon-192.png')).toString('base64')}`;
+    const gas = client();
+    await gas.post('/api/auth/register', { role: 'candidate', name: 'Gasista Legal', email: 'gas@legal.workuco', phone: '2622 403403', password: 'clave12345', acceptTerms: true });
+    const fic = await gas.post('/api/my/places', { name: 'Gas Legal', section: 'oficios', category: 'Gasista', localities: ['Tunuyán'], description: 'Instalaciones de gas matriculado, con garantía.', whatsapp: '2622 403403', photos: [PNG, PNG] });
+    await admin.patch(`/api/admin/places/${fic.data.place.id}`, { status: 'approved' });
+    const fotos = fic.data.place.photos.map((u) => path.join(DATA, 'uploads', u.split('/').pop()));
+    check('las fotos de la ficha están en el disco', fotos.length === 2 && fotos.every((x) => fs.existsSync(x)));
+    const exp = await gas.get('/api/account/export');
+    check('"Descargar mis datos" incluye las fichas', Array.isArray(exp.data.fichas) && exp.data.fichas[0].name === 'Gas Legal');
+    await gas.post('/api/account/delete', { password: 'clave12345' });
+    check('al darse de baja, la ficha desaparece', (await pub.get(`/api/places/${fic.data.place.slug}`)).status === 404);
+    check('y su página da 404', (await pub.get(`/guia/${fic.data.place.slug}`)).status === 404);
+    check('y sus fotos se borran del disco', fotos.every((x) => !fs.existsSync(x)));
+    const appJs = (await pub.get('/app.js')).text;
+    check('la política de privacidad explica la guía y las fichas con datos públicos', /Guía del Valle/.test(appJs) && /datos públicos/.test(appJs) && /autoriz/.test(appJs));
 
     console.log('— Avisos importados: datos de terceros —');
     const parsed = await admin.post('/api/admin/import/parse', { text: 'Se busca mozo, llamar al 2622 15-555123', sourceName: 'Canal X' });
