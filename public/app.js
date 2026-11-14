@@ -1364,6 +1364,7 @@ async function initAuth() {
       ? 'Postulate en un toque y seguí tus postulaciones.'
       : 'Publicá búsquedas y gestioná postulantes.';
     $('#r-locality-wrap').hidden = r !== 'candidate';
+    $('#forgot-link').href = `/restablecer?rol=${r === 'company' ? 'empresa' : 'empleado'}`;
     $('#r-terms-text').innerHTML = r === 'candidate'
       ? 'Tengo 16 años o más y acepto los <a href="/terminos" target="_blank" rel="noopener">términos</a> y la <a href="/privacidad" target="_blank" rel="noopener">política de privacidad</a>.'
       : 'Acepto los <a href="/terminos" target="_blank" rel="noopener">términos</a> y la <a href="/privacidad" target="_blank" rel="noopener">política de privacidad</a>, y declaro que represento a esta empresa.';
@@ -1573,7 +1574,7 @@ const INFO = {
     </ul>
     <p>No vendemos ni cedemos datos con fines publicitarios.</p>
     <h2>Proveedores y transferencia internacional</h2>
-    <p>Para funcionar usamos proveedores que tratan datos por cuenta nuestra: el servicio de alojamiento del sitio y, sólo si una empresa lo activa, el proveedor de inteligencia artificial que esa empresa elige para resumir los CV que recibe. Algunos de ellos pueden estar fuera de Argentina, en países que la AAIP no considera con nivel adecuado de protección. Al aceptar esta política consentís esa transferencia, que se limita a lo necesario para prestar el servicio. El sitio también carga tipografías de Google Fonts, que recibe la dirección IP de tu navegador.</p>
+    <p>Para funcionar usamos proveedores que tratan datos por cuenta nuestra: el servicio de alojamiento del sitio; Resend (Estados Unidos), que envía los mails de la cuenta y los avisos, y recibe tu dirección de mail y el texto de cada aviso; y, sólo si una empresa lo activa, el proveedor de inteligencia artificial que esa empresa elige para resumir los CV que recibe. Algunos de ellos pueden estar fuera de Argentina, en países que la AAIP no considera con nivel adecuado de protección. Al aceptar esta política consentís esa transferencia, que se limita a lo necesario para prestar el servicio. El sitio también carga tipografías de Google Fonts, que recibe la dirección IP de tu navegador.</p>
     <h2>Cuánto tiempo los guardamos</h2>
     <p>Mientras tengas la cuenta; las sesiones vencen solas.</p>
     <ul><li><strong>Si una persona se da de baja</strong>, borramos en el momento su cuenta, su foto de perfil, su CV, sus postulaciones (también las que hizo sin cuenta con el mismo mail), alertas, guardados, invitaciones y los avisos de "nueva postulación" con su nombre que recibieron las empresas.</li><li><strong>Si una empresa se da de baja</strong>, borramos en el momento su cuenta, su logo, sus fotos, sus avisos y las postulaciones que recibió.</li><li>Mientras la empresa tenga la cuenta, sus avisos y las postulaciones que recibió se conservan hasta que los borre.</li></ul>
@@ -1599,13 +1600,26 @@ const INFO = {
    perfil, en el panel de empresa y en /baja. La baja pide la contraseña y borra todo en el momento. */
 function accountDataHtml(role) {
   const who = role === 'company' ? 'la cuenta de la empresa, sus avisos con sus postulaciones, el logo y las fotos' : 'tu cuenta, tu perfil, tu foto, tu CV, tus postulaciones, alertas y guardados';
+  const acc = (state.user && (state.user.candidate || state.user.company)) || {};
   return `<div class="card account-data" data-account-data>
     <h2>Tus datos</h2>
-    <p class="sub">Podés bajarte una copia de todo lo que WorkUco guarda sobre ${role === 'company' ? 'tu empresa' : 'vos'}, o darte de baja.</p>
+    <p class="sub">Tu contraseña, los avisos por mail y todo lo que WorkUco guarda sobre ${role === 'company' ? 'tu empresa' : 'vos'}.</p>
+    <label class="switch-row account-mail">
+      <input type="checkbox" data-mail-notices ${acc.mailNotices === false ? '' : 'checked'}>
+      <span class="switch" aria-hidden="true"></span>
+      <span><strong>Avisos por mail</strong><small>${role === 'company' ? 'Postulantes nuevos y novedades de tus avisos.' : 'Novedades de tus postulaciones, invitaciones y alertas de búsqueda.'}</small></span>
+    </label>
     <div class="account-data-actions">
+      <button class="btn btn-outline btn-sm" type="button" data-pass-open aria-expanded="false" aria-controls="pass-form">${icon('lock', 16)} Cambiar contraseña</button>
       <a class="btn btn-outline btn-sm" href="/api/account/export" download>${icon('file', 16)} Descargar mis datos</a>
       <button class="btn btn-ghost btn-sm btn-danger-text" type="button" data-baja-open aria-expanded="false" aria-controls="baja-form">${icon('trash', 16)} Darme de baja</button>
     </div>
+    <form class="pass-form" id="pass-form" hidden novalidate>
+      <div class="field"><label for="pass-current">Contraseña actual</label><input class="input" id="pass-current" type="password" autocomplete="current-password" required><span class="error-text" data-error="current" hidden></span></div>
+      <div class="field"><label for="pass-next">Contraseña nueva <span class="hint">(mínimo 8)</span></label><input class="input" id="pass-next" type="password" autocomplete="new-password" minlength="8" required><span class="error-text" data-error="next" hidden></span></div>
+      <div id="pass-alert" hidden></div>
+      <div class="gate-actions"><button class="btn btn-primary" type="submit">Guardar contraseña</button><button class="btn btn-ghost" type="button" data-pass-cancel>Cancelar</button></div>
+    </form>
     <form class="baja-form" id="baja-form" hidden novalidate>
       <p><strong>Se borra ${who}.</strong> No se puede deshacer.</p>
       <div class="field"><label for="baja-pass">Escribí tu contraseña para confirmar</label><input class="input" id="baja-pass" type="password" autocomplete="current-password" required><span class="error-text" data-error="password" hidden></span></div>
@@ -1617,6 +1631,36 @@ function accountDataHtml(role) {
 function setupAccountData(root) {
   const box = $('[data-account-data]', root);
   if (!box) return;
+  /* avisos por mail */
+  const mail = $('[data-mail-notices]', box);
+  mail.addEventListener('change', async () => {
+    try {
+      await api('/api/account/prefs', { method: 'PATCH', body: { mailNotices: mail.checked } });
+      toast(mail.checked ? 'Vas a recibir los avisos por mail' : 'Listo: no te mandamos más avisos por mail', 'ok');
+    } catch (err) { mail.checked = !mail.checked; toast(err.message, 'err'); }
+  });
+  /* cambiar contraseña */
+  const pform = $('#pass-form', box);
+  const popen = $('[data-pass-open]', box);
+  const ptoggle = (on) => { pform.hidden = !on; popen.setAttribute('aria-expanded', String(on)); if (on) $('#pass-current', pform).focus(); };
+  popen.addEventListener('click', () => ptoggle(pform.hidden));
+  $('[data-pass-cancel]', pform).addEventListener('click', () => ptoggle(false));
+  pform.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideAlert($('#pass-alert', pform));
+    setFieldErrors(pform, {});
+    const btn = $('[type=submit]', pform);
+    btn.disabled = true;
+    try {
+      await api('/api/account/password', { method: 'POST', body: { current: $('#pass-current', pform).value, next: $('#pass-next', pform).value } });
+      pform.reset(); ptoggle(false);
+      toast('Contraseña cambiada. Cerramos las sesiones de otros equipos.', 'ok');
+    } catch (err) {
+      showAlert($('#pass-alert', pform), err.message, 'error');
+      setFieldErrors(pform, err.fields);
+    } finally { btn.disabled = false; }
+  });
+  /* baja */
   const form = $('#baja-form', box);
   const open = $('[data-baja-open]', box);
   const toggle = (on) => { form.hidden = !on; open.setAttribute('aria-expanded', String(on)); if (on) $('#baja-pass', form).focus(); };
@@ -1634,6 +1678,56 @@ function setupAccountData(root) {
       location.href = '/?baja=1';
     } catch (err) {
       showAlert($('#baja-alert', form), err.message, 'error');
+      setFieldErrors(form, err.fields);
+      btn.disabled = false;
+    }
+  });
+}
+
+/* Recuperar contraseña: sin código pide el link; con código (?t=) crea la contraseña nueva. */
+function initReset() {
+  const params = new URLSearchParams(location.search);
+  /* el código llega después del # (no viaja al servidor) y se borra de la barra y del historial */
+  const token = (/[#&]t=([a-f0-9]{64})/.exec(location.hash) || [])[1] || params.get('t') || '';
+  if (token) history.replaceState(null, '', '/restablecer');
+  if (!token) {
+    $('#reset-ask').hidden = false;
+    if (params.get('rol') === 'empresa') $('#ask-form input[value=company]').checked = true;
+    const form = $('#ask-form');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideAlert($('#ask-alert'));
+      setFieldErrors(form, {});
+      const btn = $('[type=submit]', form);
+      btn.disabled = true;
+      try {
+        const d = await api('/api/auth/forgot', { method: 'POST', body: { email: $('#ask-email').value.trim(), role: $('#ask-form input[name=role]:checked').value } });
+        showAlert($('#ask-alert'), d.message, 'success');
+        form.hidden = true;
+      } catch (err) {
+        showAlert($('#ask-alert'), err.message, 'error');
+        setFieldErrors(form, err.fields);
+        btn.disabled = false;
+      }
+    });
+    return;
+  }
+  $('#reset-set').hidden = false;
+  const form = $('#set-form');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideAlert($('#set-alert'));
+    setFieldErrors(form, {});
+    const pass = $('#set-pass').value;
+    if (pass !== $('#set-pass2').value) { setFieldErrors(form, { password2: 'Las dos contraseñas no coinciden' }); return; }
+    const btn = $('[type=submit]', form);
+    btn.disabled = true;
+    try {
+      const d = await api('/api/auth/reset', { method: 'POST', body: { token, password: pass } });
+      $('#reset-set').innerHTML = `<div class="auth-logged"><div class="success-ring">${icon('check', 26)}</div><h1>Listo, ya tenés contraseña nueva</h1><p>Ingresá con tu email y la contraseña que acabás de crear.</p><div class="gate-actions"><a class="btn btn-primary" href="/acceder?rol=${d.role === 'company' ? 'empresa' : 'empleado'}">Ingresar</a></div></div>`;
+    } catch (err) {
+      showAlert($('#set-alert'), `${err.message} `, 'error');
+      $('#set-alert').insertAdjacentHTML('beforeend', '<a class="link-inline" href="/restablecer">Pedir otro link</a>');
       setFieldErrors(form, err.fields);
       btn.disabled = false;
     }
@@ -2194,6 +2288,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       case 'public-profile': await initPublicProfile(); break;
       case 'claim': await initClaim(); break;
       case 'flyers': await initFlyers(); break;
+      case 'reset': initReset(); break;
       default: break;
     }
   } catch (err) {

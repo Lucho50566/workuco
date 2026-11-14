@@ -239,6 +239,29 @@ Admin: `POST /api/admin/login`, `GET /api/admin/stats|jobs|applications|companie
   Las fichas sin reclamar no pueden iniciar sesión.
 - `/media/` sólo entrega imágenes (jpg, png, webp): los CV en PDF se bajan únicamente por `/api/cv/...` con permiso.
 
+## Mails (Resend)
+
+Qué manda la página:
+
+- **Recuperar contraseña** (`/restablecer`): link de un solo uso que vence en 1 hora (el código va después del `#`, así no llega al servidor; en la base queda sólo
+  su hash), máximo 3 por hora por cuenta y 10 por conexión, misma respuesta exista o no la cuenta. Al usarlo se cierran las
+  sesiones abiertas en otros equipos.
+- **Contraseña cambiada**: aviso cuando se cambia desde el perfil o con el link.
+- **Avisos**: cada aviso de la campanita (postulante nuevo, aviso publicado o rechazado, cambios de etapa,
+  invitaciones, alertas de búsqueda) también llega por mail. Cada cuenta los puede apagar en "Tus datos".
+- No se les escribe a cuentas de ejemplo (`@demo.workuco`) ni a fichas importadas sin reclamar.
+- Los links de los mails salen siempre de `PUBLIC_URL` (nunca del dominio del pedido).
+
+| Variable | Qué es |
+|---|---|
+| `RESEND_API_KEY` | Clave de la API de Resend. Sin clave, los mails no se mandan (se anotan en la consola). |
+| `WORKUCO_MAIL_FROM` | Remitente, p. ej. `WorkUco <avisos@workuco.com.ar>`. Tiene que ser de un dominio verificado. |
+| `WORKUCO_MAIL_FAKE=1` | Pruebas: no sale nada a internet; los mails quedan en `<data>/outbox.jsonl`. |
+
+Para activarlo: en resend.com, **Domains → Add domain** con tu dominio, cargá en el DNS los registros que te
+muestra (SPF, DKIM y, recomendado, DMARC) y esperá a que diga *Verified*; después **API Keys → Create** y poné
+la clave en `RESEND_API_KEY`. Sin dominio verificado, Resend sólo deja mandar mails de prueba a tu propia casilla.
+
 ## Vistas previas y Google
 
 - Cada aviso (`/oferta/:id`) sale del servidor con su título, descripción y **flyer** en etiquetas Open Graph:
@@ -317,7 +340,6 @@ pierden las cuentas y postulaciones reales y vuelven los datos demo.
 
 ## Limitaciones conocidas
 
-- No envía emails: las postulaciones se ven en el panel de la empresa.
 - El aviso de aprobación/rechazo se consulta en el panel (no hay notificación push).
 - La IA depende de la key y la cuota de cada empresa; sin key, el panel funciona igual.
 - En Render free el servicio se duerme a los 15 minutos sin visitas (~50 s para despertar).

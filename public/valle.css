@@ -776,3 +776,17 @@ html { scrollbar-color: #b9ad94 var(--cream); }
 .nf-text { color: var(--night-muted); font-size: 17px; max-width: 540px; }
 .nf-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
 .nf-ghost { color: #fff; border-color: rgba(255, 255, 255, .3); background: transparent; }
+
+/* =====================================================================
+   CONTRASEÑA Y AVISOS POR MAIL
+   ===================================================================== */
+.forgot-link { display: inline-block; margin-top: 8px; font-size: 13.5px; color: var(--green); text-decoration: underline; text-underline-offset: 2px; }
+.reset-card { width: 100%; max-width: 460px; margin: 40px auto; background: var(--surface); border: 1px solid var(--line); border-radius: 24px; box-shadow: var(--shadow-lg); }
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 12px; background: var(--surface-2); margin-bottom: 14px; }
+.seg-opt { position: relative; cursor: pointer; }
+.seg-opt input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+.seg-opt span { display: block; text-align: center; padding: 9px 8px; border-radius: 9px; font-weight: 650; font-size: 14px; color: var(--muted); }
+.seg-opt input:checked + span { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .08); }
+.seg-opt input:focus-visible + span { outline: 2px solid var(--green); outline-offset: 2px; }
+.account-mail { margin-top: 12px; }
+.pass-form { margin-top: 14px; padding: 14px; border-radius: 14px; background: var(--surface-2); }

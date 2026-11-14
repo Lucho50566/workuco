@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{TITLE}}</title>
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#0b1612">
+  <link rel="icon" href="/favicon.png" type="image/png" sizes="64x64">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body data-page="reset">
+{{NAV}}
+<main class="auth-wrap">
+  <div class="auth-card reset-card" id="reset-box">
+    <p class="auth-logo">{{BRAND_MARK}}<span>Work<b>Uco</b></span></p>
+
+    <!-- 1. pedir el link -->
+    <section id="reset-ask" hidden>
+      <h1>Recuperá tu contraseña</h1>
+      <p class="sub">Escribí el email de tu cuenta y te mandamos un link para crear una contraseña nueva.</p>
+      <div id="ask-alert" hidden></div>
+      <form class="auth-form" id="ask-form" novalidate>
+        <div class="seg" role="radiogroup" aria-label="Tipo de cuenta">
+          <label class="seg-opt"><input type="radio" name="role" value="candidate" checked><span>Busco trabajo</span></label>
+          <label class="seg-opt"><input type="radio" name="role" value="company"><span>Soy empresa</span></label>
+        </div>
+        <div class="field">
+          <label for="ask-email">Email</label>
+          <input class="input" id="ask-email" type="email" autocomplete="email" required>
+          <span class="error-text" data-error="email" hidden></span>
+        </div>
+        <button class="btn btn-primary btn-block" type="submit">Mandarme el link</button>
+      </form>
+    </section>
+
+    <!-- 2. crear la contraseña nueva (con el link del mail) -->
+    <section id="reset-set" hidden>
+      <h1>Creá una contraseña nueva</h1>
+      <p class="sub">Al guardarla se cierran las sesiones abiertas en otros equipos.</p>
+      <div id="set-alert" hidden></div>
+      <form class="auth-form" id="set-form" novalidate>
+        <div class="field">
+          <label for="set-pass">Contraseña nueva <span class="hint">(mínimo 8 caracteres)</span></label>
+          <input class="input" id="set-pass" type="password" autocomplete="new-password" minlength="8" required>
+          <span class="error-text" data-error="password" hidden></span>
+        </div>
+        <div class="field">
+          <label for="set-pass2">Repetila</label>
+          <input class="input" id="set-pass2" type="password" autocomplete="new-password" minlength="8" required>
+          <span class="error-text" data-error="password2" hidden></span>
+        </div>
+        <button class="btn btn-primary btn-block" type="submit">Guardar contraseña</button>
+      </form>
+    </section>
+
+    <p class="auth-foot"><a href="/acceder">Volver a ingresar</a></p>
+  </div>
+</main>
+{{FOOTER}}
+<script src="/app.js"></script>
+</body>
+</html>

@@ -23,6 +23,7 @@ const ai = require('./lib/ai');
 const { extractCv } = require('./lib/cvtext');
 const legal = require('./lib/legal');
 const seo = require('./lib/seo');
+const { createMailer, emailHtml, emailText } = require('./lib/mail');
 const DEMO = process.env.WORKUCO_DEMO === '1';
 
 const ROOT = __dirname;
@@ -181,6 +182,7 @@ function publicCompany(c, { privateView = false } = {}) {
     createdAt: c.created_at,
   };
   if (privateView) {
+    out.mailNotices = !c.mail_opt_out;
     const cfg = ai.configOf(c);
     out.ai = {
       provider: cfg.provider, model: cfg.model, baseUrl: cfg.baseUrl,
@@ -206,6 +208,7 @@ function publicCandidate(c, { privateView = false } = {}) {
   if (privateView) {
     out.email = c.email; out.cvUrl = c.cv_file ? `/api/cv/c/${c.id}` : null;
     out.salaryMin = c.salary_min || 0; out.isPublic = !!c.is_public; out.publicSlug = c.public_slug || '';
+    out.mailNotices = !c.mail_opt_out;
   }
   return out;
 }
@@ -336,9 +339,62 @@ function withMatch(applications) {
 }
 
 /* Las notificaciones nunca pueden hacer fallar la acción que las origina. */
+/* ---------- mails (Resend) ---------- */
+const MAILER = createMailer({
+  apiKey: process.env.RESEND_API_KEY || '',
+  from: process.env.WORKUCO_MAIL_FROM || 'WorkUco <onboarding@resend.dev>',
+  replyTo: legal.legalInfo().email,
+  fakeFile: process.env.WORKUCO_MAIL_FAKE === '1' ? path.join(DATA, 'outbox.jsonl') : '',
+});
+/* Los links de los mails salen SIEMPRE de PUBLIC_URL, nunca del Host del pedido
+   (si no, alguien podría pedir un "recuperar contraseña" que apunte a otro sitio). */
+const mailOrigin = () => PUBLIC_URL || `http://localhost:${PORT}`;
+/* direcciones de ejemplo o de fichas importadas: no se les escribe */
+const mailable = (email) => !!email && isEmail(email) && !/@(demo\.workuco|import\.workuco)$/i.test(email);
+
+function sendMail(to, { subject, title, body, cta, why }) {
+  if (!mailable(to)) return Promise.resolve({ ok: false, error: 'dirección no habilitada' });
+  const footer = `${why ? `${why} ` : ''}WorkUco · Empleos en el Valle de Uco · <a href="${mailOrigin()}/privacidad" style="color:#56615a">Privacidad</a>`;
+  return MAILER.send({
+    to, subject: subject || title,
+    html: emailHtml({ title, body, cta, footer }),
+    text: emailText({ title, body, cta, footerText: `${why || ''} WorkUco · ${mailOrigin()}`.trim() }),
+  });
+}
+
+/* Cada aviso de la campanita también llega por mail, salvo que la cuenta los haya apagado. */
+function mailNotice(type, id, data) {
+  const row = type === 'candidate' ? store.candidate(id) : type === 'company' ? store.company(id) : null;
+  if (!row || row.mail_opt_out || (type === 'company' && row.claimed === 0)) return;
+  const settings = type === 'candidate' ? '/mi-perfil' : '/panel#empresa';
+  /* el asunto puede verse en la pantalla bloqueada: sin el nombre de quien se postuló */
+  const msg = data.kind === 'postulacion'
+    ? { title: `Nueva postulación para "${data.body}"`, body: 'Entrá a tu panel para ver el perfil, el mensaje y el CV.' }
+    : { title: data.title, body: data.body || '' };
+  sendMail(row.email, {
+    title: msg.title, body: msg.body,
+    cta: data.link ? { label: 'Ver en WorkUco', url: `${mailOrigin()}${data.link}` } : null,
+    why: `Te llega porque tenés una cuenta en WorkUco. Podés apagar estos avisos en ${mailOrigin()}${settings} ("Tus datos").`,
+  }).catch(() => {});
+}
+
 function tryNotify(type, id, data) {
   try { store.notify(type, id, data); } catch (e) { console.warn('Notificación:', e.message); }
+  try { mailNotice(type, id, data); } catch (e) { console.warn('Aviso por mail:', e.message); }
 }
+
+/* recuperar contraseña: código aleatorio por mail; en la base sólo queda su hash */
+const RESET_TTL = 60 * 60 * 1000;
+const forgotByIp = new Map();
+function forgotLimited(req) {
+  const key = throttleKey(req);
+  const recent = (forgotByIp.get(key) || []).filter((t) => t > Date.now() - 60 * 60 * 1000);
+  recent.push(Date.now());
+  forgotByIp.set(key, recent);
+  if (forgotByIp.size > 5000) forgotByIp.clear();
+  return recent.length > 10;
+}
+const resetHash = (t) => crypto.createHash('sha256').update(String(t)).digest('hex');
 
 const STAGE_NOTICE = {
   revisado: (c, t) => ['Tu postulación está en revisión', `${c} está mirando tu perfil para ${t}.`],
@@ -631,6 +687,44 @@ async function handleApi(req, res, url) {
   /* ---------- sesión ---------- */
   if (p === '/api/me' && method === 'GET') return send(res, 200, { user: current(req) });
 
+  if (p === '/api/auth/forgot' && method === 'POST') {
+    const wait = throttled(req);
+    if (wait) return send(res, 429, { error: `Demasiados intentos. Probá en ${wait} s.` });
+    if (forgotLimited(req)) return send(res, 429, { error: 'Pediste muchos links. Probá de nuevo en un rato.' });
+    const b = await readBody(req);
+    const email = clean(b.email, 160).toLowerCase();
+    if (!isEmail(email)) return send(res, 400, { error: 'Revisá el email', fields: { email: 'Email inválido' } });
+    const role = b.role === 'company' ? 'company' : 'candidate';
+    const row = role === 'candidate' ? store.candidateByEmail(email) : store.companyByEmail(email);
+    /* misma respuesta exista o no la cuenta: no se puede averiguar quién está registrado */
+    const answer = { ok: true, message: 'Si hay una cuenta con ese email, te mandamos un link para crear una contraseña nueva. Revisá también el correo no deseado.' };
+    if (!row || row.password === '!' || (role === 'company' && row.claimed === 0)) return send(res, 200, answer);
+    if (store.recentResets(role, row.id, 60 * 60 * 1000) >= 3) return send(res, 200, answer);
+    const token = crypto.randomBytes(32).toString('hex');
+    store.createReset(role, row.id, resetHash(token), RESET_TTL);
+    sendMail(row.email, {
+      title: 'Creá una contraseña nueva',
+      body: `Hola, ${row.name}. Pediste recuperar el acceso a tu cuenta de WorkUco.\n\nEl link sirve una sola vez y vence en 1 hora. Si no fuiste vos, ignorá este mail: tu contraseña no cambia.`,
+      cta: { label: 'Crear contraseña nueva', url: `${mailOrigin()}/restablecer#t=${token}` },
+    }).catch(() => {});
+    return send(res, 200, answer);
+  }
+
+  if (p === '/api/auth/reset' && method === 'POST') {
+    const wait = throttled(req);
+    if (wait) return send(res, 429, { error: `Demasiados intentos. Probá en ${wait} s.` });
+    const b = await readBody(req);
+    const password = String(b.password || '');
+    if (password.length < 8) return send(res, 400, { error: 'Revisá la contraseña', fields: { password: 'Tiene que tener al menos 8 caracteres' } });
+    const r = /^[a-f0-9]{64}$/.test(String(b.token || '')) ? store.consumeReset(resetHash(b.token)) : null;
+    if (!r) { loginFailed(req); return send(res, 400, { error: 'El link venció o ya se usó. Pedí uno nuevo.' }); }
+    store.setPassword(r.role, r.account_id, hashPassword(password));
+    store.deleteSessionsFor(r.role, r.account_id); /* se cierran las sesiones abiertas en otros equipos */
+    const row = r.role === 'candidate' ? store.candidate(r.account_id) : store.company(r.account_id);
+    if (row) sendMail(row.email, { title: 'Tu contraseña cambió', body: 'La contraseña de tu cuenta de WorkUco se cambió recién. Si no fuiste vos, escribinos enseguida respondiendo este mail.' }).catch(() => {});
+    return send(res, 200, { ok: true, role: r.role });
+  }
+
   if (p === '/api/auth/register' && method === 'POST') {
     if (throttled(req)) return send(res, 429, { error: 'Demasiados intentos. Esperá unos minutos.' });
     const b = await readBody(req);
@@ -897,6 +991,30 @@ async function handleApi(req, res, url) {
       'Content-Disposition': 'attachment; filename="mis-datos-workuco.json"',
     });
     return res.end(JSON.stringify(data, null, 2));
+  }
+  if (p === '/api/account/password' && method === 'POST') {
+    if (!me || (me.role !== 'candidate' && me.role !== 'company')) return send(res, 401, { error: 'Iniciá sesión' });
+    const wait = throttled(req);
+    if (wait) return send(res, 429, { error: `Demasiados intentos. Probá en ${wait} s.` });
+    const b = await readBody(req);
+    const id = me.role === 'candidate' ? me.candidate.id : me.company.id;
+    const row = me.role === 'candidate' ? store.candidate(id) : store.company(id);
+    if (!row || !verifyPassword(String(b.current || ''), row.password)) {
+      loginFailed(req);
+      return send(res, 401, { error: 'La contraseña actual no coincide', fields: { current: 'No coincide' } });
+    }
+    const next = String(b.next || '');
+    if (next.length < 8) return send(res, 400, { error: 'Revisá la contraseña nueva', fields: { next: 'Tiene que tener al menos 8 caracteres' } });
+    store.setPassword(me.role, id, hashPassword(next));
+    store.deleteSessionsFor(me.role, id, parseCookies(req).wk_sess || ''); /* este equipo sigue adentro; los demás, no */
+    sendMail(row.email, { title: 'Tu contraseña cambió', body: 'La contraseña de tu cuenta de WorkUco se cambió desde tu perfil. Si no fuiste vos, escribinos enseguida respondiendo este mail.' }).catch(() => {});
+    return send(res, 200, { ok: true });
+  }
+  if (p === '/api/account/prefs' && method === 'PATCH') {
+    if (!me || (me.role !== 'candidate' && me.role !== 'company')) return send(res, 401, { error: 'Iniciá sesión' });
+    const b = await readBody(req);
+    store.setMailOptOut(me.role, me.role === 'candidate' ? me.candidate.id : me.company.id, b.mailNotices === false);
+    return send(res, 200, { ok: true, mailNotices: b.mailNotices !== false });
   }
   if (p === '/api/account/delete' && method === 'POST') {
     if (!me || (me.role !== 'candidate' && me.role !== 'company')) return send(res, 401, { error: 'Iniciá sesión' });
@@ -1814,6 +1932,9 @@ const server = http.createServer(async (req, res) => {
       const head = seo.jobMeta(j, origin, { noindex: !live }) + (live && !DEMO ? `\n  ${seo.jobPostingLd(j, origin)}` : '');
       return renderPage(res, 'oferta.html', { req, active: '/buscar', title: `${j.title} en ${j.companyName} · WorkUco`, head });
     }
+    if (url.pathname === '/restablecer' && req.method === 'GET') {
+      return renderPage(res, 'restablecer.html', { req, title: 'Recuperar contraseña · WorkUco', noindex: true });
+    }
     if (url.pathname === '/acceder' && req.method === 'GET') {
       return renderPage(res, 'acceso.html', { req, title: 'Acceder · WorkUco' });
     }
@@ -1884,7 +2005,8 @@ server.listen(PORT, HOST, () => {
   console.log(`WorkUco en http://localhost:${PORT}`);
   console.log(`Base de datos: ${DB_FILE}`);
   if (PUBLIC_URL) console.log(`URL pública: ${PUBLIC_URL}`);
-  else if (!DEMO) console.warn('Aviso: falta PUBLIC_URL (p. ej. https://workuco.com.ar). Los links de vistas previas y del mapa del sitio usan el dominio del pedido.');
+  console.log(`Mails: ${MAILER.mode === 'resend' ? 'Resend' : MAILER.mode === 'fake' ? 'de prueba (outbox.jsonl)' : 'desactivados (falta RESEND_API_KEY)'}`);
+  if (!PUBLIC_URL && !DEMO) console.warn('Aviso: falta PUBLIC_URL (p. ej. https://workuco.com.ar). Los links de vistas previas y del mapa del sitio usan el dominio del pedido, y los de los mails, localhost.');
 });
 
 module.exports = { server, store };
