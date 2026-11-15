@@ -361,6 +361,11 @@ node tools/check-layout.mjs http://localhost:4250/ 320 390 768 1366
 node tools/shots.mjs http://localhost:4250          # capturas en shots/
 ```
 
+## Publicar en DonWeb (producción)
+
+Guía paso a paso en [deploy/LEEME-DEPLOY.md](deploy/LEEME-DEPLOY.md): un comando instala todo en el Cloud Server
+(Node 24, servicio, HTTPS con Caddy, firewall, copias diarias). `deploy/actualizar.sh` trae la última versión con copia antes.
+
 ## Deploy en Render
 
 Repo: <https://github.com/Lucho50566/workuco> (público).
