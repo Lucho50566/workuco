@@ -119,6 +119,11 @@ async function main() {
     const f = (await pub.get(`/api/places?section=comida&locality=${encodeURIComponent('Tunuyán')}&open=1`)).data.places.map((p) => p.name);
     check('filtra por sección, localidad y abierto ahora', f.includes('Pizzería 24') && !f.includes('Pizzería Nunca') && !f.includes('Pizzería Lejos'), JSON.stringify(f));
     check('la respuesta trae las secciones', (await pub.get('/api/places')).data.sections.comida.label === 'Comida');
+    const cel = await emp.post('/api/my/places', ficha({ name: 'Rotisería Celular', section: 'comida', category: 'Rotisería', whatsapp: '+54 9 2622 15-777888', phone: '' }));
+    await admin.patch(`/api/admin/places/${cel.data.place.id}`, { status: 'approved' });
+    const celD = (await pub.get(`/api/places/${cel.data.place.slug}`)).data.place;
+    check('número con 15: "Llamar" marca sin el 15', celD.telUrl === 'tel:+542622777888', celD.telUrl);
+    check('número con 15: WhatsApp también', celD.waUrl === 'https://wa.me/5492622777888', celD.waUrl);
 
     console.log('— Contactos —');
     await pub.post(`/api/places/${id}/contact`, { kind: 'whatsapp' });

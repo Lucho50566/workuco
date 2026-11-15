@@ -429,11 +429,13 @@ const STAGE_NOTICE = {
   descartado: (c, t) => ['Novedades de tu postulación', `${c} siguió con otros perfiles para ${t}. Gracias por postularte: hay más búsquedas para vos.`],
 };
 
+/* una alerta puede tener una localidad o varias ("San Carlos,Tunuyán", de las preferencias) */
+const alertLocs = (a) => String(a.locality || '').split(',').filter(Boolean);
 function alertLabel(a) {
-  return [a.q ? `"${a.q}"` : '', a.gig ? 'Changas' : '', a.category, a.locality, a.type, a.modality].filter(Boolean).join(' · ');
+  return [a.q ? `"${a.q}"` : '', a.gig ? 'Changas' : '', a.category, alertLocs(a).join(' o '), a.type, a.modality].filter(Boolean).join(' · ');
 }
 function alertMatches(a, j) {
-  if (a.locality && a.locality !== j.locality) return false;
+  if (alertLocs(a).length && !alertLocs(a).includes(j.locality)) return false;
   if (a.category && a.category !== j.category) return false;
   if (a.type && a.type !== j.type) return false;
   if (a.modality && a.modality !== j.modality) return false;
@@ -1758,7 +1760,7 @@ async function handleApi(req, res, url) {
     const b = await readBody(req);
     const a = {
       q: clean(b.q, 60),
-      locality: LOCALITIES.includes(b.locality) ? b.locality : '',
+      locality: [...new Set(String(b.locality || '').split(',').map((x) => x.trim()).filter((x) => LOCALITIES.includes(x)))].join(','),
       category: CATEGORIES.includes(b.category) ? b.category : '',
       type: TYPES.includes(b.type) ? b.type : '',
       modality: MODALITIES.includes(b.modality) ? b.modality : '',

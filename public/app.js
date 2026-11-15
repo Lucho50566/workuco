@@ -541,6 +541,8 @@ async function initSearch() {
   const renderChips = () => {
     $('#chips-locality').innerHTML = chip('locality', '', 'Toda la zona', !f.locality) +
       (prefKey && prefLocs.length > 1 ? chip('locality', prefKey, `Tus localidades (${prefLocs.join(', ')})`, f.locality === prefKey) : '') +
+      /* varias localidades que no son las de tus preferencias (por ejemplo, desde una alerta) */
+      (f.locality.includes(',') && f.locality !== prefKey ? chip('locality', f.locality, f.locality.split(',').join(' o '), true) : '') +
       meta.localities.map((l) => chip('locality', l, l, f.locality === l)).join('');
     $('#chips-category').innerHTML = chip('category', '', 'Todas', !f.category) +
       meta.categories.map((c) => chip('category', c, c, f.category === c)).join('');

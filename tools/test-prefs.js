@@ -93,7 +93,18 @@ async function main() {
     await emp.post('/api/auth/register', { role: 'company', name: 'Bodega Prefs', email: 'bodega@prefs.workuco', phone: '2622 401401', password: 'clave12345', acceptTerms: true });
     const j = await emp.post('/api/company/jobs', { title: 'Operario de bodega', description: 'Fraccionamiento y limpieza de tanques en la bodega, turno mañana, con ganas de aprender.', locality: 'Tunuyán', category: 'Agricultura', type: 'Tiempo completo', modality: 'Presencial', contactEmail: 'bodega@prefs.workuco' });
     await emp.patch('/api/account/prefs', { mail: { postulantes: false } });
+
+    console.log('— Alertas con varias localidades —');
+    const luz = client();
+    await luz.post('/api/auth/register', { role: 'candidate', name: 'Luz Alerta', email: 'luz@prefs.workuco', phone: '2622 404404', password: 'clave12345', acceptTerms: true });
+    const al = await luz.post('/api/candidate/alerts', { locality: 'San Carlos,Tunuyán', q: 'bodega' });
+    check('la alerta guarda las dos localidades', al.status === 201 && /San Carlos/.test(al.data.alert.label) && /Tunuyán/.test(al.data.alert.label), JSON.stringify(al.data));
+    const lejos = await luz.post('/api/candidate/alerts', { locality: 'Tupungato', category: 'Agricultura' });
+    check('una sola localidad sigue funcionando', lejos.status === 201);
     await admin.patch(`/api/admin/jobs/${j.data.job.id}`, { status: 'approved' });
+    await wait(200);
+    const nl = JSON.stringify((await luz.get('/api/notifications')).data);
+    check('un aviso en Tunuyán dispara la alerta de "San Carlos o Tunuyán"', /Operario de bodega/.test(nl), nl.slice(0, 200));
     const ana = client();
     await ana.post('/api/auth/register', { role: 'candidate', name: 'Ana Prefs', email: 'ana@prefs.workuco', phone: '2622 402402', password: 'clave12345', acceptTerms: true });
     await ana.post(`/api/jobs/${j.data.job.id}/apply`, { message: 'Hola' });
