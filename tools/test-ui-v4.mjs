@@ -20,12 +20,13 @@ for (let i = 0; i < 60 && !ws; i++) {
   try { const l = await (await fetch(`http://127.0.0.1:${PORT}/json/list`)).json(); const t = l.find((x) => x.type === 'page'); if (t) ws = new WebSocket(t.webSocketDebuggerUrl); } catch (_) { await sleep(250); }
 }
 await new Promise((r) => { ws.onopen = r; });
-let id = 0; const pend = new Map(); const errors = [];
+let id = 0; const pend = new Map(); const errors = []; const drags = [];
 ws.onmessage = (m) => {
   const msg = JSON.parse(m.data);
   if (msg.id && pend.has(msg.id)) { pend.get(msg.id)(msg); pend.delete(msg.id); }
   if (msg.method === 'Runtime.exceptionThrown') errors.push(msg.params.exceptionDetails.exception?.description);
   if (msg.method === 'Page.javascriptDialogOpening') send('Page.handleJavaScriptDialog', { accept: true });
+  if (msg.method === 'Input.dragIntercepted') drags.push(msg.params);
 };
 const send = (method, params = {}) => new Promise((r) => { const i = ++id; pend.set(i, r); ws.send(JSON.stringify({ id: i, method, params })); });
 const ev = async (expression) => {
@@ -187,12 +188,35 @@ if (process.env.WK_FLYER) {
   const k = await box(`${cur} [data-swipe-knob]`);
   const kx = k.x + k.w / 2; const ky = k.y + k.h / 2;
   await mouse('mousePressed', kx, ky); await mouse('mouseReleased', kx, ky); await sleep(500);
-  check('tocar la barra sin deslizar no se va del modo flyers', (await ev('location.pathname')) === '/flyers');
+  check('tocar la barra sin deslizar no se va de Wik Works', (await ev('location.pathname')) === '/flyers');
   const t = await box(`${cur} [data-swipe]`);
   await mouse('mousePressed', kx, ky);
   for (let i = 1; i <= 8; i++) { await mouse('mouseMoved', kx + (t.w * i) / 8, ky); await sleep(30); }
   await mouse('mouseReleased', kx + t.w, ky); await sleep(1400);
   check('deslizar la barra lleva al aviso completo', (await ev('location.pathname')) === `/oferta/${second}`);
+  /* en la compu, arrastrar un link con el mouse arranca el "arrastrar link" del navegador y cancela el gesto:
+     con setInterceptDrags Chrome avisa si eso pasaría */
+  await go('/flyers'); await sleep(600);
+  await send('Input.setInterceptDrags', { enabled: true }); drags.length = 0;
+  const k2 = await box('.fslide[data-job] [data-swipe-knob]'); const t2 = await box('.fslide[data-job] [data-swipe]');
+  const kx2 = k2.x + k2.w / 2; const ky2 = k2.y + k2.h / 2;
+  await mouse('mousePressed', kx2, ky2);
+  for (let i = 1; i <= 8; i++) { await mouse('mouseMoved', kx2 + (t2.w * i) / 8, ky2); await sleep(30); }
+  await mouse('mouseReleased', kx2 + t2.w, ky2); await sleep(1400);
+  await send('Input.setInterceptDrags', { enabled: false });
+  check('en la compu arrastrar la perilla no arranca el arrastre de link del navegador', drags.length === 0, JSON.stringify(drags.slice(0, 1)));
+  check('y con el mouse también lleva al aviso completo', (await ev('location.pathname')).startsWith('/oferta/'));
+  await go('/flyers'); await sleep(600);
+  check('la perilla no se puede arrastrar como link (Chrome y Edge cancelan el gesto)', await ev(`(() => {
+    const k = document.querySelector('.fslide[data-job] [data-swipe-knob]'); if (!k) return false;
+    const d = new DragEvent('dragstart', { bubbles: true, cancelable: true }); k.dispatchEvent(d);
+    return k.draggable === false && d.defaultPrevented; })()`));
+  await go('/flyers'); await sleep(600);
+  const lb = await box('.fslide[data-job] .fswipe-label');
+  await mouse('mousePressed', lb.x + 4, lb.y + lb.h / 2);
+  for (let i = 1; i <= 8; i++) { await mouse('mouseMoved', lb.x + 4 + (t2.w * i) / 8, lb.y + lb.h / 2); await sleep(30); }
+  await mouse('mouseReleased', lb.x + t2.w, lb.y + lb.h / 2); await sleep(1400);
+  check('agarrar la barra desde el texto también desliza', (await ev('location.pathname')).startsWith('/oferta/'));
   await go('/flyers'); await sleep(600);
   const m = await box('.fslide[data-job] .fslide-media');
   await mouse('mousePressed', m.x + m.w / 2, m.y + m.h / 2); await sleep(600);

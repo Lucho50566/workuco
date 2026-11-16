@@ -46,7 +46,7 @@ para la base de talento, 3 con perfil público), postulaciones en todas las etap
 | `/` | Home: interruptor busco / contrato, buscador, mapa del Valle con búsquedas por pueblo, recomendadas, changas, empresas |
 | `/buscar` | Búsqueda con filtros por palabra, localidad, categoría, tipo, modalidad, sueldo publicado y changas; orden por fecha, sueldo o compatibilidad; botón de alerta |
 | `/changas` | Trabajos por día o temporada: pago por jornada, inicio, duración y cupos |
-| `/flyers` | Modo flyers: avisos de a uno a pantalla completa, deslizando como TikTok: compartir (izquierda), guardar (derecha), barra para deslizar y postularse, compatibilidad arriba a la derecha y filtro de lugar |
+| `/flyers` | **Wik Works** (antes "modo flyers"): avisos de a uno a pantalla completa, deslizando como TikTok: compartir (izquierda), guardar (derecha), barra para deslizar y postularse, compatibilidad arriba a la derecha y filtro de lugar |
 | `/guia` | Guía del Valle: oficios, servicios, salidas y comida, con "Abierto ahora" y WhatsApp |
 | `/guia/:slug` | Ficha de la guía (fotos, horario, contacto, cómo llegar) |
 | `/reclamar-ficha/:token` | El dueño de una ficha cargada por WorkUco la reclama o la borra |
@@ -125,8 +125,8 @@ publican datos de personas que buscan trabajo sacados de los canales.
 - Con la IA de la empresa configurada, **"Completar el aviso con el flyer principal"** llena puesto,
   descripción, requisitos, sueldo, fechas y contacto.
 - Los flyers se ven **siempre completos** (sin recortes) sobre su propia versión desenfocada: en la
-  tarjeta (con "+N" si hay más), en el carrusel del detalle y en el modo flyers.
-- **Modo flyers** (`/flyers`): primero los avisos con flyer, después el resto con un flyer generado
+  tarjeta (con "+N" si hay más), en el carrusel del detalle y en Wik Works.
+- **Wik Works** (`/flyers`, antes "modo flyers"): primero los avisos con flyer, después el resto con un flyer generado
   por WorkUco. Se pasa de aviso deslizando hacia arriba (o con ↑/↓ y la rueda en la computadora),
   y entre flyers del mismo aviso deslizando de costado. Carga de a 10.
   Abajo, una barra que se arrastra hasta el final lleva al aviso completo para postularse (un toque
@@ -270,7 +270,7 @@ API: `GET /api/places`, `GET /api/places/:slug`, `POST /api/places/:id/contact`,
 ## Preferencias de la cuenta
 
 - **Persona** (pestaña "Preferencias" de `/mi-perfil`): localidades donde quiere trabajar (suman en la
-  compatibilidad y son el filtro por defecto de `/buscar` y del modo flyers, que se puede sacar), jornada,
+  compatibilidad y son el filtro por defecto de `/buscar` y de Wik Works, que se puede sacar), jornada,
   modalidad y changas (filtran "Para vos").
 - **Qué avisos llegan por mail**, por tipo, en "Tus datos": personas (postulaciones, invitaciones, alertas, guía)
   y empresas (postulantes, avisos, guía). La campanita recibe todo.

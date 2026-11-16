@@ -2041,7 +2041,7 @@ async function initClaim() {
 }
 
 /* ================================================================== */
-/* MODO FLYERS (feed vertical tipo TikTok)                            */
+/* WIK WORKS (antes "modo flyers"): feed vertical tipo TikTok                            */
 /* ================================================================== */
 function genFlyer(j) {
   return `<div class="fgen" role="img" aria-label="${esc(`${j.title} en ${j.companyName}`)}">
@@ -2075,7 +2075,7 @@ function feedSlide(j, saved) {
       </div>
       <div class="fswipe" data-swipe>
         <span class="fswipe-label">Deslizá para postularte y ver todo</span>
-        <a class="fswipe-knob" href="/oferta/${esc(j.id)}" data-swipe-knob aria-label="Postularme y ver todo el aviso: ${esc(j.title)}">${icon('arrow', 20)}</a>
+        <a class="fswipe-knob" href="/oferta/${esc(j.id)}" data-swipe-knob draggable="false" aria-label="Postularme y ver todo el aviso: ${esc(j.title)}">${icon('arrow', 20)}</a>
       </div>
     </div>
   </article>`;
@@ -2092,18 +2092,24 @@ function feedMatch(m) {
   </button>`;
 }
 
-/* La barra de abajo: se arrastra la perilla hasta el final para ir al aviso completo. */
+/* La barra de abajo: se arrastra la perilla hasta el final para ir al aviso completo.
+   Se puede agarrar desde cualquier parte de la barra (en la compu se suele agarrar el texto).
+   La perilla es un link: en la compu el navegador arrancaría su propio "arrastrar link" y cancelaría
+   el gesto (pointercancel), por eso no es arrastrable y el pointerdown del mouse no hace nada por defecto. */
 function setupSwipe(track) {
   const knob = $('[data-swipe-knob]', track);
   let start = null; let max = 0; let x = 0; let moved = false;
   const set = (v) => { x = v; knob.style.transform = `translateX(${v}px)`; track.style.setProperty('--swipe', String(max ? v / max : 0)); };
-  knob.addEventListener('pointerdown', (e) => {
+  track.addEventListener('dragstart', (e) => e.preventDefault());
+  track.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    if (e.pointerType === 'mouse') e.preventDefault(); // sin selección de texto ni arrastre del link
     start = e.clientX; moved = false; max = track.clientWidth - knob.offsetWidth - 8;
     track.classList.remove('is-hint');
-    knob.setPointerCapture(e.pointerId); track.classList.add('is-drag');
+    track.setPointerCapture(e.pointerId); track.classList.add('is-drag');
   });
   knob.addEventListener('animationend', () => track.classList.remove('is-hint'));
-  knob.addEventListener('pointermove', (e) => {
+  track.addEventListener('pointermove', (e) => {
     if (start == null) return;
     const v = Math.min(max, Math.max(0, e.clientX - start));
     if (v > 4) moved = true;
@@ -2115,10 +2121,10 @@ function setupSwipe(track) {
     if (x >= max * 0.82) { set(max); track.classList.add('is-done'); location.href = knob.href; return; }
     set(0);
   };
-  knob.addEventListener('pointerup', end);
-  knob.addEventListener('pointercancel', end);
+  track.addEventListener('pointerup', end);
+  track.addEventListener('pointercancel', end);
   /* un toque sin deslizar no navega: muestra el gesto. El teclado (Enter) sí entra directo. */
-  knob.addEventListener('click', (e) => {
+  track.addEventListener('click', (e) => {
     if (e.detail === 0) return;
     e.preventDefault();
     if (!moved) { track.classList.remove('is-hint'); void track.offsetWidth; track.classList.add('is-hint'); }

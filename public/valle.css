@@ -599,6 +599,8 @@ html { scrollbar-color: #b9ad94 var(--cream); }
 /* arriba: un solo botón de lugar (izquierda); la compatibilidad va en cada aviso (derecha) */
 .feed-top { position: absolute; z-index: 6; top: 12px; left: 50%; transform: translateX(-50%); width: min(460px, 100%); padding: 0 12px; pointer-events: none; }
 .feed-top > * { pointer-events: auto; }
+/* el nombre de la sección, chiquito y sin caja, como el "Para ti" de las apps de videos */
+.feed-brand { display: inline-block; vertical-align: middle; margin-right: 8px; font-family: var(--font-display); font-weight: 800; font-size: 17px; letter-spacing: -0.01em; color: #fff; text-shadow: 0 1px 8px rgba(0,0,0,.45); pointer-events: none; }
 .feed-pill, .fround, .fmatch {
   border: 0; color: #fff; background: rgba(5, 11, 8, .5); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
 }
@@ -660,13 +662,15 @@ html { scrollbar-color: #b9ad94 var(--cream); }
 .fswipe {
   --swipe: 0; position: relative; height: 52px; border-radius: 999px; overflow: hidden;
   background: rgba(255, 255, 255, .12); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-  display: grid; place-items: center; touch-action: none;
+  display: grid; place-items: center; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab;
 }
+.fswipe.is-drag { cursor: grabbing; }
 .fswipe::before { content: ""; position: absolute; inset: 0; background: var(--lime); opacity: calc(var(--swipe) * .9); }
 .fswipe-label { position: relative; padding-left: 40px; font-weight: 650; font-size: 14.5px; color: #e7efe9; opacity: calc(1 - var(--swipe) * 1.6); }
 .fswipe-knob {
   position: absolute; left: 4px; top: 4px; width: 44px; height: 44px; border-radius: 50%;
   display: grid; place-items: center; background: var(--lime); color: var(--night); touch-action: none; cursor: grab;
+  -webkit-user-drag: none;
   transition: transform .35s var(--ease-out);
 }
 .fswipe.is-drag .fswipe-knob { transition: none; cursor: grabbing; }

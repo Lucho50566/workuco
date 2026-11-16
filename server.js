@@ -471,7 +471,7 @@ const NAV_ITEMS = [
   ['/', 'Inicio'],
   ['/buscar', 'Buscar empleo'],
   ['/changas', 'Changas'],
-  ['/flyers', 'Flyers'],
+  ['/flyers', 'Wik Works'],
   ['/guia', 'Guía'],
   ['/publicar', 'Para empresas'],
 ];
@@ -2211,7 +2211,7 @@ const server = http.createServer(async (req, res) => {
       return renderPage(res, 'reclamar.html', { req, title: 'Tu empresa en WorkUco' });
     }
     if (url.pathname === '/flyers' && req.method === 'GET') {
-      return renderPage(res, 'flyers.html', { req, active: '/flyers', title: 'Modo flyers · WorkUco' });
+      return renderPage(res, 'flyers.html', { req, active: '/flyers', title: 'Wik Works · WorkUco' });
     }
     if (url.pathname === '/changas' && req.method === 'GET') {
       return renderPage(res, 'changas.html', { req, active: '/changas', title: 'Changas y trabajos por temporada · WorkUco' });
