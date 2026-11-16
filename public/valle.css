@@ -1039,3 +1039,17 @@ fieldset.account-mail legend small { font-weight: 500; color: var(--muted); }
 .sol-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .sol-state { margin: 0; }
 @media (max-width: 900px) { .sol-grid { grid-template-columns: 1fr; } }
+
+/* ---------- Avisos destacados ---------- */
+.badge.badge-featured { display: inline-flex; align-items: center; gap: 4px; }
+.fslide-feat { color: var(--lime); }
+.feat-note { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 0; font-size: 13.5px; color: var(--muted, #5b635c); }
+.feat-note.is-on { color: var(--malbec); font-weight: 700; }
+.feat-note .link-btn { background: none; border: 0; padding: 0; color: var(--green); text-decoration: underline; cursor: pointer; font: inherit; }
+.feat-summary { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin: 0 0 14px; padding: 12px 16px; border-radius: 14px; background: #f1ede2; font-size: 14px; }
+.feat-summary small { color: var(--muted, #5b635c); }
+.feat-req-count { padding: 4px 12px; border-radius: 999px; background: var(--lime); font-weight: 700; }
+.input.input-sm { height: 34px; padding: 0 10px; font-size: 13.5px; width: auto; }
+.feat-summary > span:first-child { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.input.input-sm[data-feature-days] { min-width: 140px; }
+table.data .badge-featured { white-space: nowrap; }

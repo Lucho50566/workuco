@@ -302,7 +302,7 @@ function jobCard(j) {
   return `<a class="job-card" href="/oferta/${j.id}">
     <div class="job-cover${j.flyer ? ' job-cover-flyer' : cover ? ' has-img' : ''}"${!j.flyer && cover ? ` style="background-image:url('${esc(cover)}')"` : ''}>
       ${j.flyer ? flyerFrame(j.flyer, `Flyer: ${j.title} en ${j.companyName}`) + (extra > 0 ? `<span class="flyer-more">+${extra}</span>` : '') : '<span class="job-cover-shade"></span>'}
-      ${j.gig ? '<span class="badge badge-gig">Changa</span>' : j.featured ? '<span class="badge badge-featured">Destacada</span>' : ''}
+      ${j.featured ? `<span class="badge badge-featured">${icon('star', 12)} Destacada${j.gig ? ' · Changa' : ''}</span>` : j.gig ? '<span class="badge badge-gig">Changa</span>' : ''}
     </div>
     <div class="job-card-body">
       ${logoHtml(j.companyName, j.companyLogo, 'logo')}
@@ -330,6 +330,7 @@ function jobRow(j, saved = false) {
         <div class="job-title">${esc(j.title)}</div>
         <div class="job-company">${esc(j.companyName)} ${j.companyVerified ? `<span class="verified">${checkIcon}</span>` : ''}</div>
         <div class="badges">
+          ${j.featured ? `<span class="badge badge-featured">${icon('star', 12)} Destacada</span>` : ''}
           <span class="badge">${esc(j.locality)}</span>
           <span class="badge">${esc(j.type)}</span>
           <span class="badge">${esc(j.modality)}</span>
@@ -2070,7 +2071,7 @@ function feedSlide(j, saved) {
         <button class="fround" type="button" data-feed-share="${esc(j.id)}" data-title="${esc(j.title)}" data-company="${esc(j.companyName)}" aria-label="Compartir aviso">${icon('share', 20)}</button>
         <div class="fslide-info">
           <h2>${esc(j.title)}</h2>
-          <p>${esc(j.companyName)} · ${esc(j.locality)}${j.gig ? ' · <strong>Changa</strong>' : ''}</p>
+          <p>${esc(j.companyName)} · ${esc(j.locality)}${j.gig ? ' · <strong>Changa</strong>' : ''}${j.featured ? ' · <strong class="fslide-feat">Destacada</strong>' : ''}</p>
         </div>
         <button class="fround${saved ? ' is-on' : ''}" type="button" data-feed-save="${esc(j.id)}" aria-pressed="${saved}" aria-label="${saved ? 'Quitar de guardados' : 'Guardar aviso'}">${icon('heart', 20)}</button>
       </div>

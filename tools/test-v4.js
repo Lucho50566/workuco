@@ -222,10 +222,14 @@ async function main() {
     const old = await bodega.post('/api/company/jobs', { ...jobBase, title: 'Mozo con un flyer', description: 'Mozo con experiencia.', flyer: PNG });
     check('la forma vieja (un flyer) sigue andando', old.status === 201 && old.data.job.flyers.length === 1);
 
+    /* Wik Works: primero los destacados (lo que paga la empresa), y entre el resto, primero los que tienen flyer */
     const sorted = (await pub.get('/api/jobs?sort=flyer&limit=30')).data.jobs || [];
-    const lastWith = sorted.map((j) => !!j.flyer).lastIndexOf(true);
-    const firstWithout = sorted.map((j) => !!j.flyer).indexOf(false);
-    check('orden flyer: primero los que tienen flyer', lastWith >= 0 && (firstWithout === -1 || lastWith < firstWithout), `${lastWith} ${firstWithout}`);
+    const firstNormal = sorted.findIndex((j) => !j.featured);
+    check('orden flyer: los destacados van primero', firstNormal === -1 || sorted.slice(firstNormal).every((j) => !j.featured));
+    const rest = firstNormal === -1 ? [] : sorted.slice(firstNormal);
+    const lastWith = rest.map((j) => !!j.flyer).lastIndexOf(true);
+    const firstWithout = rest.map((j) => !!j.flyer).indexOf(false);
+    check('orden flyer: entre el resto, primero los que tienen flyer', lastWith >= 0 && (firstWithout === -1 || lastWith < firstWithout), `${lastWith} ${firstWithout}`);
     check('orden flyer respeta la localidad', ((await pub.get('/api/jobs?sort=flyer&limit=30&locality=Tupungato')).data.jobs || []).every((j) => j.locality === 'Tupungato'));
     check('orden flyer respeta changas', ((await pub.get('/api/jobs?sort=flyer&limit=30&gig=1')).data.jobs || []).every((j) => j.gig === true));
 

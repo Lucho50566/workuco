@@ -183,8 +183,13 @@
             <div class="offer-stats">
               <span>${icon('users', 15)} <strong>${j.applications}</strong> postulantes</span>
               <span>${icon('eye', 15)} <strong>${j.views || 0}</strong> vistas</span>
+              <span title="Vistas de los últimos 7 días"><strong>${j.viewsWeek || 0}</strong> esta semana</span>
               ${j.newApplications ? `<span class="new-dot">${j.newApplications} nuevo${j.newApplications === 1 ? '' : 's'}</span>` : ''}
             </div>
+            ${j.featured ? `<p class="feat-note is-on">${icon('star', 14)} Destacado${j.featuredUntil ? ` hasta el ${fmtDate(j.featuredUntil)}` : ''}: sale primero en Buscar y en Wik Works.</p>`
+              : j.status === 'approved' ? (j.featureRequested
+                ? `<p class="feat-note">${icon('clock', 14)} Pediste destacarlo: te avisamos cuando esté. <button class="link-btn" type="button" data-feat-cancel="${j.id}">Cancelar pedido</button></p>`
+                : `<p class="feat-note"><button class="btn btn-outline btn-sm" type="button" data-feat-req="${j.id}">${icon('star', 14)} Pedir destacado</button> <span>Sale primero en Buscar y en Wik Works${meta.launchFree ? '. <strong>Gratis durante el lanzamiento.</strong>' : '.'}</span></p>`) : ''}
             ${j.status === 'rejected' && j.rejectReason ? `<p class="reject-note">${esc(j.rejectReason)}</p>` : ''}
             <div class="offer-actions">
               <a class="btn btn-outline btn-sm" href="/publicar?edit=${j.id}">${icon('edit', 14)} Editar</a>
@@ -200,6 +205,14 @@
       $$('[data-del]').forEach((b) => b.addEventListener('click', async () => {
         if (!confirm('¿Eliminar esta publicación? También se borran sus postulaciones.')) return;
         try { await api(`/api/company/jobs/${b.dataset.del}`, { method: 'DELETE' }); toast('Publicación eliminada', 'ok'); load(); }
+        catch (err) { toast(err.message, 'err'); }
+      }));
+      $$('[data-feat-req]').forEach((b) => b.addEventListener('click', async () => {
+        try { await api(`/api/company/jobs/${b.dataset.featReq}/feature-request`, { method: 'POST' }); toast('Listo: pediste destacar el aviso', 'ok'); load(); }
+        catch (err) { toast(err.message, 'err'); }
+      }));
+      $$('[data-feat-cancel]').forEach((b) => b.addEventListener('click', async () => {
+        try { await api(`/api/company/jobs/${b.dataset.featCancel}/feature-request`, { method: 'DELETE' }); toast('Pedido cancelado', 'ok'); load(); }
         catch (err) { toast(err.message, 'err'); }
       }));
       $$('[data-dup]').forEach((b) => b.addEventListener('click', async () => {
@@ -1272,24 +1285,33 @@
     const wrap = $('#admin-jobs');
     wrap.innerHTML = '<div class="skeleton" style="height:120px"></div>';
     try {
-      const { jobs } = await api(`/api/admin/jobs${status ? '?status=' + status : ''}`);
+      const [{ jobs }, fst] = await Promise.all([api(`/api/admin/jobs${status ? '?status=' + status : ''}`), api('/api/admin/featured-stats').catch(() => null)]);
       ADMIN_JOBS = jobs;
-      wrap.innerHTML = jobs.length ? `<div class="table-wrap"><table class="data">
+      const pedidos = jobs.filter((j) => j.featureRequested).length;
+      const resumen = fst ? `<div class="feat-summary">
+        <span>${icon('star', 14)} Destacados: <strong>${fst.featured.viewsPerJobDay}</strong> vistas por aviso y por día · resto: <strong>${fst.normal.viewsPerJobDay}</strong>${fst.ratio ? ` · <strong>${fst.ratio}×</strong>` : ''} <small>(últimos 30 días)</small></span>
+        ${pedidos ? `<span class="feat-req-count">${pedidos} pedido${pedidos === 1 ? '' : 's'} de destacado</span>` : ''}
+      </div>` : '';
+      wrap.innerHTML = resumen + (jobs.length ? `<div class="table-wrap"><table class="data">
         <thead><tr><th>Oferta</th><th>Empresa</th><th>Estado</th><th>Post.</th><th></th></tr></thead>
         <tbody>${jobs.map((j) => `<tr>
           <td><div class="cell-title">${esc(j.title)}</div><div class="cell-sub">${esc(j.locality)} · ${esc(j.category)} · ${timeAgo(j.createdAt)}</div>${(j.warnings || []).length ? `<div class="legal-flag" title="${esc(j.warnings.map((w) => w.message).join(' '))}">⚠ Posible requisito discriminatorio: ${j.warnings.map((w) => `"${esc(w.match)}"`).join(', ')}</div>` : ''}</td>
           <td class="cell-sub">${esc(j.companyName)}${j.companyVerified ? ' ✓' : ''}</td>
-          <td>${W.statusBadge(j.status)}${j.featured ? '<div style="margin-top:4px"><span class="badge badge-featured">Destacada</span></div>' : ''}</td>
+          <td>${W.statusBadge(j.status)}${j.featured ? `<div style="margin-top:4px"><span class="badge badge-featured">Destacada${j.featuredUntil ? ` hasta el ${new Date(j.featuredUntil).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}` : ''}</span></div>` : ''}${j.featureRequested ? `<div style="margin-top:4px"><span class="badge badge-amber">Pidió destacar · ${timeAgo(j.featureRequestedAt)}</span></div>` : ''}</td>
           <td>${j.applications}</td>
           <td><div class="row-actions">
             ${j.status !== 'approved' ? `<button class="btn btn-primary btn-sm" data-approve="${j.id}">Aprobar</button>` : ''}
             ${j.status !== 'rejected' ? `<button class="btn btn-outline btn-sm" data-reject="${j.id}">Rechazar</button>` : ''}
-            <button class="btn btn-outline btn-sm" data-feature="${j.id}">${j.featured ? 'Quitar destacado' : 'Destacar'}</button>
+            <select class="input input-sm" data-feature-days="${j.id}" aria-label="Destacar ${esc(j.title)}">
+              <option value="">${j.featured ? 'Destacada' : 'Destacar…'}</option>
+              <option value="7">7 días</option><option value="15">15 días</option><option value="30">30 días</option>
+              ${j.featured ? '<option value="off">Quitar destacado</option>' : ''}
+            </select>
             <button class="btn btn-outline btn-sm" data-edit="${j.id}">Editar</button>
             <button class="btn btn-danger btn-sm" data-remove="${j.id}">Eliminar</button>
           </div></td>
         </tr>`).join('')}</tbody></table></div>`
-        : '<div class="list-empty">No hay ofertas con ese estado.</div>';
+        : '<div class="list-empty">No hay ofertas con ese estado.</div>');
 
       $$('[data-approve]').forEach((b) => b.addEventListener('click', () => patchJob(b.dataset.approve, { status: 'approved' })));
       $$('[data-reject]').forEach((b) => b.addEventListener('click', () => {
@@ -1297,9 +1319,9 @@
         if (reason === null) return;
         patchJob(b.dataset.reject, { status: 'rejected', rejectReason: reason });
       }));
-      $$('[data-feature]').forEach((b) => b.addEventListener('click', () => {
-        const j = jobs.find((x) => x.id === b.dataset.feature);
-        patchJob(j.id, { featured: !j.featured });
+      $$('[data-feature-days]').forEach((s) => s.addEventListener('change', () => {
+        if (!s.value) return;
+        patchJob(s.dataset.featureDays, { featuredDays: s.value === 'off' ? null : Number(s.value) });
       }));
       $$('[data-edit]').forEach((b) => b.addEventListener('click', () => openEdit(b.dataset.edit)));
       $$('[data-remove]').forEach((b) => b.addEventListener('click', async () => {

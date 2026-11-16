@@ -44,6 +44,9 @@ const MAX_ALERTS = 10;
 const MAX_FLYERS = 5;
 const IMPORT_FAKE = process.env.WORKUCO_IMPORT_AI_FAKE === '1'; // sólo para pruebas: IA simulada
 const CONTACT_WA = process.env.WORKUCO_CONTACT_WA || '';
+/* lanzamiento: mientras valga 1 (por defecto), destacar avisos es gratis y el panel lo dice */
+const LAUNCH_FREE = process.env.WORKUCO_LAUNCH_FREE !== '0';
+const FEATURED_DAYS = [7, 15, 30];
 const IMPORT_FAKE_REPLY = { avisos: [
   { title: 'Mozo para restaurante', companyName: 'Resto El Álamo', locality: 'Tunuyán', category: 'Gastronomía', type: 'Medio tiempo', modality: 'Presencial',
     description: 'Resto El Álamo busca mozo o moza para el turno noche en el centro de Tunuyán. Se valora experiencia en salón y buena atención.', contactPhone: '2622 15-555123' },
@@ -320,7 +323,7 @@ function jobSummary(j) {
     salary: j.salary, salaryMin: j.salaryMin, salaryMax: j.salaryMax, salaryPeriod: j.salaryPeriod, salaryLabel: j.salaryLabel,
     skills: j.skills, gig: j.gig, startDate: j.startDate, duration: j.duration, positions: j.positions,
     sourceKind: j.sourceKind, sourceName: j.sourceName, flyer: j.flyer, flyers: j.flyers,
-    featured: j.featured, createdAt: j.createdAt, publishedAt: j.publishedAt, closesAt: j.closesAt,
+    featured: j.featured, featuredUntil: j.featured ? j.featuredUntil : null, createdAt: j.createdAt, publishedAt: j.publishedAt, closesAt: j.closesAt,
   };
 }
 
@@ -964,6 +967,7 @@ async function handleApi(req, res, url) {
       benefits: BENEFITS, stages: STAGES.map((id) => ({ id, label: STAGE_LABEL[id] })),
       aiProviders: ai.PROVIDERS,
       salaryPeriods: SALARY_PERIODS, templates: TEMPLATES, counts: store.publicCounts(), contactWa: CONTACT_WA,
+      launchFree: LAUNCH_FREE,
       contactWaUrl: normPhone(CONTACT_WA) ? `https://wa.me/549${normPhone(CONTACT_WA)}` : '',
       legal: legal.legalInfo(), discriminationRules: legal.DISCRIMINATION_RULES,
     });
@@ -1169,7 +1173,9 @@ async function handleApi(req, res, url) {
   if (jobMatch && method === 'GET') {
     const j = store.job(jobMatch[1]);
     if (!j || (j.status !== 'approved' && !(current(req) || {}).role)) return send(res, 404, { error: 'Oferta no encontrada' });
-    store.bumpViews(j.id);
+    const viewer = current(req);
+    const insider = viewer && (viewer.role === 'admin' || (viewer.role === 'company' && viewer.company.id === j.companyId));
+    if (!insider) store.bumpViews(j.id);
     const unclaimed = (store.company(j.companyId) || {}).claimed === 0;
     const expired = j.closesAt && j.closesAt < todayAR();
     const me = current(req);
@@ -1452,8 +1458,19 @@ async function handleApi(req, res, url) {
     const v = validateJob(b, { hasFlyer: keep.length + added.length > 0 });
     if (!v.ok) return send(res, 400, { error: 'Revisá los datos', fields: v.errors });
     const flyerFiles = [...new Set(keep), ...added.map((f) => saveImage(f, 'flyer'))];
-    const updated = store.updateJob(j.id, { ...v.data, flyerFiles, status: 'pending', rejectReason: null, featured: 0, publishedAt: null });
+    const updated = store.updateJob(j.id, { ...v.data, flyerFiles, status: 'pending', rejectReason: null, publishedAt: null });
     return send(res, 200, { job: updated, message: 'Los cambios quedaron pendientes de aprobación', warnings: legal.discriminationHints(updated.title, updated.description, updated.requirements, updated.responsibilities) });
+  }
+
+  /* la empresa pide que se destaque su aviso (en el lanzamiento es gratis; lo aprueba el admin) */
+  const compJobFeat = p.match(/^\/api\/company\/jobs\/([a-z0-9]+)\/feature-request$/);
+  if (compJobFeat && (method === 'POST' || method === 'DELETE')) {
+    if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
+    const j = store.job(compJobFeat[1]);
+    if (!j || j.companyId !== me.company.id) return send(res, 404, { error: 'Oferta no encontrada' });
+    if (method === 'POST' && j.featured) return send(res, 400, { error: 'Este aviso ya está destacado' });
+    if (method === 'POST' && j.status !== 'approved') return send(res, 400, { error: 'Sólo se pueden destacar avisos publicados' });
+    return send(res, 200, { job: store.setFeatureRequest(j.id, method === 'POST') });
   }
 
   const compJobDup = p.match(/^\/api\/company\/jobs\/([a-z0-9]+)\/duplicate$/);
@@ -2090,6 +2107,11 @@ async function handleApi(req, res, url) {
     return send(res, 200, { stats: store.stats() });
   }
 
+  if (p === '/api/admin/featured-stats' && method === 'GET') {
+    if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
+    return send(res, 200, store.featuredStats());
+  }
+
   if (p === '/api/admin/jobs' && method === 'GET') {
     if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
     const status = ['pending', 'approved', 'rejected', 'closed'].includes(q.get('status')) ? q.get('status') : '';
@@ -2111,6 +2133,9 @@ async function handleApi(req, res, url) {
       if (b.status === 'approved') patch.rejectReason = null;
     }
     if ('featured' in b) patch.featured = !!b.featured;
+    if ('featuredDays' in b && b.featuredDays !== null && !FEATURED_DAYS.includes(Number(b.featuredDays))) {
+      return send(res, 400, { error: `Elegí ${FEATURED_DAYS.join(', ')} días` });
+    }
     if ('rejectReason' in b) patch.rejectReason = clean(b.rejectReason, 300);
     if (Object.keys(b).some((k) => ['title', 'description', 'locality', 'category', 'type', 'modality'].includes(k))) {
       const merged = { ...j, ...b, contactEmail: b.contactEmail || j.contactEmail };
@@ -2118,7 +2143,8 @@ async function handleApi(req, res, url) {
       if (!v.ok) return send(res, 400, { error: 'Revisá los datos', fields: v.errors });
       Object.assign(patch, v.data);
     }
-    const updated = store.updateJob(j.id, patch);
+    let updated = store.updateJob(j.id, patch);
+    if ('featuredDays' in b) updated = store.setJobFeatured(j.id, b.featuredDays === null ? false : Date.now() + Number(b.featuredDays) * 86400000);
     if (patch.status === 'approved' && j.status !== 'approved') announceJob(updated);
     if (patch.status === 'rejected' && j.status !== 'rejected') {
       tryNotify('company', j.companyId, {
