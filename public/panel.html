@@ -34,6 +34,7 @@
         <button type="button" class="panel-nav-item" data-tab="company">{{ICON_BUILDING}}<span>Mi empresa</span></button>
         <button type="button" class="panel-nav-item" data-tab="guide">{{ICON_PIN}}<span>Guía</span></button>
         <button type="button" class="panel-nav-item" data-tab="ai">{{ICON_SPARKLES}}<span>IA</span></button>
+        <button type="button" class="panel-nav-item" data-tab="solutions">{{ICON_WAND}}<span>Soluciones</span></button>
       </nav>
       <a class="btn btn-primary btn-block" href="/publicar">{{ICON_PLUS}} Nueva publicación</a>
       <div class="panel-side-foot">
@@ -161,7 +162,8 @@
                 <div class="field span-2"><label for="p-name">Nombre</label><input class="input" id="p-name" required maxlength="120"></div>
                 <div class="field"><label for="p-locality">Localidad</label><select class="input" id="p-locality"><option value="">Sin definir</option></select></div>
                 <div class="field"><label for="p-phone">Teléfono</label><input class="input" id="p-phone" maxlength="60"></div>
-                <div class="field span-2"><label for="p-website">Sitio web</label><input class="input" id="p-website" maxlength="200" placeholder="https://"></div>
+                <div class="field"><label for="p-employees">Cantidad de empleados <span class="hint">(opcional)</span></label><select class="input" id="p-employees"><option value="">Sin definir</option><option>1 a 5</option><option>6 a 20</option><option>21 a 50</option><option>Más de 50</option></select></div>
+                <div class="field"><label for="p-website">Sitio web</label><input class="input" id="p-website" maxlength="200" placeholder="https://"></div>
                 <div class="field span-2"><label for="p-desc">Descripción</label><textarea class="input" id="p-desc" rows="5" maxlength="1600" placeholder="Contá a qué se dedica tu empresa y cómo es el equipo."></textarea></div>
               </div>
               <button class="btn btn-primary" type="submit" id="profile-save" style="margin-top:16px">Guardar cambios</button>
@@ -187,6 +189,24 @@
           <div><h1>Guía del Valle</h1><p>Tu comercio en la guía: fotos, horario, WhatsApp y cuánta gente te contacta.</p></div>
         </header>
         <div id="company-places"></div>
+      </div>
+
+      <!-- SOLUCIONES: servicios que WorkUco puede ofrecer (por ahora se mide el interés) -->
+      <div data-panel="solutions" hidden>
+        <header class="panel-head">
+          <div><h1>Soluciones para tu empresa</h1><p>Además de encontrar personal, te podemos ayudar con tecnología. Marcá lo que te interesa y te escribimos, sin compromiso.</p></div>
+        </header>
+        <div id="sol-alert" hidden></div>
+        <form id="sol-form" novalidate>
+          <div class="sol-grid" id="sol-list"><div class="skeleton" style="height:160px"></div></div>
+          <div class="card sol-foot">
+            <div class="field"><label for="sol-note">Contanos qué necesitás <span class="hint">(opcional)</span></label><textarea class="input" id="sol-note" rows="3" maxlength="600" placeholder="Por ejemplo: que se respondan solos los mensajes de WhatsApp, o una web para mostrar mis productos."></textarea></div>
+            <label class="check-row" for="sol-ok"><input type="checkbox" id="sol-ok" name="marketingOk"><span>Acepto que WorkUco me contacte por email, teléfono o WhatsApp con propuestas sobre estos servicios. Lo puedo retirar cuando quiera desde acá.</span></label>
+            <span class="error-text" data-error="marketingOk" hidden></span>
+            <div class="sol-actions"><button class="btn btn-primary" type="submit" id="sol-save">Quiero que me contacten</button><button class="btn btn-ghost" type="button" id="sol-off" hidden>Ya no me interesa</button></div>
+            <p class="muted sol-state" id="sol-state"></p>
+          </div>
+        </form>
       </div>
 
       <!-- IA -->

@@ -24,6 +24,7 @@ const { extractCv } = require('./lib/cvtext');
 const legal = require('./lib/legal');
 const seo = require('./lib/seo');
 const placesLib = require('./lib/places');
+const servicesLib = require('./lib/services');
 const { createMailer, emailHtml, emailText } = require('./lib/mail');
 const DEMO = process.env.WORKUCO_DEMO === '1';
 
@@ -183,6 +184,8 @@ function publicCompany(c, { privateView = false } = {}) {
     createdAt: c.created_at,
   };
   if (privateView) {
+    out.employees = c.employees || '';
+    out.serviceInterest = servicesLib.interestOf(c);
     out.mailNotices = !c.mail_opt_out;
     out.prefs = prefsOf('company', c);
     const cfg = ai.configOf(c);
@@ -1355,6 +1358,7 @@ async function handleApi(req, res, url) {
     if ('website' in b) patch.website = cleanUrl(b.website);
     if ('description' in b) patch.description = cleanMultiline(b.description, 1600);
     if ('locality' in b) patch.locality = LOCALITIES.includes(b.locality) ? b.locality : '';
+    if ('employees' in b) patch.employees = servicesLib.EMPLOYEES.includes(b.employees) ? b.employees : '';
     if ('logo' in b && b.logo) {
       const f = saveImage(b.logo, 'logo');
       if (c.logo_file) removeUpload(c.logo_file);
@@ -1363,6 +1367,23 @@ async function handleApi(req, res, url) {
     if (b.removeLogo) { if (c.logo_file) removeUpload(c.logo_file); patch.logo_file = null; }
     const updated = store.updateCompany(me.company.id, patch);
     return send(res, 200, { company: publicCompany(updated, { privateView: true }) });
+  }
+
+  /* Soluciones para empresas: la empresa marca qué servicio le interesa y si acepta que la contactemos */
+  if (p === '/api/company/services' && (method === 'GET' || method === 'PUT')) {
+    if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
+    if (method === 'PUT') {
+      const b = await readBody(req);
+      const services = servicesLib.cleanServices(b.services);
+      const note = clean(String(b.note == null ? '' : b.note).replace(/<[^>]*>/g, ''), servicesLib.NOTE_MAX);
+      const marketingOk = b.marketingOk === true;
+      if (services.length && !marketingOk) {
+        const msg = 'Para que te escribamos, marcá que aceptás que WorkUco te contacte por estos servicios';
+        return send(res, 400, { error: msg, fields: { marketingOk: msg } });
+      }
+      store.setServiceInterest(me.company.id, { services, note, marketingOk });
+    }
+    return send(res, 200, { services: servicesLib.SERVICES, interest: servicesLib.interestOf(store.company(me.company.id)) });
   }
 
   if (p === '/api/company/gallery' && method === 'POST') {
@@ -2129,6 +2150,18 @@ async function handleApi(req, res, url) {
         logo: mediaUrl(c.logo_file), createdAt: c.created_at,
         ai: c.ai_provider ? { provider: c.ai_provider, enabled: !!c.ai_enabled, hasKey: !!c.ai_key } : null,
       })),
+    });
+  }
+
+  if (p === '/api/admin/services' && method === 'GET') {
+    if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
+    return send(res, 200, {
+      services: servicesLib.SERVICES,
+      interested: store.interestedCompanies().map((c) => {
+        const it = servicesLib.interestOf(c);
+        return { id: c.id, name: c.name, email: c.email, phone: c.phone || '', locality: c.locality || '',
+          employees: c.employees || '', website: c.website || '', services: it.services, note: it.note, at: it.at };
+      }),
     });
   }
 

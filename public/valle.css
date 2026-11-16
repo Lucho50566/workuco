@@ -1021,3 +1021,21 @@ fieldset.account-mail legend small { font-weight: 500; color: var(--muted); }
   /* el panel de novedades ocupa el ancho de la pantalla y no se sale por la izquierda */
   .bell-panel { position: fixed; left: 12px; right: 12px; top: 68px; width: auto; }
 }
+
+/* ---------- Soluciones para empresas (panel) ---------- */
+.sol-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.sol-card { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 22px 22px 18px; border-radius: 18px; background: #fff; border: 2px solid var(--line, #e6e1d3); cursor: pointer; transition: border-color .2s, box-shadow .2s, transform .2s; }
+.sol-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(11,22,18,.08); }
+.sol-card input { position: absolute; opacity: 0; pointer-events: none; }
+.sol-card:focus-within { outline: 3px solid var(--lime); outline-offset: 2px; }
+.sol-title { font-family: var(--font-display); font-weight: 800; font-size: 20px; letter-spacing: -0.01em; color: var(--night); }
+.sol-desc { font-size: 14.5px; line-height: 1.45; color: var(--muted, #5b635c); }
+.sol-pick { margin-top: auto; display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding: 7px 14px; border-radius: 999px; background: #f1ede2; font-weight: 700; font-size: 13.5px; color: var(--night); }
+.sol-pick svg { opacity: .25; }
+.sol-card.is-on { border-color: var(--green); box-shadow: 0 10px 26px rgba(10,130,99,.12); }
+.sol-card.is-on .sol-pick { background: var(--lime); }
+.sol-card.is-on .sol-pick svg { opacity: 1; }
+.sol-foot { margin-top: 18px; display: grid; gap: 14px; }
+.sol-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.sol-state { margin: 0; }
+@media (max-width: 900px) { .sol-grid { grid-template-columns: 1fr; } }

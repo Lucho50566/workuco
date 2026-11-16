@@ -111,11 +111,12 @@
       if (name === 'ai') renderAiTab();
       if (name === 'talent') loadTalent();
       if (name === 'guide' && !showTab.places && window.WKGuia) { showTab.places = true; window.WKGuia.initMyPlaces($('#company-places')); }
+      if (name === 'solutions') renderSolutions();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     };
     $$('[data-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
     /* links directos: /panel#talento, #postulantes, #ofertas */
-    const HASH_TAB = { talento: 'talent', postulantes: 'applicants', ofertas: 'jobs', empresa: 'company', ia: 'ai', guia: 'guide' };
+    const HASH_TAB = { talento: 'talent', postulantes: 'applicants', ofertas: 'jobs', empresa: 'company', ia: 'ai', guia: 'guide', soluciones: 'solutions' };
     const hashTab = () => HASH_TAB[location.hash.replace('#', '')];
     window.addEventListener('hashchange', () => { if (hashTab()) showTab(hashTab()); });
     document.addEventListener('click', (e) => {
@@ -569,6 +570,7 @@
       $('#p-locality').value = c.locality || '';
       $('#p-phone').value = c.phone || '';
       $('#p-website').value = c.website || '';
+      $('#p-employees').value = c.employees || '';
       $('#p-desc').value = c.description || '';
       $('#p-logo-preview').innerHTML = logoHtml(c.name, c.logo, 'logo-lg');
       const gallery = c.gallery || [];
@@ -589,6 +591,49 @@
       locSel.value = c.locality || '';
     }
 
+    /* ---------- soluciones (servicios para empresas) ---------- */
+    let solData = null;
+    const solLabel = (id) => ((solData && solData.services.find((s) => s.id === id)) || { label: id }).label;
+    const paintSolState = (it) => {
+      const on = it.services.length > 0;
+      $('#sol-off').hidden = !on;
+      $('#sol-state').textContent = on ? `Te vamos a escribir por: ${it.services.map(solLabel).join(', ')}.` : '';
+    };
+    async function renderSolutions() {
+      try { solData = await api('/api/company/services'); } catch (err) { showAlert($('#sol-alert'), err.message, 'error'); return; }
+      const it = solData.interest;
+      $('#sol-list').innerHTML = solData.services.map((s) => `<label class="sol-card${it.services.includes(s.id) ? ' is-on' : ''}">
+        <input type="checkbox" value="${esc(s.id)}"${it.services.includes(s.id) ? ' checked' : ''}>
+        <span class="sol-title">${esc(s.label)}</span>
+        <span class="sol-desc">${esc(s.description)}</span>
+        <span class="sol-pick">${icon('check', 16)} Me interesa</span>
+      </label>`).join('');
+      $$('#sol-list input').forEach((i) => i.addEventListener('change', () => i.closest('.sol-card').classList.toggle('is-on', i.checked)));
+      $('#sol-note').value = it.note || '';
+      $('#sol-ok').checked = !!it.marketingOk;
+      paintSolState(it);
+    }
+    $('#sol-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideAlert($('#sol-alert')); setFieldErrors($('#sol-form'), null);
+      const services = $$('#sol-list input:checked').map((i) => i.value);
+      if (!services.length) { showAlert($('#sol-alert'), 'Marcá al menos un servicio que te interese.', 'error'); return; }
+      const btn = $('#sol-save'); btn.disabled = true;
+      try {
+        solData = await api('/api/company/services', { method: 'PUT', body: { services, note: $('#sol-note').value.trim(), marketingOk: $('#sol-ok').checked } });
+        paintSolState(solData.interest);
+        showAlert($('#sol-alert'), '¡Listo! Te vamos a escribir para contarte más, sin compromiso.', 'ok');
+      } catch (err) { showAlert($('#sol-alert'), err.message, 'error'); setFieldErrors($('#sol-form'), err.fields); }
+      finally { btn.disabled = false; }
+    });
+    $('#sol-off').addEventListener('click', async () => {
+      try {
+        await api('/api/company/services', { method: 'PUT', body: { services: [], note: '', marketingOk: false } });
+        await renderSolutions();
+        showAlert($('#sol-alert'), 'Listo: no te vamos a escribir por estos servicios.', 'ok');
+      } catch (err) { toast(err.message, 'err'); }
+    });
+
     $('#profile-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = $('#profile-save');
@@ -597,7 +642,7 @@
         const { company } = await api('/api/company/profile', { method: 'PATCH', body: {
           name: $('#p-name').value.trim(), locality: $('#p-locality').value,
           phone: $('#p-phone').value.trim(), website: $('#p-website').value.trim(),
-          description: $('#p-desc').value.trim(),
+          employees: $('#p-employees').value, description: $('#p-desc').value.trim(),
         } });
         data.company = company;
         paintSidebar();
@@ -1038,8 +1083,31 @@
       $$('.tab').forEach((t) => t.classList.toggle('is-active', t === tab));
       $$('[data-panel]').forEach((p) => { p.hidden = p.dataset.panel !== tab.dataset.tab; });
       if (tab.dataset.tab === 'guide' && !adminPlacesReady && window.WKGuia) { adminPlacesReady = true; window.WKGuia.initAdminPlaces($('#admin-places')); }
+      if (tab.dataset.tab === 'services') adminServices();
     }));
     $('#jobs-filter').addEventListener('change', () => adminJobs($('#jobs-filter').value));
+  }
+
+  /* empresas que pidieron servicios (Soluciones) y aceptaron que las contacten */
+  async function adminServices() {
+    const box = $('#admin-services');
+    box.innerHTML = '<div class="skeleton" style="height:120px"></div>';
+    try {
+      const { services, interested } = await api('/api/admin/services');
+      const label = (id) => (services.find((s) => s.id === id) || { label: id }).label;
+      box.innerHTML = interested.length ? `<p class="muted">${interested.length} empresa${interested.length === 1 ? '' : 's'} ${interested.length === 1 ? 'pidió' : 'pidieron'} que la contactes.</p>
+        <div class="table-wrap"><table class="data">
+        <thead><tr><th>Empresa</th><th>Contacto</th><th>Le interesa</th><th>Tamaño y web</th><th>Lo que contó</th><th>Desde</th></tr></thead>
+        <tbody>${interested.map((c) => `<tr>
+          <td><div class="cell-title">${esc(c.name)}</div><div class="cell-sub">${esc(c.locality || 'Sin localidad')}</div></td>
+          <td class="cell-sub"><a href="mailto:${esc(c.email)}">${esc(c.email)}</a><br>${esc(c.phone)}</td>
+          <td>${c.services.map((id) => `<span class="badge">${esc(label(id))}</span>`).join(' ')}</td>
+          <td class="cell-sub">${esc(c.employees || 'Sin dato')}<br>${c.website ? `<a href="${esc(c.website)}" target="_blank" rel="noopener">Tiene web</a>` : 'Sin web'}</td>
+          <td class="cell-sub">${esc(c.note || '—')}</td>
+          <td class="cell-sub">${timeAgo(c.at)}</td>
+        </tr>`).join('')}</tbody></table></div>`
+        : '<p class="muted">Todavía ninguna empresa pidió servicios. Cuando una marque "Me interesa" en su panel (Soluciones) y acepte que la contacten, aparece acá.</p>';
+    } catch (err) { box.innerHTML = `<p class="muted">${esc(err.message)}</p>`; }
   }
 
   /* ================================================================== */

@@ -198,6 +198,28 @@ check('las tarjetas de avisos no se cortan a 390', await noOverflow('#results'))
 check('el corazón de Guardar no tapa la compatibilidad', await ev(`(() => { const row = document.querySelector('#results .job-row'); if (!row) return false; const s = row.querySelector('.save-btn').getBoundingClientRect(); const m = row.querySelector('.match-pill'); if (!m) return true; const r = m.getBoundingClientRect(); return r.right <= s.left || r.bottom <= s.top || r.top >= s.bottom; })()`));
 await ev(`(document.querySelector('[data-bell]') || document.querySelector('.bell-btn') || document.querySelector('[aria-label*="otificaciones"]')).click()`); await sleep(500);
 check('el panel de novedades entra en la pantalla', await ev(`(() => { const p = document.querySelector('.bell-panel'); if (!p) return false; const r = p.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; })()`));
+/* 8. soluciones para empresas: interés, permiso de contacto y lista del admin */
+await send('Network.clearBrowserCookies');
+await post('/api/auth/login', { email: 'cafe@demo.workuco', password: 'demo12345' });
+await size(1440); await go('/panel#soluciones'); await sleep(1000);
+check('la empresa tiene "Soluciones" con los servicios', await ev(`!document.querySelector('[data-panel="solutions"]').hidden && document.querySelectorAll('#sol-list .sol-card').length === 3`));
+await ev(`document.querySelector('#sol-list input[value="web"]').click()`); await sleep(200);
+check('marcar "Me interesa" se ve marcado', await ev(`document.querySelector('#sol-list input[value="web"]').closest('.sol-card').classList.contains('is-on')`));
+check('el permiso de contacto arranca sin marcar', await ev(`document.querySelector('#sol-ok').checked === false`));
+await ev(`document.querySelector('#sol-form').requestSubmit()`); await sleep(900);
+check('sin el permiso pide marcarlo', await ev(`!document.querySelector('[data-error="marketingOk"]').hidden`));
+await setVal('#sol-note', 'Quiero una web para mostrar el menú');
+await click('#sol-ok');
+await ev(`document.querySelector('#sol-form').requestSubmit()`); await sleep(1000);
+check('con el permiso se guarda y dice por qué le van a escribir', /Página web/.test(await ev(`document.querySelector('#sol-state').textContent`)) && !(await ev(`document.querySelector('#sol-off').hidden`)));
+await shot('panel-soluciones');
+await size(390); await go('/panel#soluciones'); await sleep(1000);
+check('Soluciones sin desbordes (390)', await noOverflow());
+await adminSession(); await size(1440);
+await go('/admin'); await sleep(900);
+await click('.tab[data-tab="services"]'); await sleep(900);
+check('el admin ve a la empresa interesada con su nota', await ev(`/Página web/.test(document.querySelector('#admin-services').innerText) && /menú/.test(document.querySelector('#admin-services').innerText)`));
+await shot('admin-servicios');
 check('sin errores de JS', errors.length === 0, JSON.stringify(errors.slice(0, 2)));
 console.log(`\n${ok} ok · ${fail} fail`);
 ws.close(); proc.kill(); process.exit(fail ? 1 : 0);
