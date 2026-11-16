@@ -189,6 +189,15 @@ check('y los avisos son de esas localidades', await ev(`[...document.querySelect
 await ev(`document.querySelector('#chips-locality [data-value=""]').click()`); await sleep(800);
 check('se puede sacar el filtro', await ev(`(document.querySelector('#chips-locality .filter-chip.is-active') || {}).textContent === 'Toda la zona'`));
 await ev(`fetch('/api/account/prefs',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({localities:[]})}).then(r=>r.status)`);
+/* 7. celular: tarjetas de avisos y panel de novedades sin cortes */
+await send('Network.clearBrowserCookies');
+await size(390); await go('/');
+await post('/api/auth/login', { role: 'candidate', email: 'martina@demo.workuco', password: 'demo12345' });
+await go('/buscar'); await sleep(900);
+check('las tarjetas de avisos no se cortan a 390', await noOverflow('#results'));
+check('el corazón de Guardar no tapa la compatibilidad', await ev(`(() => { const row = document.querySelector('#results .job-row'); if (!row) return false; const s = row.querySelector('.save-btn').getBoundingClientRect(); const m = row.querySelector('.match-pill'); if (!m) return true; const r = m.getBoundingClientRect(); return r.right <= s.left || r.bottom <= s.top || r.top >= s.bottom; })()`));
+await ev(`(document.querySelector('[data-bell]') || document.querySelector('.bell-btn') || document.querySelector('[aria-label*="otificaciones"]')).click()`); await sleep(500);
+check('el panel de novedades entra en la pantalla', await ev(`(() => { const p = document.querySelector('.bell-panel'); if (!p) return false; const r = p.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; })()`));
 check('sin errores de JS', errors.length === 0, JSON.stringify(errors.slice(0, 2)));
 console.log(`\n${ok} ok · ${fail} fail`);
 ws.close(); proc.kill(); process.exit(fail ? 1 : 0);

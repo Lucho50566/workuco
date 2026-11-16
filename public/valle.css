@@ -1005,3 +1005,15 @@ html { scrollbar-color: #b9ad94 var(--cream); }
 fieldset.account-mail { border: 0; padding: 0; margin: 14px 0 4px; display: grid; gap: 8px; min-width: 0; }
 fieldset.account-mail legend { font-weight: 700; margin-bottom: 6px; padding: 0; }
 fieldset.account-mail legend small { font-weight: 500; color: var(--muted); }
+
+/* ---------- arreglos en el celular (vistos al capturar el video) ---------- */
+/* la columna de texto del aviso no puede ensanchar la tarjeta: el título se corta en líneas */
+.job-row-info, .job-row .side { min-width: 0; }
+.job-row-info .job-title { overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  /* compatibilidad y fecha bajan de línea en vez de quedar debajo del corazón de Guardar */
+  .job-row .side { flex-wrap: wrap; row-gap: 8px; padding-right: 44px; }
+  .job-row .side .date { margin-right: 0; }
+  /* el panel de novedades ocupa el ancho de la pantalla y no se sale por la izquierda */
+  .bell-panel { position: fixed; left: 12px; right: 12px; top: 68px; width: auto; }
+}
