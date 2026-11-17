@@ -45,7 +45,14 @@ check('color desconocido → verde', cv.accent === 'verde');
 check('secciones sin repetidos ni desconocidas', cv.sections.join() === 'resumen,experiencia', cv.sections.join());
 check('titular topeado a 90', cv.headline.length <= 90);
 check('descarta la empresa inventada y deja la real (sin tildes ni mayúsculas)', cv.experience.length === 1 && cv.experience[0].company === 'Finca Los Nogales');
-check('máximo 6 tareas por experiencia', cv.experience[0].bullets.length === 6);
+check('máximo 4 tareas por experiencia', cv.experience[0].bullets.length === 4);
+const many = cvpro.normalizeCv({ experience: Array.from({ length: 8 }, (_, i) => ({ company: `Empresa ${i}`, role: '', bullets: Array(6).fill('tarea') })),
+  courses: Array(9).fill('c'), achievements: Array(9).fill('l'), skills: Array(20).fill('s'), summary: 'r'.repeat(900) },
+  cvpro.allowedCorpus(Array.from({ length: 8 }, (_, i) => `Empresa ${i}`).join(' ')));
+const totalB = many.experience.reduce((n, e) => n + e.bullets.length, 0);
+check('topes para que entre en una hoja: 5 trabajos, 10 tareas en total, 3 cursos, 3 logros, 10 habilidades, resumen 420',
+  many.experience.length === 5 && totalB === 10 && many.courses.length === 3 && many.achievements.length === 3 && many.skills.length === 10 && many.summary.length <= 420, JSON.stringify({ e: many.experience.length, totalB }));
+check('las tareas se recortan primero en los trabajos más viejos', many.experience[0].bullets.length === 4 && many.experience[4].bullets.length < 4);
 check('descarta el estudio inventado y deja el real', cv.education.length === 1 && /4-118/.test(cv.education[0].institution));
 check('secciones vacías → orden por defecto', cvpro.normalizeCv({ sections: [] }, corpus).sections.length > 0);
 check('basura no rompe', cvpro.normalizeCv(null, corpus).design === 'clasico');

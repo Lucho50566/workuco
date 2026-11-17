@@ -1088,3 +1088,18 @@ select.input.input-sm, select.input-sm { padding-right: 32px; background-positio
 .pay-h { margin: 22px 0 10px; font-size: 17px; }
 .pay-h small { color: var(--muted); font-weight: 500; font-size: 13px; }
 @media (max-width: 640px) { .people-tools { grid-template-columns: 1fr; } }
+
+/* CV Pro: banda en la portada y acceso en Mi perfil */
+.cvpro-band-in { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "tag btn" "title btn" "sub btn"; gap: 6px 28px; align-items: center;
+  padding: 28px 32px; border-radius: 24px; background: linear-gradient(120deg, var(--night) 0%, #17302a 60%, #2c5a45 100%); color: #fff; text-decoration: none;
+  box-shadow: 0 24px 50px -30px rgba(0, 0, 0, .6); transition: transform .2s var(--ease-out); }
+.cvpro-band-in:hover { transform: translateY(-2px); }
+.cvpro-band-tag { grid-area: tag; justify-self: start; padding: 5px 11px; border-radius: 999px; background: rgba(200, 245, 96, .15); color: var(--lime); font: 700 12px/1 var(--font-display); letter-spacing: .05em; text-transform: uppercase; }
+.cvpro-band-in strong { grid-area: title; font: 800 clamp(22px, 3vw, 30px)/1.1 var(--font-display); letter-spacing: -.02em; }
+.cvpro-band-sub { grid-area: sub; color: var(--night-muted); max-width: 60ch; }
+.cvpro-band-in .btn { grid-area: btn; }
+@media (max-width: 760px) { .cvpro-band-in { grid-template-columns: 1fr; grid-template-areas: "tag" "title" "sub" "btn"; padding: 24px; } .cvpro-band-in .btn { justify-self: start; margin-top: 8px; } }
+.cvpro-cta { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 12px 14px; border-radius: 14px; background: var(--night); color: #fff; text-decoration: none; }
+.cvpro-cta svg { color: var(--lime); flex: none; }
+.cvpro-cta small { display: block; color: var(--night-muted); font-size: 12.5px; }
+.cvpro-cta:hover { background: #17302a; }

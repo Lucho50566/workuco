@@ -2339,6 +2339,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     s.src = '/admin-tools.js';
     document.body.appendChild(s);
   }
+  /* entradas al CV Pro: sólo si el servicio está activo (y no para empresas) */
+  if ($$('[data-cvpro]').length) {
+    loadMeta().then((m) => {
+      const on = !!(m.cvPro && m.cvPro.enabled) && !(state.user && state.user.role === 'company');
+      $$('[data-cvpro]').forEach((el) => { el.hidden = !on; });
+    }).catch(() => {});
+  }
   /* "Tus datos" en el perfil y en el panel de empresa */
   $$('[data-account-slot]').forEach((slot) => {
     const u = state.user;

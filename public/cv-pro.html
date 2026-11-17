@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{TITLE}}</title>
+  <meta name="description" content="Subí tu CV y la IA de WorkUco te devuelve uno profesional, escrito y diseñado para vos. Análisis gratis.">
+  <meta name="theme-color" content="#0b1612">
+  <link rel="icon" href="/favicon.png" type="image/png" sizes="64x64">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/cvpro.css">
+</head>
+<body data-page="cvpro">
+{{NAV}}
+<main id="cvp-app">
+  <section class="band-night cvp-hero no-print">
+    <div class="container cvp-hero-in">
+      <div>
+        <span class="cvp-kicker">CV Pro · con IA</span>
+        <h1 class="display">Tu CV, <span class="lime">mejor que nunca.</span></h1>
+        <p class="hero-sub">Subí el que tenés o usá tu perfil. Te decimos qué le falta, gratis, y la IA te arma uno profesional, escrito y diseñado para vos.</p>
+        <ul class="cvp-steps" aria-label="Cómo funciona">
+          <li><b>1</b> Subís tu CV</li>
+          <li><b>2</b> Análisis gratis</li>
+          <li><b>3</b> Vista previa</li>
+          <li><b>4</b> Descargás el tuyo</li>
+        </ul>
+      </div>
+      <div class="cvp-hero-art" aria-hidden="true">
+        <div class="cvp-mini cvp-mini-a"><i></i><i></i><i></i><i></i></div>
+        <div class="cvp-mini cvp-mini-b"><i></i><i></i><i></i><i></i></div>
+        <div class="cvp-mini cvp-mini-c"><i></i><i></i><i></i><i></i></div>
+      </div>
+    </div>
+  </section>
+  <section class="section cvp-body">
+    <div class="container" id="cvp-root">
+      <div class="skeleton" style="height:320px"></div>
+    </div>
+  </section>
+</main>
+{{FOOTER}}
+<script src="/app.js"></script>
+<script src="/cvpro.js"></script>
+</body>
+</html>
