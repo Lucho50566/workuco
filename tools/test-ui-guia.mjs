@@ -198,6 +198,19 @@ check('las tarjetas de avisos no se cortan a 390', await noOverflow('#results'))
 check('el corazón de Guardar no tapa la compatibilidad', await ev(`(() => { const row = document.querySelector('#results .job-row'); if (!row) return false; const s = row.querySelector('.save-btn').getBoundingClientRect(); const m = row.querySelector('.match-pill'); if (!m) return true; const r = m.getBoundingClientRect(); return r.right <= s.left || r.bottom <= s.top || r.top >= s.bottom; })()`));
 await ev(`(document.querySelector('[data-bell]') || document.querySelector('.bell-btn') || document.querySelector('[aria-label*="otificaciones"]')).click()`); await sleep(500);
 check('el panel de novedades entra en la pantalla', await ev(`(() => { const p = document.querySelector('.bell-panel'); if (!p) return false; const r = p.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; })()`));
+/* 7b. ingresar eligiendo el tipo de cuenta en /acceder (el botón "Ingresar" de arriba no trae ?rol=) */
+for (const [role, email, dest] of [['candidate', 'martina@demo.workuco', '/mi-perfil'], ['company', 'bodega@demo.workuco', '/panel']]) {
+  await send('Network.clearBrowserCookies');
+  await size(1440); await go('/acceder'); await sleep(600);
+  await click(`[data-role="${role}"]`); await sleep(300);
+  await setVal('#l-email', email); await setVal('#l-pass', 'demo12345');
+  await click('#login-submit'); await sleep(1500);
+  const url = await ev('location.pathname + location.search');
+  check(`desde "¿Cómo querés entrar?" se ingresa como ${role === 'candidate' ? 'persona' : 'empresa'}`, url.startsWith(dest), url);
+  check(`y la contraseña nunca va en la dirección (${role})`, !/password|demo12345/.test(url), url);
+}
+check('los formularios de acceso no pueden mandar la contraseña por la dirección aunque falle el JS',
+  await ev(`fetch('/acceder').then((r) => r.text()).then((h) => { const d = new DOMParser().parseFromString(h, 'text/html'); return ['login-form', 'register-form'].every((id) => (d.getElementById(id).getAttribute('method') || '').toLowerCase() === 'post'); })`));
 /* 8. soluciones para empresas: interés, permiso de contacto y lista del admin */
 await send('Network.clearBrowserCookies');
 await post('/api/auth/login', { email: 'cafe@demo.workuco', password: 'demo12345' });

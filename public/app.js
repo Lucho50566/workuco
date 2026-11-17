@@ -1394,16 +1394,8 @@ async function initAuth() {
   tabReg.addEventListener('click', () => setTab('register'));
   $$('[data-role]').forEach((b) => b.addEventListener('click', () => chooseRole(b.dataset.role)));
 
-  if (!role) {
-    $('#role-picker').hidden = false;
-    $('#auth-forms').hidden = true;
-    $('#auth-title').textContent = '¿Cómo querés entrar?';
-    $('#auth-sub').textContent = 'Elegí tu tipo de cuenta para empezar.';
-    return;
-  }
-  $('#role-picker').hidden = true;
-  chooseRole(role);
-
+  /* Los formularios se conectan SIEMPRE, antes de mostrar "¿Cómo querés entrar?": si no, al elegir el
+     tipo de cuenta el formulario quedaba sin conectar y el navegador lo mandaba solo (y con la clave en la dirección). */
   loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     hideAlert(alertBox);
@@ -1442,6 +1434,17 @@ async function initAuth() {
       btn.disabled = false; btn.textContent = 'Crear cuenta';
     }
   });
+
+  /* sin tipo de cuenta en la dirección (?rol=): primero se elige */
+  if (!role) {
+    $('#role-picker').hidden = false;
+    $('#auth-forms').hidden = true;
+    $('#auth-title').textContent = '¿Cómo querés entrar?';
+    $('#auth-sub').textContent = 'Elegí tu tipo de cuenta para empezar.';
+    return;
+  }
+  $('#role-picker').hidden = true;
+  chooseRole(role);
 }
 
 /* ================================================================== */

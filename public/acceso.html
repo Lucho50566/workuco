@@ -55,7 +55,7 @@
 
         <div id="auth-alert" hidden></div>
 
-        <form class="auth-form" id="login-form" novalidate>
+        <form class="auth-form" id="login-form" method="post" novalidate>
           <div class="field">
             <label for="l-email" id="l-email-label">Email</label>
             <input class="input" id="l-email" name="email" type="email" autocomplete="email" required>
@@ -68,7 +68,7 @@
           <button class="btn btn-primary btn-block" type="submit" id="login-submit">Ingresar</button>
         </form>
 
-        <form class="auth-form" id="register-form" hidden novalidate>
+        <form class="auth-form" id="register-form" method="post" hidden novalidate>
           <div class="field">
             <label for="r-name" id="r-name-label">Nombre y apellido</label>
             <input class="input" id="r-name" name="name" autocomplete="name" required maxlength="120">
