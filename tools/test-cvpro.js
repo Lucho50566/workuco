@@ -133,6 +133,11 @@ async function main() {
     check('más de 3 fotos: 400', (await ana.post('/api/cvpro/analyze', { source: 'fotos', photos: ['a', 'b', 'c', 'd'], consent: true })).status === 400);
     const blank = await ana.post('/api/cvpro/analyze', { source: 'pdf', pdf: { name: 'cv.pdf', data: BLANK_PDF }, consent: true });
     check('PDF sin texto: 400 pidiendo fotos', blank.status === 400 && /foto/i.test(blank.data.error || ''), JSON.stringify(blank.data));
+    const junk = await ana.post('/api/cvpro/analyze', { source: 'pdf', pdf: { name: 'cv.pdf', data: Buffer.from('esto no es un pdf').toString('base64') }, consent: true });
+    const empty = await ana.post('/api/cvpro/analyze', { source: 'pdf', pdf: { name: 'cv.pdf', data: '' }, consent: true });
+    const nopdf = await ana.post('/api/cvpro/analyze', { source: 'pdf', consent: true });
+    const broken = await ana.post('/api/cvpro/analyze', { source: 'pdf', pdf: { name: 'cv.pdf', data: Buffer.from('%PDF-1.4\nstream\n\x78\x9c\xff\xff\xff\nendstream').toString('base64') }, consent: true });
+    check('PDF roto, vacío o faltante: 400 (no error del servidor)', [junk, empty, nopdf, broken].every((r) => r.status === 400), [junk, empty, nopdf, broken].map((r) => r.status).join());
 
     console.log('— Análisis —');
     const an = await ana.post('/api/cvpro/analyze', { source: 'pdf', pdf: { name: 'cv.pdf', data: pdfOf(CV_LINES) }, consent: true });
@@ -223,6 +228,20 @@ async function main() {
     const del = await otra.post('/api/account/delete', { password: 'clave12345', confirm: true });
     check('borrar la cuenta (precondición)', del.status === 200, JSON.stringify(del.data));
     check('sus CV desaparecen', !(await admin.get('/api/admin/payments')).text.includes(oid) && (await ana.get(`/api/cvpro/${oid}`)).status === 404);
+
+    console.log('— Pago que llega después de borrar la cuenta —');
+    const tercera = client();
+    await tercera.post('/api/auth/register', { role: 'candidate', name: 'Tercera Persona', email: 'tercera@test.workuco', phone: '2622 403403', password: 'clave12345', acceptTerms: true });
+    const o3 = (await tercera.post('/api/cvpro/analyze', { source: 'perfil', consent: true })).data.order;
+    await tercera.post(`/api/cvpro/${o3.id}/generate`, {});
+    await tercera.post(`/api/cvpro/${o3.id}/checkout`);
+    const ref3 = mp.prefs[mp.prefs.length - 1].body.external_reference;
+    await tercera.post('/api/account/delete', { password: 'clave12345', confirm: true });
+    mp.payments.set('7003', { id: 7003, status: 'approved', external_reference: ref3, transaction_amount: 6000, currency_id: 'ARS' });
+    const hook3 = await pub.hook('/api/mp/webhook?type=payment&data.id=7003', { type: 'payment', data: { id: '7003' } }, '7003');
+    await sleep(300);
+    const fila3 = (await admin.get('/api/admin/payments')).data.payments.find((x) => x.mpPaymentId === '7003');
+    check('el pago queda aprobado en el admin, sin datos de la persona, para devolverlo', hook3.status === 200 && fila3 && fila3.status === 'approved' && fila3.kind === 'cv' && !fila3.companyName, JSON.stringify(fila3));
   } catch (e) { fail++; console.error('ERROR en las pruebas:', e); } finally {
     child.kill(); mpServer.close(); await sleep(300); fs.rmSync(DATA, { recursive: true, force: true });
   }
