@@ -17,7 +17,7 @@ const {
 } = require('./lib/store');
 const { matchScore, norm } = require('./lib/match');
 const { TEMPLATES } = require('./lib/templates');
-const { normPhone, normName, buildImportPrompt, normalizeDrafts } = require('./lib/importer');
+const { normPhone, normName, buildImportPrompt, normalizeDrafts, crossCheck, groundDrafts } = require('./lib/importer');
 const demo = require('./lib/demo');
 const ai = require('./lib/ai');
 const { extractCv } = require('./lib/cvtext');
@@ -1936,7 +1936,11 @@ async function handleApi(req, res, url) {
 
     if (p === '/api/admin/import/config' && method === 'GET') {
       const cfg = ai.importConfig();
-      return send(res, 200, { aiReady: IMPORT_FAKE || !!cfg, provider: IMPORT_FAKE ? 'prueba' : (cfg ? cfg.provider : '') });
+      const ver = ai.importVerifierConfig();
+      return send(res, 200, {
+        aiReady: IMPORT_FAKE || !!cfg, provider: IMPORT_FAKE ? 'prueba' : (cfg ? cfg.provider : ''),
+        model: cfg ? cfg.model : '', verifier: ver ? { provider: ver.provider, model: ver.model } : null,
+      });
     }
 
     if (p === '/api/admin/import/parse' && method === 'POST') {
@@ -1957,13 +1961,25 @@ async function handleApi(req, res, url) {
       if (IMPORT_FAKE) return send(res, 200, normalizeDrafts(IMPORT_FAKE_REPLY, importMeta, text, imgs.length));
       const cfg = ai.importConfig();
       if (!cfg) return send(res, 400, { code: 'no_ai', error: 'La IA del importador no está configurada: cargá los avisos a mano o configurá WORKUCO_IMPORT_AI_PROVIDER y WORKUCO_IMPORT_AI_KEY' });
-      try {
-        const { system, user } = buildImportPrompt(importMeta);
-        const raw = await ai.callProvider(cfg, { system, user: text.trim() ? `${user}\n\n${text}` : user, images: imgs, maxTokens: 6000 });
-        return send(res, 200, normalizeDrafts(raw, importMeta, text, imgs.length));
-      } catch (e) {
-        return send(res, 502, { error: `No pudimos leer los avisos con la IA: ${e.message}` });
+      /* la IA principal y, si está configurada, una segunda que lee lo mismo por separado para comparar */
+      const ver = ai.importVerifierConfig();
+      const { system, user } = buildImportPrompt(importMeta);
+      const ask = (c) => ai.callProvider(c, { system, user: text.trim() ? `${user}\n\n${text}` : user, images: imgs, maxTokens: 6000 })
+        .then((raw) => normalizeDrafts(raw, importMeta, text, imgs.length));
+      const [main, second] = await Promise.allSettled([ask(cfg), ver ? ask(ver) : Promise.resolve(null)]);
+      if (main.status === 'rejected' && !(second.value && second.value.drafts.length)) {
+        return send(res, 502, { error: `No pudimos leer los avisos con la IA: ${main.reason && main.reason.message}` });
       }
+      /* si la principal falla, se usa la segunda (avisando) */
+      const base = main.status === 'fulfilled' ? main.value : second.value;
+      const out = { drafts: groundDrafts(base.drafts, text), warnings: [...(base.warnings || [])] };
+      if (main.status === 'rejected') out.warnings.push(`La IA principal falló (${main.reason && main.reason.message}); estos borradores los leyó sólo la de verificación: revisalos bien.`);
+      else if (ver && second.status === 'fulfilled' && second.value) {
+        const cc = crossCheck(out.drafts, second.value.drafts);
+        out.drafts = cc.drafts; out.warnings.push(...cc.warnings);
+      } else if (ver) out.warnings.push(`La IA de verificación no respondió (${second.reason && second.reason.message}): estos borradores no están comparados.`);
+      out.verified = !!(ver && main.status === 'fulfilled' && second.status === 'fulfilled');
+      return send(res, 200, out);
     }
 
     if (p === '/api/admin/import/publish' && method === 'POST') {

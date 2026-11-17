@@ -1138,8 +1138,10 @@
 
     try {
       const cfg = await api('/api/admin/import/config');
-      $('#imp-ai-note').innerHTML = cfg.aiReady ? ''
-        : `<div class="alert alert-info">La IA del importador no está configurada: podés cargar los avisos a mano. Para leer texto e imágenes automáticamente, configurá <code>WORKUCO_IMPORT_AI_PROVIDER</code> y <code>WORKUCO_IMPORT_AI_KEY</code> en el servidor.</div>`;
+      const NAMES = { anthropic: 'Claude', gemini: 'Gemini', openai: 'OpenAI', custom: 'otra IA', prueba: 'IA de prueba' };
+      $('#imp-ai-note').innerHTML = cfg.aiReady
+        ? `<p class="muted imp-ai-status">${icon('sparkles', 14)} Lee: <strong>${esc(NAMES[cfg.provider] || cfg.provider)}</strong>${cfg.model ? ` (${esc(cfg.model)})` : ''}${cfg.verifier ? ` · verifica: <strong>${esc(NAMES[cfg.verifier.provider] || cfg.verifier.provider)}</strong>. Lo que las dos lean distinto queda marcado para revisar.` : '. Podés sumar una segunda IA que verifique con <code>WORKUCO_IMPORT_AI2_PROVIDER</code> y <code>WORKUCO_IMPORT_AI2_KEY</code>.'}</p>`
+        : `<div class="alert alert-info">La IA del importador no está configurada: podés cargar los avisos a mano. Para leer texto e imágenes automáticamente, configurá <code>WORKUCO_IMPORT_AI_PROVIDER</code> y <code>WORKUCO_IMPORT_AI_KEY</code> en el servidor (y, para que una segunda IA verifique, <code>WORKUCO_IMPORT_AI2_PROVIDER</code> y <code>WORKUCO_IMPORT_AI2_KEY</code>).</div>`;
     } catch (_) {}
 
     const renderThumbs = () => {
@@ -1162,6 +1164,7 @@
     function renderDrafts() {
       $('#imp-drafts').innerHTML = drafts.map((d, i) => `<article class="card imp-draft" data-draft="${i}">
         <div class="imp-draft-head">${d.imageIndex >= 0 && images[d.imageIndex] ? `<img class="imp-draft-flyer" src="${esc(images[d.imageIndex].dataUrl)}" alt="Flyer del borrador ${i + 1}">` : ''}<h3>Borrador ${i + 1}${d.title ? `: ${esc(d.title)}` : ''}</h3>
+          ${d.checked === 'ok' ? `<span class="badge badge-ok">${icon('check', 12)} Las dos IA coinciden</span>` : ''}
           ${(d.warnings || []).map((w) => `<span class="badge badge-amber">${esc(w)}</span>`).join('')}</div>
         <div class="form-grid">
           <div class="field"><label>Puesto</label><input class="input" data-f="title" value="${esc(d.title)}" maxlength="120"><span class="error-text" data-error="title" hidden></span></div>

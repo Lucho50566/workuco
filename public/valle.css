@@ -1054,3 +1054,7 @@ fieldset.account-mail legend small { font-weight: 500; color: var(--muted); }
 .feat-summary > span:first-child { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
 .input.input-sm[data-feature-days] { min-width: 140px; }
 table.data .badge-featured { white-space: nowrap; }
+
+/* importador: estado de la IA y borradores verificados por dos IA */
+.badge.badge-ok { display: inline-flex; align-items: center; gap: 4px; background: #e3f6ec; color: #0a6b51; font-weight: 700; }
+.imp-ai-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 12px; font-size: 14px; }
