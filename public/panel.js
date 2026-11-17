@@ -1097,8 +1097,111 @@
       $$('[data-panel]').forEach((p) => { p.hidden = p.dataset.panel !== tab.dataset.tab; });
       if (tab.dataset.tab === 'guide' && !adminPlacesReady && window.WKGuia) { adminPlacesReady = true; window.WKGuia.initAdminPlaces($('#admin-places')); }
       if (tab.dataset.tab === 'services') adminServices();
+      if (tab.dataset.tab === 'home') adminInbox();
     }));
     $('#jobs-filter').addEventListener('change', () => adminJobs($('#jobs-filter').value));
+    if (!user || user.role !== 'admin') return;
+
+    /* buscador: avisos, fichas y empresas; también llega con ?q= desde el botón "Abrir en el panel" */
+    let qTimer = 0;
+    const q = $('#adm-q');
+    q.addEventListener('input', () => { clearTimeout(qTimer); qTimer = setTimeout(() => adminSearch(q.value), 250); });
+    const q0 = new URLSearchParams(location.search).get('q');
+    if (q0) { q.value = q0; adminSearch(q0); }
+    $('#inbox-seen').addEventListener('click', async () => {
+      try { await api('/api/admin/inbox/seen', { method: 'POST', body: {} }); toast('Listo: lo nuevo quedó revisado', 'ok'); adminInbox(); } catch (err) { toast(err.message, 'err'); }
+    });
+    /* cambios hechos desde la hoja "Gestionar": se refresca lo que está a la vista */
+    document.addEventListener('wk-admin-changed', () => {
+      adminInbox();
+      if (q.value.trim().length >= 2) adminSearch(q.value);
+      refreshStats();
+      if (!$('[data-panel="jobs"]').hidden) adminJobs($('#jobs-filter').value);
+    });
+    /* acciones rápidas de la bandeja y del buscador */
+    $('[data-panel="home"]').addEventListener('click', async (e) => {
+      const ap = e.target.closest('[data-quick-approve]');
+      if (ap) {
+        try { await api(`/api/admin/jobs/${encodeURIComponent(ap.dataset.quickApprove)}`, { method: 'PATCH', body: { status: 'approved' } }); toast('Aviso publicado', 'ok'); } catch (err) { toast(err.message, 'err'); }
+        document.dispatchEvent(new CustomEvent('wk-admin-changed'));
+      }
+      const pa = e.target.closest('[data-quick-place]');
+      if (pa) {
+        try { await api(`/api/admin/places/${encodeURIComponent(pa.dataset.quickPlace)}`, { method: 'PATCH', body: { status: 'approved' } }); toast('Ficha publicada', 'ok'); } catch (err) { toast(err.message, 'err'); }
+        document.dispatchEvent(new CustomEvent('wk-admin-changed'));
+      }
+      const fr = e.target.closest('[data-quick-feature]');
+      if (fr) {
+        try { await api(`/api/admin/jobs/${encodeURIComponent(fr.dataset.quickFeature)}`, { method: 'PATCH', body: { featuredDays: 7 } }); toast('Destacada por 7 días', 'ok'); } catch (err) { toast(err.message, 'err'); }
+        document.dispatchEvent(new CustomEvent('wk-admin-changed'));
+      }
+      const co = e.target.closest('[data-goto-companies]');
+      if (co) { const t = $('.tab[data-tab="companies"]'); if (t) t.click(); }
+    });
+  }
+
+  /* ---------- Inicio: bandeja "para revisar" y buscador ---------- */
+  const gestionar = (attr) => `<button class="btn btn-outline btn-sm" type="button" ${attr}>${icon('settings', 14)} Gestionar</button>`;
+  const placeOwner = (p) => (p.owner ? `${esc(p.owner.name)}${p.owner.email ? ` · ${esc(p.owner.email)}` : ''}` : 'cargada por la administración');
+  const placeStatus = (s) => ({ approved: '<span class="badge badge-green">Publicada</span>', pending: '<span class="badge badge-amber">Pendiente</span>', rejected: '<span class="badge badge-red">Rechazada</span>', hidden: '<span class="badge">Oculta</span>' }[s] || '');
+  const jobLine = (j, extra = '') => `<li class="adm-item">
+      <div class="adm-item-main"><a class="cell-title" href="/oferta/${esc(j.id)}">${esc(j.title)}</a>
+        <div class="cell-sub">${esc(j.companyName)} · ${esc(j.locality)} · ${timeAgo(j.createdAt)} ${W.statusBadge(j.status)}</div></div>
+      <div class="row-actions">${extra}${gestionar(`data-adm-job="${esc(j.id)}"`)}</div></li>`;
+  const placeLine = (p) => `<li class="adm-item">
+      <div class="adm-item-main"><a class="cell-title" href="/guia/${esc(p.slug)}">${esc(p.name)}</a>
+        <div class="cell-sub">${esc(p.category)} · ${esc((p.localities || []).join(', '))} · ${placeOwner(p)} ${placeStatus(p.status)}</div></div>
+      <div class="row-actions">${p.status === 'pending' ? `<button class="btn btn-primary btn-sm" type="button" data-quick-place="${esc(p.id)}">Aprobar</button>` : ''}${gestionar(`data-adm-place="${esc(p.slug)}"`)}</div></li>`;
+  const companyLine = (c) => `<li class="adm-item">
+      <div class="adm-item-main"><span class="cell-title">${esc(c.name)}${c.verified ? ' ✓' : ''}</span>
+        <div class="cell-sub">${esc(c.email || '')}${c.phone ? ` · ${esc(c.phone)}` : ''} · ${timeAgo(c.createdAt)}</div></div>
+      <div class="row-actions"><button class="btn btn-ghost btn-sm" type="button" data-goto-companies>Ver en Empresas</button></div></li>`;
+  const group = (title, items, line, hint = '') => (items.length ? `<div class="adm-group"><h3>${title} <span class="tab-count">${items.length}</span></h3>${hint ? `<p class="cell-sub">${hint}</p>` : ''}<ul class="adm-list">${items.map(line).join('')}</ul></div>` : '');
+
+  function paintCounts(counts) {
+    $$('[data-count]').forEach((el) => {
+      const n = counts[el.dataset.count] || 0;
+      el.textContent = n; el.hidden = !n;
+    });
+  }
+  async function refreshStats() {
+    try {
+      const { stats } = await api('/api/admin/stats');
+      $('#s-published').textContent = stats.published;
+      $('#s-pending').textContent = stats.pending;
+      $('#s-apps').textContent = stats.applications;
+      $('#s-companies').textContent = stats.companies;
+      if ($('#s-candidates')) $('#s-candidates').textContent = stats.candidates;
+    } catch (_) {}
+  }
+  async function adminInbox() {
+    const box = $('#admin-inbox');
+    if (!box) return;
+    let d;
+    try { d = await api('/api/admin/inbox'); } catch (err) { box.innerHTML = `<div class="list-empty">${esc(err.message)}</div>`; return; }
+    paintCounts(d.counts);
+    box.innerHTML = d.counts.total ? [
+      group('Avisos esperando aprobación', d.jobs, (j) => jobLine(j, `<button class="btn btn-primary btn-sm" type="button" data-quick-approve="${esc(j.id)}">Aprobar</button>`)),
+      group('Fichas de la Guía', d.places, placeLine, 'Las pendientes no se ven en la página hasta que las apruebes. Las publicadas son nuevas de usuarios: revisalas y, si no corresponden, ocultalas o eliminalas.'),
+      group('Pedidos de destacado', d.featureRequests, (j) => jobLine(j, `<button class="btn btn-primary btn-sm" type="button" data-quick-feature="${esc(j.id)}">Destacar 7 días</button>`)),
+      group('Empresas nuevas', d.companies, companyLine),
+    ].join('') : `<div class="list-empty">${icon('check', 18)} Todo al día: no hay nada nuevo para revisar.</div>`;
+  }
+  let searchSeq = 0;
+  async function adminSearch(text) {
+    const box = $('#adm-search-results');
+    const t = String(text || '').trim();
+    if (t.length < 2) { box.innerHTML = ''; return; }
+    const seq = ++searchSeq;
+    let d;
+    try { d = await api(`/api/admin/search?q=${encodeURIComponent(t)}`); } catch (err) { box.innerHTML = `<p class="cell-sub">${esc(err.message)}</p>`; return; }
+    if (seq !== searchSeq) return;
+    const total = d.jobs.length + d.places.length + d.companies.length;
+    box.innerHTML = total ? [
+      group('Avisos', d.jobs, (j) => jobLine(j)),
+      group('Fichas de la Guía', d.places, placeLine),
+      group('Empresas', d.companies, companyLine),
+    ].join('') : `<p class="cell-sub" style="margin-top:12px">No encontramos nada con "${esc(t)}".</p>`;
   }
 
   /* empresas que pidieron servicios (Soluciones) y aceptaron que las contacten */
@@ -1278,6 +1381,7 @@
       $('#s-apps').textContent = stats.applications;
       $('#s-companies').textContent = stats.companies;
       if ($('#s-candidates')) $('#s-candidates').textContent = stats.candidates;
+      await adminInbox();
       await adminJobs('');
       await adminApps();
       await adminCompanies();
@@ -1311,6 +1415,7 @@
               ${j.featured ? '<option value="off">Quitar destacado</option>' : ''}
             </select>
             <button class="btn btn-outline btn-sm" data-edit="${j.id}">Editar</button>
+            ${gestionar(`data-adm-job="${esc(j.id)}"`)}
             <button class="btn btn-danger btn-sm" data-remove="${j.id}">Eliminar</button>
           </div></td>
         </tr>`).join('')}</tbody></table></div>`
@@ -1328,8 +1433,9 @@
       }));
       $$('[data-edit]').forEach((b) => b.addEventListener('click', () => openEdit(b.dataset.edit)));
       $$('[data-remove]').forEach((b) => b.addEventListener('click', async () => {
-        if (!confirm('¿Eliminar esta oferta y sus postulaciones?')) return;
-        try { await api(`/api/admin/jobs/${b.dataset.remove}`, { method: 'DELETE' }); toast('Oferta eliminada', 'ok'); adminData(); }
+        const reason = prompt('¿Eliminar esta oferta y sus postulaciones? No se puede deshacer.\nMotivo (le llega a la empresa):', 'Contenido no permitido');
+        if (reason === null) return;
+        try { await api(`/api/admin/jobs/${b.dataset.remove}`, { method: 'DELETE', body: { reason } }); toast('Oferta eliminada', 'ok'); adminData(); }
         catch (err) { toast(err.message, 'err'); }
       }));
     } catch (err) { wrap.innerHTML = `<div class="list-empty">${esc(err.message)}</div>`; }

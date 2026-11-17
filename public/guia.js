@@ -504,8 +504,8 @@
   /* Pestaña "Guía" del admin */
   async function initAdminPlaces(root) {
     if (!root) return;
-    const FILTERS = [['pending', 'Pendientes'], ['recent', 'Cambios recientes'], ['approved', 'Publicadas'], ['unclaimed', 'Sin reclamar'], ['hidden', 'Ocultas'], ['rejected', 'Rechazadas']];
-    let filter = 'pending';
+    const FILTERS = [['', 'Todas'], ['pending', 'Pendientes'], ['recent', 'Cambios recientes'], ['approved', 'Publicadas'], ['unclaimed', 'Sin reclamar'], ['hidden', 'Ocultas'], ['rejected', 'Rechazadas']];
+    let filter = '';
     let rejecting = '';
     let lastCreated = null;
     async function list() {
@@ -520,7 +520,7 @@
       let d;
       try { d = await api(`/api/admin/places?status=${filter}`); } catch (err) { $('#adm-list', root).innerHTML = `<p>${esc(err.message)}</p>`; return; }
       $('#adm-list', root).innerHTML = d.places.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Ficha</th><th>Estado</th><th>Contactos (semana)</th><th></th></tr></thead><tbody>${d.places.map((p) => `<tr>
-        <td><div class="cell-title"><a href="/guia/${esc(p.slug)}">${esc(p.name)}</a></div><div class="cell-sub">${esc(p.category)} · ${esc(p.localities.join(', '))} · ${p.claimed ? 'con dueño' : 'sin reclamar'}${p.consentBy ? ` · autorizó: ${esc(p.consentBy)}` : ''}</div>${!p.claimed && p.claimUrl ? `<div class="cell-sub adm-claim"><code>${esc(p.claimUrl)}</code></div>` : ''}</td>
+        <td><div class="cell-title"><a href="/guia/${esc(p.slug)}">${esc(p.name)}</a></div><div class="cell-sub">${esc(p.category)} · ${esc(p.localities.join(', '))} · ${p.owner ? `cargada por ${esc(p.owner.name)}${p.owner.email ? ` (${esc(p.owner.email)})` : ''}` : p.claimed ? 'con dueño' : 'sin reclamar'}${p.consentBy ? ` · autorizó: ${esc(p.consentBy)}` : ''}</div>${!p.claimed && p.claimUrl ? `<div class="cell-sub adm-claim"><code>${esc(p.claimUrl)}</code></div>` : ''}</td>
         <td>${statusBadge(p.status)}${p.featured ? ' <span class="badge badge-featured">Destacada</span>' : ''}</td>
         <td>${p.stats.week.views} vistas · ${p.stats.week.contacts} contactos</td>
         <td><div class="row-actions">
@@ -530,6 +530,7 @@
           <select class="input input-sm" data-adm-feature="${esc(p.id)}" aria-label="Destacar"><option value="">${p.featured ? 'Destacada' : 'Destacar…'}</option><option value="7">7 días</option><option value="30">30 días</option><option value="0">Sin vencimiento</option>${p.featured ? '<option value="off">Quitar destacado</option>' : ''}</select>
           ${!p.claimed && p.waUrl ? `<a class="btn btn-wa btn-sm" href="${esc(p.waUrl)}" target="_blank" rel="noopener">Avisar</a>` : ''}
           ${!p.claimed && p.claimUrl ? `<button class="btn btn-ghost btn-sm" data-adm-copy="${esc(p.claimUrl)}">Copiar link</button>` : ''}
+          <button class="btn btn-outline btn-sm" type="button" data-adm-place="${esc(p.slug)}">Gestionar</button>
           <button class="btn btn-danger btn-sm" data-adm-del="${esc(p.id)}">Borrar</button>
         </div></td></tr>`).join('')}</tbody></table></div>` : '<div class="empty"><p>No hay fichas en esta lista.</p></div>';
     }
@@ -565,6 +566,8 @@
       const v = fs.value;
       patch(fs.dataset.admFeature, { featuredDays: v === 'off' ? null : Number(v) }, v === 'off' ? 'Sin destacar' : 'Ficha destacada');
     });
+    /* cambios hechos desde la hoja "Gestionar" */
+    document.addEventListener('wk-admin-changed', () => { if (root.isConnected) list(); });
     await list();
   }
 

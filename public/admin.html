@@ -38,9 +38,12 @@
     <div class="app-head">
       <div>
         <h1>Panel de administración</h1>
-        <p>Ofertas, postulaciones y empresas de WorkUco.</p>
+        <p>Todo WorkUco en un lugar. Tip: entrá a la <a class="link-inline" href="/">portada</a> con esta sesión y cada oferta y ficha tiene un botón <strong>Gestionar</strong>.</p>
       </div>
-      <button class="btn btn-outline btn-sm" type="button" id="admin-logout">Cerrar sesión</button>
+      <div class="row-actions">
+        <a class="btn btn-ghost btn-sm" href="/">Ver la página</a>
+        <button class="btn btn-outline btn-sm" type="button" id="admin-logout">Cerrar sesión</button>
+      </div>
     </div>
 
     <div class="kpis">
@@ -52,15 +55,36 @@
     </div>
 
     <div class="tabs" role="tablist">
-      <button class="tab is-active" data-tab="jobs" type="button">Ofertas</button>
+      <button class="tab is-active" data-tab="home" type="button">Inicio <span class="tab-count" data-count="total" hidden></span></button>
+      <button class="tab" data-tab="jobs" type="button">Ofertas <span class="tab-count" data-count="jobs" hidden></span></button>
       <button class="tab" data-tab="apps" type="button">Postulaciones</button>
       <button class="tab" data-tab="companies" type="button">Empresas</button>
       <button class="tab" data-tab="import" type="button">Importar</button>
-      <button class="tab" data-tab="guide" type="button">Guía</button>
+      <button class="tab" data-tab="guide" type="button">Guía <span class="tab-count" data-count="places" hidden></span></button>
       <button class="tab" data-tab="services" type="button">Servicios</button>
     </div>
 
-    <section data-panel="jobs">
+    <section data-panel="home">
+      <div class="card adm-search-card">
+        <label class="adm-search" for="adm-q">
+          <span class="adm-search-ico" aria-hidden="true"></span>
+          <input class="input" type="search" id="adm-q" placeholder="Buscar avisos, fichas o empresas" autocomplete="off">
+        </label>
+        <div id="adm-search-results"></div>
+      </div>
+      <div class="card">
+        <div class="adm-inbox-head">
+          <div>
+            <h2>Para revisar</h2>
+            <p class="sub" style="margin:0">Lo nuevo que entró a la página. Lo pendiente queda acá hasta que lo resuelvas.</p>
+          </div>
+          <button class="btn btn-outline btn-sm" type="button" id="inbox-seen">Ya revisé lo nuevo</button>
+        </div>
+        <div id="admin-inbox"><div class="skeleton" style="height:140px"></div></div>
+      </div>
+    </section>
+
+    <section data-panel="jobs" hidden>
       <div class="card">
         <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px">
           <div>

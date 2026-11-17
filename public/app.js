@@ -2333,6 +2333,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch (_) {}
   resolveReady();
   if (new URLSearchParams(location.search).get('baja') === '1') toast('Tu cuenta y tus datos se borraron', 'ok');
+  /* admin: botón "Gestionar" en cada oferta y ficha de las páginas públicas */
+  if (state.user && state.user.role === 'admin') {
+    const s = document.createElement('script');
+    s.src = '/admin-tools.js';
+    document.body.appendChild(s);
+  }
   /* "Tus datos" en el perfil y en el panel de empresa */
   $$('[data-account-slot]').forEach((slot) => {
     const u = state.user;

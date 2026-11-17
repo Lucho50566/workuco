@@ -727,6 +727,13 @@ function placeDetail(p, { owner = false } = {}) {
   }
   return out;
 }
+/* sólo para el admin: quién cargó la ficha (persona o empresa) */
+function placeOwnerInfo(p) {
+  if (!p.ownerType || !p.ownerId) return null;
+  const o = p.ownerType === 'candidate' ? store.candidate(p.ownerId) : store.company(p.ownerId);
+  return o ? { type: p.ownerType, name: o.name, email: o.email || '', phone: o.phone || '' } : null;
+}
+function adminPlace(p) { return { ...placeDetail(p, { owner: true }), owner: placeOwnerInfo(p) }; }
 function claimPlaceLinks(req, p) {
   if (!p.claimToken) return {};
   const claimUrl = `${placeOrigin(req)}/reclamar-ficha/${p.claimToken}`;
@@ -798,7 +805,7 @@ async function handlePlacesApi(req, res, p, method, q, me) {
     const isAdmin = !!(me && me.role === 'admin');
     if (!pl || (pl.status !== 'approved' && !isOwner && !isAdmin)) return send(res, 404, { error: 'Ficha no encontrada' });
     if (!isOwner && !isAdmin) store.bumpPlaceStat(pl.id, 'views');
-    const out = placeDetail(pl, { owner: isOwner || isAdmin });
+    const out = isAdmin ? adminPlace(pl) : placeDetail(pl, { owner: isOwner });
     if (isAdmin) Object.assign(out, claimPlaceLinks(req, pl));
     return send(res, 200, { place: out, canEdit: isOwner });
   }
@@ -849,7 +856,7 @@ async function handlePlacesApi(req, res, p, method, q, me) {
       const list = st === 'recent' ? store.recentPlaceChanges()
         : st === 'unclaimed' ? store.allPlaces().filter((x) => !x.claimed)
           : ['pending', 'approved', 'rejected', 'hidden'].includes(st) ? store.allPlaces({ status: st }) : store.allPlaces();
-      return send(res, 200, { places: list.map((x) => ({ ...placeDetail(x, { owner: true }), ...claimPlaceLinks(req, x) })) });
+      return send(res, 200, { places: list.map((x) => ({ ...adminPlace(x), ...claimPlaceLinks(req, x) })) });
     }
     if (p === '/api/admin/places' && method === 'POST') {
       const b = await readBody(req);
@@ -871,7 +878,10 @@ async function handlePlacesApi(req, res, p, method, q, me) {
     const cur = adm ? store.place(adm[1]) : null;
     if (!cur) return send(res, 404, { error: 'Ficha no encontrada' });
     if (method === 'DELETE') {
+      const b = await readBody(req);
+      const reason = clean(b.reason, 300);
       store.deletePlace(cur.id).forEach(removeUpload);
+      notifyPlaceOwner(cur, `Borramos tu ficha "${cur.name}" de la Guía del Valle`, reason || 'Escribinos si querés saber por qué.');
       return send(res, 200, { ok: true });
     }
     if (method === 'PATCH') {
@@ -2172,9 +2182,67 @@ async function handleApi(req, res, url) {
 
   if (admJob && method === 'DELETE') {
     if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
-    if (!store.job(admJob[1])) return send(res, 404, { error: 'Oferta no encontrada' });
-    store.removeJob(admJob[1]);
+    const j = store.job(admJob[1]);
+    if (!j) return send(res, 404, { error: 'Oferta no encontrada' });
+    const b = await readBody(req);
+    const reason = clean(b.reason, 300);
+    const applicants = store.applicationsForJob(j.id);
+    store.removeJob(j.id);
+    /* los flyers de un aviso eliminado se borran del disco (si ningún otro aviso los usa) */
+    for (const f of j.flyerFiles) {
+      if (!store.one('SELECT 1 AS x FROM jobs WHERE flyer_file=? OR flyers LIKE ?', f, `%"${f}"%`)) removeUpload(f);
+    }
+    tryNotify('company', j.companyId, {
+      kind: 'oferta', title: 'Eliminamos tu aviso',
+      body: `${j.title}${reason ? ` — ${reason}` : ''}`, link: '/panel#ofertas',
+    });
+    const seen = new Set();
+    for (const a of applicants) {
+      if (!a.candidateId || seen.has(a.candidateId)) continue;
+      seen.add(a.candidateId);
+      tryNotify('candidate', a.candidateId, { kind: 'etapa', title: `El aviso "${j.title}" ya no está disponible`, body: 'Hay más búsquedas en WorkUco para vos.', link: '/buscar' });
+    }
     return send(res, 200, { ok: true });
+  }
+
+  const admJobInfo = p.match(/^\/api\/admin\/jobs\/([a-z0-9]+)\/info$/);
+  if (admJobInfo && method === 'GET') {
+    if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
+    const j = store.job(admJobInfo[1]);
+    if (!j) return send(res, 404, { error: 'Oferta no encontrada' });
+    const c = store.company(j.companyId) || {};
+    return send(res, 200, {
+      job: j,
+      company: { id: c.id, name: c.name, email: c.claimed === 0 ? '' : c.email, phone: c.phone || '', verified: !!c.verified,
+        claimed: c.claimed !== 0, imported: !!c.imported, createdAt: c.created_at },
+      stats: store.jobAdminStats(j.id),
+      warnings: legal.discriminationHints(j.title, j.description, j.requirements, j.responsibilities),
+    });
+  }
+
+  if (p === '/api/admin/inbox' && method === 'GET') {
+    if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
+    const ib = store.adminInbox();
+    const places = ib.places.map(adminPlace);
+    const companies = ib.companies.map((c) => ({ id: c.id, name: c.name, email: c.email, phone: c.phone || '', verified: !!c.verified, createdAt: c.created_at }));
+    const counts = { jobs: ib.jobs.length, places: places.length, companies: companies.length, featureRequests: ib.featureRequests.length };
+    counts.total = counts.jobs + counts.places + counts.companies + counts.featureRequests;
+    return send(res, 200, { jobs: ib.jobs, places, companies, featureRequests: ib.featureRequests, counts, seenAt: ib.seenAt });
+  }
+  if (p === '/api/admin/inbox/seen' && method === 'POST') {
+    if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
+    store.setAdminMeta('inbox_seen_at', now());
+    return send(res, 200, { ok: true });
+  }
+
+  if (p === '/api/admin/search' && method === 'GET') {
+    if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
+    const r = store.adminSearch(q.get('q'));
+    return send(res, 200, {
+      jobs: r.jobs,
+      places: r.places.map(adminPlace),
+      companies: r.companies.map((c) => ({ id: c.id, name: c.name, email: c.email, phone: c.phone || '', verified: !!c.verified, createdAt: c.created_at })),
+    });
   }
 
   if (p === '/api/admin/applications' && method === 'GET') {
