@@ -713,14 +713,15 @@ html { scrollbar-color: #b9ad94 var(--cream); }
 .wk-intro[hidden] { display: none; }
 .wk-intro.is-out { opacity: 0; pointer-events: none; }
 .wk-intro-word { font: 800 clamp(58px, 16vw, 112px)/1 var(--font-display); letter-spacing: -.045em; white-space: nowrap; }
-/* la W del logo mide lo mismo que una mayúscula y se apoya en la línea de base */
-.wk-intro-w { display: inline-block; width: 1.036em; height: .888em; vertical-align: baseline; overflow: visible; margin-right: -.03em; }
+/* la W del logo (con su tilde) mide lo mismo que una mayúscula y se apoya en la línea de base */
+.wk-intro-w { display: inline-block; width: 1.294em; height: .888em; vertical-align: baseline; overflow: visible; margin-right: -.04em; }
 .wk-intro-w path {
-  fill: none; stroke: currentColor; stroke-width: 4.4; stroke-linecap: round; stroke-linejoin: round;
+  fill: none; stroke: currentColor; stroke-width: 4.2; stroke-linecap: round; stroke-linejoin: round;
   stroke-dasharray: 1; stroke-dashoffset: 1; opacity: 0;
-  animation: wk-draw .62s var(--ease-in-out) .1s forwards;
+  animation: wk-draw .44s var(--ease-in-out) .1s forwards;
 }
-.wk-intro-w circle { fill: var(--lime); transform-box: fill-box; transform-origin: center; opacity: 0; transform: scale(.6); animation: wk-pop .28s var(--ease-out) .58s forwards; }
+/* el tilde se cierra después de la W, como quien marca "listo" */
+.wk-intro-w .wk-intro-tick { stroke: var(--lime); animation: wk-draw .3s var(--ease-out) .52s forwards; }
 .wk-intro-rest { display: inline-block; clip-path: inset(-.2em 100% -.3em 0); transform: translateX(-.14em); animation: wk-rest .52s var(--ease-out) .72s forwards; }
 .wk-intro-rest b { color: var(--lime); font-weight: inherit; }
 @keyframes wk-draw { 0% { opacity: 1; } 100% { opacity: 1; stroke-dashoffset: 0; } }

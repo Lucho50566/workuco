@@ -482,12 +482,11 @@ const NAV_ITEMS = [
   ['/publicar', 'Para empresas'],
 ];
 
-/* Logo de marca: una sola línea que es a la vez la W de WorkUco, los picos de la cordillera
-   del Valle de Uco y, con el punto (cabeza / sol), una persona con los brazos en alto.
-   La línea toma el color del texto; el punto, el acento (--brand-dot). */
+/* Logo de marca: "la W que se tilda". Una W cuyo último trazo se cierra como un tilde ✓:
+   en WorkUco conseguís trabajo. La W toma el color del texto; el tilde, el acento (--brand-dot). */
 const brandMark = () => `<svg class="brand-svg" viewBox="0 0 40 40" width="30" height="30" aria-hidden="true">
-  <path d="M7 13 13.5 30 20 17.5 26.5 30 33 13" fill="none" stroke="currentColor" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle class="brand-dot" cx="20" cy="10.5" r="3.4"/>
+  <path d="M6.8 15.6 12.4 28.4 18 18" fill="none" stroke="currentColor" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path class="brand-dot" d="M18 18 22.8 26.8 33.2 11.6" fill="none" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`;
 
 const HEAD_EXTRA = `<link rel="preconnect" href="https://fonts.googleapis.com">
@@ -496,11 +495,11 @@ const HEAD_EXTRA = `<link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/valle.css">`;
 
-/* Animación de inicio: la W del logo se dibuja, aparece el punto y se completa "WorkUco".
+/* Animación de inicio: se dibuja la W del logo, se cierra el tilde y se completa "WorkUco".
    Una vez por visita (sessionStorage), se saltea con un toque o una tecla y no se muestra
    con "reducir movimiento". Sin JS queda oculta, así nunca tapa la página. */
 const INTRO_HTML = `<div class="wk-intro" id="wk-intro" aria-hidden="true" hidden>
-  <p class="wk-intro-word"><svg class="wk-intro-w" viewBox="4.6 6.6 30.8 26.4"><path pathLength="1" d="M7 13 13.5 30 20 17.5 26.5 30 33 13"/><circle cx="20" cy="10.5" r="3.4"/></svg><span class="wk-intro-rest">ork<b>Uco</b></span></p>
+  <p class="wk-intro-word"><svg class="wk-intro-w" viewBox="4.7 9.5 30.6 21"><path pathLength="1" d="M6.8 15.6 12.4 28.4 18 18"/><path class="wk-intro-tick" pathLength="1" d="M18 18 22.8 26.8 33.2 11.6"/></svg><span class="wk-intro-rest">ork<b>Uco</b></span></p>
 </div>
 <script>(function(){var el=document.getElementById('wk-intro');try{if((window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)||sessionStorage.getItem('wk-intro'))return el.remove();sessionStorage.setItem('wk-intro','1');}catch(e){return el.remove();}el.hidden=false;var t,out=function(){clearTimeout(t);if(el.classList.contains('is-out'))return;el.classList.add('is-out');setTimeout(function(){el.remove();},340);};t=setTimeout(out,1700);el.addEventListener('pointerdown',out);document.addEventListener('keydown',out,{once:true});})();</script>`;
 

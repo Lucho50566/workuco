@@ -1,7 +1,6 @@
 // Genera los íconos PNG de WorkUco a partir del logo en SVG, con Chrome headless.
 // Uso: node tools/make-logo.mjs
-// El logo: una línea que es la W de WorkUco, los picos de la cordillera del Valle de Uco y,
-// con el punto (cabeza / sol), una persona con los brazos en alto.
+// El logo: "la W que se tilda". La W de WorkUco cierra con un tilde ✓ (lima): en WorkUco conseguís trabajo.
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -15,9 +14,9 @@ const NIGHT = '#0b1612'; const CREAM = '#f5f1e6'; const LIME = '#c8f560';
 /* rounded: esquinas redondeadas (favicon / ícono común); sin redondear para "maskable" y Apple (el sistema recorta) */
 const svg = ({ rounded, scale, size }) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="${size}" height="${size}" style="display:block">
   <rect width="40" height="40" rx="${rounded ? 9 : 0}" fill="${NIGHT}"/>
-  <g transform="translate(20 20.5) scale(${scale}) translate(-20 -20.5)">
-    <path d="M7 13 13.5 30 20 17.5 26.5 30 33 13" fill="none" stroke="${CREAM}" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="20" cy="10.5" r="3.4" fill="${LIME}"/>
+  <g transform="translate(20 20) scale(${scale}) translate(-20 -20)">
+    <path d="M6.8 15.6 12.4 28.4 18 18" fill="none" stroke="${CREAM}" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M18 18 22.8 26.8 33.2 11.6" fill="none" stroke="${LIME}" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
 </svg>`;
 
@@ -44,13 +43,13 @@ fs.writeFileSync(share, `<!doctype html><html><head><meta charset="utf-8">
 <style>
   body { margin: 0; width: 1200px; height: 630px; overflow: hidden; background: radial-gradient(120% 90% at 15% 0%, #1b3229, ${NIGHT} 62%); color: ${CREAM}; font-family: Inter, sans-serif; position: relative; }
   .word { position: absolute; left: 96px; top: 150px; font: 800 150px/1 'Bricolage Grotesque', sans-serif; letter-spacing: -.045em; white-space: nowrap; }
-  .word svg { width: 1.036em; height: .888em; vertical-align: baseline; overflow: visible; margin-right: -.03em; }
+  .word svg { width: 1.294em; height: .888em; vertical-align: baseline; overflow: visible; margin-right: -.04em; }
   .word b { color: ${LIME}; font-weight: inherit; }
   .tag { position: absolute; left: 100px; top: 360px; font-size: 42px; font-weight: 500; color: #e8efe9; }
   .loc { position: absolute; left: 100px; top: 425px; font-size: 30px; color: #a9bcb1; }
   .ridge { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 150px; }
 </style></head><body>
-  <div class="word"><svg viewBox="4.6 6.6 30.8 26.4"><path d="M7 13 13.5 30 20 17.5 26.5 30 33 13" fill="none" stroke="${CREAM}" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="20" cy="10.5" r="3.4" fill="${LIME}"/></svg>ork<b>Uco</b></div>
+  <div class="word"><svg viewBox="4.7 9.5 30.6 21"><path d="M6.8 15.6 12.4 28.4 18 18" fill="none" stroke="${CREAM}" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 18 22.8 26.8 33.2 11.6" fill="none" stroke="${LIME}" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/></svg>ork<b>Uco</b></div>
   <div class="tag">Empleos y changas en el Valle de Uco</div>
   <div class="loc">San Carlos · Tunuyán · Tupungato</div>
   <svg class="ridge" viewBox="0 0 400 120" preserveAspectRatio="none"><path d="M0 70 L50 40 L90 62 L140 22 L190 58 L240 30 L290 64 L340 34 L400 56 V120 H0Z" fill="#17302a"/><path d="M0 96 L60 76 L120 92 L180 72 L250 94 L320 74 L400 90 V120 H0Z" fill="#12241d"/></svg>
