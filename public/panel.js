@@ -169,6 +169,11 @@
     /* ---------- ofertas ---------- */
     let jobStatus = '';
     function renderJobs() {
+      /* pago en línea de destacados (si el admin lo activó): un botón por opción, con su precio */
+      const payOn = !!(meta.payments && meta.payments.enabled && meta.payments.options.length);
+      const buyHtml = (j, label) => `<div class="feat-buy"><span>${icon('star', 14)} ${label}</span>
+        <div class="feat-opts">${meta.payments.options.map((o) => `<button class="btn btn-outline btn-sm" type="button" data-feat-buy="${j.id}" data-days="${o.days}">${o.days} días · $ ${Number(o.price).toLocaleString('es-AR')}</button>`).join('')}</div>
+        <small>Pagás con Mercado Pago y se activa solo.</small></div>`;
       const list = data.jobs.filter((j) => !jobStatus || j.status === jobStatus);
       $('#jobs-count').textContent = `${data.jobs.length} publicaci${data.jobs.length === 1 ? 'ón' : 'ones'}`;
       $('#jobs-cards').innerHTML = list.length ? list.map((j) => {
@@ -186,7 +191,8 @@
               <span title="Vistas de los últimos 7 días"><strong>${j.viewsWeek || 0}</strong> esta semana</span>
               ${j.newApplications ? `<span class="new-dot">${j.newApplications} nuevo${j.newApplications === 1 ? '' : 's'}</span>` : ''}
             </div>
-            ${j.featured ? `<p class="feat-note is-on">${icon('star', 14)} Destacado${j.featuredUntil ? ` hasta el ${fmtDate(j.featuredUntil)}` : ''}: sale primero en Buscar y en Wik Works.</p>`
+            ${j.featured ? `<p class="feat-note is-on">${icon('star', 14)} Destacado${j.featuredUntil ? ` hasta el ${fmtDate(j.featuredUntil)}` : ''}: sale primero en Buscar y en Wik Works.</p>${j.featuredUntil && payOn ? buyHtml(j, 'Sumar días') : ''}`
+              : j.status === 'approved' && payOn ? buyHtml(j, 'Destacalo: sale primero en Buscar y en Wik Works')
               : j.status === 'approved' ? (j.featureRequested
                 ? `<p class="feat-note">${icon('clock', 14)} Pediste destacarlo: te avisamos cuando esté. <button class="link-btn" type="button" data-feat-cancel="${j.id}">Cancelar pedido</button></p>`
                 : `<p class="feat-note"><button class="btn btn-outline btn-sm" type="button" data-feat-req="${j.id}">${icon('star', 14)} Pedir destacado</button> <span>Sale primero en Buscar y en Wik Works${meta.launchFree ? '. <strong>Gratis durante el lanzamiento.</strong>' : '.'}</span></p>`) : ''}
@@ -206,6 +212,13 @@
         if (!confirm('¿Eliminar esta publicación? También se borran sus postulaciones.')) return;
         try { await api(`/api/company/jobs/${b.dataset.del}`, { method: 'DELETE' }); toast('Publicación eliminada', 'ok'); load(); }
         catch (err) { toast(err.message, 'err'); }
+      }));
+      $$('[data-feat-buy]').forEach((b) => b.addEventListener('click', async () => {
+        b.disabled = true;
+        const label = b.textContent;
+        b.textContent = 'Abriendo Mercado Pago…';
+        try { const r = await api(`/api/company/jobs/${b.dataset.featBuy}/checkout`, { method: 'POST', body: { days: Number(b.dataset.days) } }); location.href = r.url; }
+        catch (err) { toast(err.message, 'err'); b.disabled = false; b.textContent = label; }
       }));
       $$('[data-feat-req]').forEach((b) => b.addEventListener('click', async () => {
         try { await api(`/api/company/jobs/${b.dataset.featReq}/feature-request`, { method: 'POST' }); toast('Listo: pediste destacar el aviso', 'ok'); load(); }
@@ -702,7 +715,7 @@
     const AI_MODELS = {
       openai: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini', 'o4-mini'],
       gemini: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'],
-      anthropic: ['claude-sonnet-4-5', 'claude-haiku-4-5', 'claude-opus-4-5'],
+      anthropic: ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-5-5'],
       custom: ['llama-3.3-70b-versatile', 'mistral-large-latest', 'deepseek-chat'],
     };
     const fillModels = (provider) => {
@@ -736,14 +749,14 @@
         const p = providers.find((x) => x.id === b.dataset.provider);
         $('#ai-base-wrap').hidden = aiState.provider !== 'custom';
         if (!aiState.model || ['openai', 'gemini', 'anthropic', 'custom'].includes(aiState.provider)) {
-          $('#ai-model').value = ({ openai: 'gpt-4o-mini', gemini: 'gemini-2.5-flash', anthropic: 'claude-sonnet-4-5', custom: '' })[aiState.provider] || '';
+          $('#ai-model').value = ({ openai: 'gpt-4o-mini', gemini: 'gemini-2.5-flash', anthropic: 'claude-sonnet-5-5', custom: '' })[aiState.provider] || '';
         }
         if (aiState.provider === 'custom' && !$('#ai-base').value) $('#ai-base').value = '';
         fillModels(aiState.provider);
       }));
     }
 
-    async function saveAi() {
+    async function saveAi({ quiet = false } = {}) {
       const btn = $('#ai-save');
       btn.disabled = true; btn.textContent = 'Guardando…';
       const body = {
@@ -755,15 +768,21 @@
       try {
         const { ai } = await api('/api/company/ai', { method: 'PATCH', body });
         data.company.ai = ai;
-        showAlert($('#ai-alert'), 'Configuración de IA guardada.', 'ok');
-        setTimeout(() => hideAlert($('#ai-alert')), 2500);
+        if (!quiet) {
+          showAlert($('#ai-alert'), 'Configuración de IA guardada.', 'ok');
+          setTimeout(() => hideAlert($('#ai-alert')), 2500);
+        }
         renderAiTab(); renderOverview();
-      } catch (err) { showAlert($('#ai-alert'), err.message, 'error'); }
+        return true;
+      } catch (err) { showAlert($('#ai-alert'), err.message, 'error'); return false; }
       finally { btn.disabled = false; btn.textContent = 'Guardar configuración'; }
     }
-    $('#ai-save').addEventListener('click', saveAi);
+    $('#ai-save').addEventListener('click', () => saveAi());
     $('#ai-test').addEventListener('click', async () => {
       const btn = $('#ai-test');
+      if (!aiState.provider) { showAlert($('#ai-alert'), 'Elegí un proveedor de IA primero.', 'error'); return; }
+      /* se prueba lo que está en pantalla: primero se guarda */
+      if (!(await saveAi({ quiet: true }))) return;
       btn.disabled = true; btn.textContent = 'Probando…';
       try {
         const r = await api('/api/company/ai/test', { method: 'POST' });
@@ -797,6 +816,22 @@
     });
 
     await load();
+
+    /* vuelta desde Mercado Pago: se confirma el pago (el aviso de Mercado Pago puede tardar) */
+    const pq = new URLSearchParams(location.search);
+    if (pq.get('pago')) {
+      const pid = pq.get('payment_id') || pq.get('collection_id') || '';
+      history.replaceState(null, '', '/panel#ofertas');
+      showTab('jobs');
+      if (pq.get('pago') === 'error') toast('El pago no se completó. Podés intentarlo de nuevo cuando quieras.', 'err');
+      else if (/^\d{1,20}$/.test(pid)) {
+        try {
+          const r = await api('/api/company/payments/confirm', { method: 'POST', body: { paymentId: pid } });
+          toast(r.status === 'approved' ? `¡Listo! Tu aviso quedó destacado por ${r.days} días.` : 'Tu pago está en proceso: el aviso se destaca solo cuando se apruebe.', 'ok');
+          load();
+        } catch (err) { toast(err.message, 'err'); }
+      } else toast('Tu pago está en proceso: el aviso se destaca solo cuando se apruebe.', 'ok');
+    }
   }
 
   /* ================================================================== */
@@ -1098,9 +1133,20 @@
       if (tab.dataset.tab === 'guide' && !adminPlacesReady && window.WKGuia) { adminPlacesReady = true; window.WKGuia.initAdminPlaces($('#admin-places')); }
       if (tab.dataset.tab === 'services') adminServices();
       if (tab.dataset.tab === 'home') adminInbox();
+      if (tab.dataset.tab === 'people') adminPeople();
+      if (tab.dataset.tab === 'payments') adminPayments();
     }));
     $('#jobs-filter').addEventListener('change', () => adminJobs($('#jobs-filter').value));
     if (!user || user.role !== 'admin') return;
+
+    /* Personas: filtros */
+    W.loadMeta().then((m) => {
+      $('#people-loc').innerHTML = '<option value="">Todo el Valle</option>' + m.localities.map((l) => `<option value="${esc(l)}">${esc(l)}</option>`).join('');
+    }).catch(() => {});
+    let pTimer = 0;
+    $('#people-q').addEventListener('input', () => { clearTimeout(pTimer); pTimer = setTimeout(adminPeople, 250); });
+    $('#people-loc').addEventListener('change', adminPeople);
+    $('#people-av').addEventListener('change', adminPeople);
 
     /* buscador: avisos, fichas y empresas; también llega con ?q= desde el botón "Abrir en el panel" */
     let qTimer = 0;
@@ -1137,6 +1183,86 @@
       }
       const co = e.target.closest('[data-goto-companies]');
       if (co) { const t = $('.tab[data-tab="companies"]'); if (t) t.click(); }
+    });
+  }
+
+  /* ---------- Personas ---------- */
+  let peopleSeq = 0;
+  async function adminPeople() {
+    const box = $('#admin-people');
+    const qs = new URLSearchParams();
+    if ($('#people-q').value.trim()) qs.set('q', $('#people-q').value.trim());
+    if ($('#people-loc').value) qs.set('locality', $('#people-loc').value);
+    if ($('#people-av').checked) qs.set('available', '1');
+    const seq = ++peopleSeq;
+    let d;
+    try { d = await api(`/api/admin/candidates?${qs}`); } catch (err) { box.innerHTML = `<div class="list-empty">${esc(err.message)}</div>`; return; }
+    if (seq !== peopleSeq) return;
+    $('#people-sub').innerHTML = `<strong>${d.counts.available}</strong> disponible${d.counts.available === 1 ? '' : 's'} de <strong>${d.counts.total}</strong> persona${d.counts.total === 1 ? '' : 's'} registrada${d.counts.total === 1 ? '' : 's'}. Las disponibles marcaron "estoy buscando trabajo".`;
+    const wa = (ph) => { const n = String(ph || '').replace(/\D/g, '').replace(/^0/, '').replace(/^54/, ''); return n.length >= 8 ? `https://wa.me/549${n.replace(/^9/, '')}` : ''; };
+    box.innerHTML = d.people.length ? `<p class="cell-sub" style="margin:10px 0 4px">${d.people.length} resultado${d.people.length === 1 ? '' : 's'}${d.people.length >= 300 ? ' (se muestran los primeros 300)' : ''}</p>
+      <ul class="adm-list people-list">${d.people.map((c) => `<li class="adm-item person-item">
+        ${W.avatarHtml ? W.avatarHtml(c.name, c.photo) : ''}
+        <div class="adm-item-main">
+          <div class="cell-title">${esc(c.name)} ${c.openToWork ? '<span class="badge badge-green">Disponible</span>' : '<span class="badge">No busca ahora</span>'}</div>
+          <div class="cell-sub">${esc(c.headline || 'Sin titular')} · ${esc(c.locality || 'Sin localidad')} · ${c.applications} postulación${c.applications === 1 ? '' : 'es'} · se sumó ${timeAgo(c.createdAt).toLowerCase()}</div>
+          ${c.skills.length ? `<div class="person-skills">${c.skills.slice(0, 6).map((s) => `<span class="badge">${esc(s)}</span>`).join('')}</div>` : ''}
+          <div class="cell-sub">${esc(c.email)}${c.phone ? ` · ${esc(c.phone)}` : ''}${c.availability ? ` · ${esc(c.availability)}` : ''}</div>
+        </div>
+        <div class="row-actions">
+          ${wa(c.phone) ? `<a class="btn btn-wa btn-sm" href="${esc(wa(c.phone))}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
+          ${c.cvUrl ? `<a class="btn btn-outline btn-sm" href="${esc(c.cvUrl)}" target="_blank" rel="noopener">Ver CV</a>` : ''}
+          ${c.publicUrl ? `<a class="btn btn-ghost btn-sm" href="${esc(c.publicUrl)}" target="_blank" rel="noopener">Perfil público</a>` : ''}
+        </div></li>`).join('')}</ul>`
+      : '<div class="list-empty">No hay personas con esos filtros.</div>';
+  }
+
+  /* ---------- Pagos ---------- */
+  const money = (n) => `$ ${Number(n || 0).toLocaleString('es-AR')}`;
+  const PAY_STATUS = {
+    approved: ['badge-green', 'Aprobado'], created: ['', 'Sin pagar'], pending: ['badge-amber', 'Pendiente'], in_process: ['badge-amber', 'En revisión'],
+    rejected: ['badge-red', 'Rechazado'], cancelled: ['', 'Cancelado'], refunded: ['', 'Devuelto'], charged_back: ['badge-red', 'Contracargo'],
+    monto_incorrecto: ['badge-red', 'Monto incorrecto'], error: ['badge-red', 'Error al abrir'],
+  };
+  async function adminPayments() {
+    const box = $('#admin-payments');
+    let d;
+    try { d = await api('/api/admin/payments'); } catch (err) { box.innerHTML = `<div class="list-empty">${esc(err.message)}</div>`; return; }
+    const missing = [];
+    if (!d.mp.connected) missing.push('cargar la clave de Mercado Pago en el servidor (<code>WORKUCO_MP_TOKEN</code> en <code>/etc/workuco.env</code>)');
+    if (!d.mp.publicUrl) missing.push('cargar la dirección del sitio (<code>PUBLIC_URL</code>)');
+    if (!Object.keys(d.settings.prices).length) missing.push('poner al menos un precio');
+    if (!d.settings.charge) missing.push('activar "Cobrar los destacados"');
+    box.innerHTML = `<div class="pay-status ${d.enabled ? 'is-on' : ''}">
+        <strong>${d.enabled ? `${icon('check', 16)} El cobro está activo: las empresas pagan con Mercado Pago y el aviso se destaca solo.` : 'El cobro todavía no está activo.'}</strong>
+        ${missing.length ? `<p>Falta: ${missing.join(' · ')}.</p>` : ''}
+        <p>Mercado Pago: ${d.mp.connected ? '<span class="badge badge-green">Conectado</span>' : '<span class="badge badge-amber">Sin conectar</span>'}</p>
+      </div>
+      <form id="pay-form" class="pay-form">
+        <label class="switch-row"><input type="checkbox" id="pay-charge" ${d.settings.charge ? 'checked' : ''}><span class="switch" aria-hidden="true"></span>
+          <span><strong>Cobrar los destacados</strong><small>Apagado: las empresas sólo "piden" el destacado y vos lo activás a mano (como en el lanzamiento).</small></span></label>
+        <div class="pay-prices">${d.featuredDays.map((n) => `<label class="field"><span>${n} días</span>
+          <span class="pay-input"><span>$</span><input class="input" type="number" min="0" step="100" inputmode="numeric" data-price="${n}" value="${d.settings.prices[n] || ''}" placeholder="Sin vender"></span></label>`).join('')}</div>
+        <button class="btn btn-primary" type="submit">Guardar</button>
+      </form>
+      <h3 class="pay-h">Cobrado: ${money(d.totals.approved)} <small>(${d.totals.count} pago${d.totals.count === 1 ? '' : 's'} aprobado${d.totals.count === 1 ? '' : 's'})</small></h3>
+      ${d.payments.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Fecha</th><th>Empresa y aviso</th><th>Días</th><th>Monto</th><th>Estado</th><th>N° de Mercado Pago</th></tr></thead><tbody>
+        ${d.payments.map((x) => { const st = PAY_STATUS[x.status] || ['', x.status]; return `<tr>
+          <td class="cell-sub">${fmtDate(x.paidAt || x.createdAt)}</td>
+          <td><div class="cell-title">${esc(x.companyName)}</div><div class="cell-sub">${esc(x.jobTitle || '')}</div></td>
+          <td>${x.days}</td><td>${money(x.amount)}</td>
+          <td><span class="badge ${st[0]}">${esc(st[1])}</span></td>
+          <td class="cell-sub">${esc(x.mpPaymentId || '—')}</td></tr>`; }).join('')}
+      </tbody></table></div>` : '<div class="list-empty">Todavía no hay pagos.</div>'}`;
+    $('#pay-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const prices = {};
+      $$('[data-price]', box).forEach((i) => { prices[i.dataset.price] = i.value === '' ? 0 : Number(i.value); });
+      try {
+        await api('/api/admin/payments/settings', { method: 'PUT', body: { charge: $('#pay-charge').checked, prices } });
+        toast('Guardado', 'ok');
+        adminPayments();
+      } catch (err) { toast(err.message, 'err'); }
     });
   }
 

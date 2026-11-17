@@ -128,6 +128,22 @@ async function main() {
     const notiA = (await abogado.get('/api/notifications')).data.items || [];
     check('el dueño recibe el aviso con el motivo', bf.status === 200 && notiA.some((n) => /borramos/i.test(n.title) && /Datos falsos/.test(n.body)), JSON.stringify(notiA.slice(0, 2)));
 
+    console.log('— Personas —');
+    check('sin ser admin: 401', (await pub.get('/api/admin/candidates')).status === 401);
+    check('una empresa tampoco', (await emp.get('/api/admin/candidates')).status === 401);
+    const todas = (await admin.get('/api/admin/candidates')).data;
+    const mar = todas.people && todas.people.find((c) => c.email === 'martina@demo.workuco');
+    check('el admin ve a las personas con contacto y datos', mar && mar.name && mar.phone && mar.locality && Array.isArray(mar.skills)
+      && typeof mar.applications === 'number' && typeof mar.openToWork === 'boolean', JSON.stringify(mar).slice(0, 300));
+    check('incluye a quien no marcó "disponible"', todas.people.some((c) => c.email === 'abogado@test.workuco' && c.openToWork === false));
+    const disp = (await admin.get('/api/admin/candidates?available=1')).data.people;
+    check('filtro "disponibles": sólo quienes marcaron estoy disponible', disp.length >= 1 && disp.every((c) => c.openToWork === true));
+    const loc = (await admin.get(`/api/admin/candidates?locality=${encodeURIComponent('San Carlos')}`)).data.people;
+    check('filtro por localidad', loc.length >= 1 && loc.every((c) => c.locality === 'San Carlos'));
+    const bq = (await admin.get('/api/admin/candidates?q=martina')).data.people;
+    check('búsqueda por nombre', bq.length >= 1 && bq.every((c) => /martina/i.test(c.name + c.email)));
+    check('cuenta disponibles y total', typeof todas.counts.total === 'number' && todas.counts.available >= 1 && todas.counts.total >= todas.counts.available, JSON.stringify(todas.counts));
+
     console.log('— Buscador del admin —');
     check('sin ser admin: 401', (await pub.get('/api/admin/search?q=estudio')).status === 401);
     const s = (await admin.get('/api/admin/search?q=estudio')).data;

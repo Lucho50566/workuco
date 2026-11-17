@@ -82,6 +82,10 @@ WORKUCO_CONTACT_WA=
 RESEND_API_KEY=
 WORKUCO_MAIL_FROM=WorkUco <avisos@$DOMAIN>
 
+# Cobro de destacados con Mercado Pago: Access Token de producción (APP_USR-...).
+# Precios y "cobrar sí/no" se manejan desde el panel de admin, pestaña Pagos.
+WORKUCO_MP_TOKEN=
+
 # Datos del responsable (aparecen en el pie, los términos y la privacidad)
 WORKUCO_LEGAL_NAME=
 WORKUCO_LEGAL_CUIT=

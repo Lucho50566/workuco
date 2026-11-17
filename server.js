@@ -25,6 +25,7 @@ const legal = require('./lib/legal');
 const seo = require('./lib/seo');
 const placesLib = require('./lib/places');
 const servicesLib = require('./lib/services');
+const mp = require('./lib/mp');
 const { createMailer, emailHtml, emailText } = require('./lib/mail');
 const DEMO = process.env.WORKUCO_DEMO === '1';
 
@@ -412,6 +413,49 @@ function mailNotice(type, id, data) {
 function tryNotify(type, id, data) {
   try { store.notify(type, id, data); } catch (e) { console.warn('Notificación:', e.message); }
   try { mailNotice(type, id, data); } catch (e) { console.warn('Aviso por mail:', e.message); }
+}
+
+/* ---------- cobro de destacados (Mercado Pago) ---------- */
+/* precios y "cobrar sí/no" se manejan desde el panel de admin; la clave de Mercado Pago, en el servidor */
+function payConfig() {
+  const prices = {};
+  for (const d of FEATURED_DAYS) {
+    const v = Number(store.adminMeta(`price_${d}`)) || 0;
+    if (v > 0) prices[d] = v;
+  }
+  const charge = store.adminMeta('charge_featured') === '1';
+  const enabled = mp.connected() && charge && !!PUBLIC_URL && Object.keys(prices).length > 0;
+  return { charge, prices, enabled };
+}
+/**
+ * Aplica un pago de Mercado Pago: lo consulta con nuestra clave (nunca se cree el aviso tal cual),
+ * controla referencia, estado, moneda y monto, y destaca el aviso una sola vez.
+ * Con companyId, sólo lo aplica si el pago es de esa empresa (si no, devuelve null).
+ */
+async function settlePayment(mpPaymentId, { companyId = null } = {}) {
+  const p = await mp.getPayment(mpPaymentId);
+  const row = store.payment(p.external_reference);
+  if (!row || (companyId && row.company_id !== companyId)) return null;
+  if (p.status === 'approved') {
+    if (p.currency_id !== 'ARS' || Number(p.transaction_amount) < row.amount) {
+      store.setPaymentStatus(row.id, 'monto_incorrecto', p.id);
+      console.warn(`Pago ${p.id}: monto o moneda distintos (${p.transaction_amount} ${p.currency_id}, esperado ${row.amount} ARS)`);
+    } else if (store.approvePayment(row.id, p.id)) {
+      const j = store.job(row.job_id);
+      /* si ya estaba destacado, los días se suman a los que le quedaban; uno sin vencimiento queda igual */
+      if (j && !(j.featured && j.featuredUntil == null)) {
+        const base = Math.max(Date.now(), j.featured && j.featuredUntil ? j.featuredUntil : 0);
+        store.setJobFeatured(j.id, base + row.days * 86400000);
+      }
+      tryNotify('company', row.company_id, {
+        kind: 'oferta', title: `Tu aviso quedó destacado por ${row.days} días`,
+        body: `${row.job_title} — pago aprobado por $ ${row.amount.toLocaleString('es-AR')}`, link: '/panel#ofertas',
+      });
+    }
+  } else if (['pending', 'in_process', 'rejected', 'cancelled', 'refunded', 'charged_back'].includes(p.status)) {
+    store.setPaymentStatus(row.id, p.status, p.id);
+  }
+  return store.payment(row.id);
 }
 
 /* recuperar contraseña: código aleatorio por mail; en la base sólo queda su hash */
@@ -977,6 +1021,7 @@ async function handleApi(req, res, url) {
       aiProviders: ai.PROVIDERS,
       salaryPeriods: SALARY_PERIODS, templates: TEMPLATES, counts: store.publicCounts(), contactWa: CONTACT_WA,
       launchFree: LAUNCH_FREE,
+      payments: ((c) => ({ enabled: c.enabled, options: c.enabled ? FEATURED_DAYS.filter((d) => c.prices[d]).map((d) => ({ days: d, price: c.prices[d] })) : [] }))(payConfig()),
       contactWaUrl: normPhone(CONTACT_WA) ? `https://wa.me/549${normPhone(CONTACT_WA)}` : '',
       legal: legal.legalInfo(), discriminationRules: legal.DISCRIMINATION_RULES,
     });
@@ -1472,6 +1517,61 @@ async function handleApi(req, res, url) {
   }
 
   /* la empresa pide que se destaque su aviso (en el lanzamiento es gratis; lo aprueba el admin) */
+  /* pagar un destacado: crea el pago y devuelve el link de Mercado Pago */
+  const compCheckout = p.match(/^\/api\/company\/jobs\/([a-z0-9]+)\/checkout$/);
+  if (compCheckout && method === 'POST') {
+    if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
+    const j = store.job(compCheckout[1]);
+    if (!j || j.companyId !== me.company.id) return send(res, 404, { error: 'Oferta no encontrada' });
+    if (j.status !== 'approved') return send(res, 400, { error: 'El aviso tiene que estar publicado para destacarlo' });
+    const cfg = payConfig();
+    if (!cfg.enabled) return send(res, 400, { error: 'El pago en línea no está activo. Pedí el destacado y te contactamos.' });
+    const b = await readBody(req);
+    const days = Number(b.days);
+    const price = cfg.prices[days];
+    if (!FEATURED_DAYS.includes(days) || !price) return send(res, 400, { error: 'Elegí una de las opciones de destacado' });
+    const row = store.insertPayment({ companyId: me.company.id, jobId: j.id, jobTitle: j.title, days, amount: price });
+    try {
+      const pref = await mp.createPreference({
+        reference: row.id, title: `Aviso destacado ${days} días: ${j.title}`.slice(0, 120), amount: price, publicUrl: PUBLIC_URL,
+      });
+      store.setPaymentPreference(row.id, pref.id);
+      return send(res, 200, { url: pref.url, reference: row.id });
+    } catch (e) {
+      console.warn('Mercado Pago:', e.message);
+      store.setPaymentStatus(row.id, 'error');
+      return send(res, 502, { error: 'No pudimos abrir Mercado Pago. Probá de nuevo en un rato.' });
+    }
+  }
+
+  /* aviso de Mercado Pago: se responde enseguida y el pago se consulta aparte */
+  if (p === '/api/mp/webhook' && method === 'POST') {
+    let b = {};
+    try { b = await readBody(req, 64 * 1024); } catch (_) {}
+    const type = q.get('type') || q.get('topic') || b.type || b.topic || '';
+    const id = String(q.get('data.id') || q.get('id') || (b.data && b.data.id) || '');
+    if ((!type || type === 'payment') && /^\d{1,20}$/.test(id)) {
+      settlePayment(id).catch((e) => console.warn(`Webhook de Mercado Pago (${id}):`, e.message));
+    }
+    return send(res, 200, { ok: true });
+  }
+
+  /* al volver de Mercado Pago el panel confirma el pago (por si el aviso todavía no llegó) */
+  if (p === '/api/company/payments/confirm' && method === 'POST') {
+    if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
+    const b = await readBody(req);
+    const id = String(b.paymentId || '');
+    if (!/^\d{1,20}$/.test(id)) return send(res, 400, { error: 'Número de pago inválido' });
+    let row;
+    try { row = await settlePayment(id, { companyId: me.company.id }); } catch (e) {
+      if (e.status === 404) return send(res, 404, { error: 'No encontramos ese pago' });
+      console.warn('Mercado Pago:', e.message);
+      return send(res, 502, { error: 'No pudimos consultar el pago. Si se aprobó, el destacado se activa solo en unos minutos.' });
+    }
+    if (!row) return send(res, 404, { error: 'No encontramos ese pago' });
+    return send(res, 200, { status: row.status, days: row.days, jobId: row.job_id });
+  }
+
   const compJobFeat = p.match(/^\/api\/company\/jobs\/([a-z0-9]+)\/feature-request$/);
   if (compJobFeat && (method === 'POST' || method === 'DELETE')) {
     if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
@@ -2233,6 +2333,56 @@ async function handleApi(req, res, url) {
     if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
     store.setAdminMeta('inbox_seen_at', now());
     return send(res, 200, { ok: true });
+  }
+
+  if (p === '/api/admin/candidates' && method === 'GET') {
+    if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
+    const r = store.adminCandidates({
+      q: clean(q.get('q'), 80), available: q.get('available') === '1',
+      locality: LOCALITIES.includes(q.get('locality')) ? q.get('locality') : '',
+    });
+    return send(res, 200, {
+      counts: r.counts,
+      people: r.people.map((c) => ({
+        id: c.id, name: c.name, email: c.email, phone: c.phone || '', locality: c.locality || '',
+        headline: c.headline || '', about: c.about || '', skills: jparse(c.skills, []), categories: jparse(c.categories, []),
+        availability: c.availability || '', openToWork: !!c.open_to_work, isPublic: !!c.is_public,
+        publicUrl: c.is_public && c.public_slug ? `/p/${c.public_slug}` : '',
+        photo: c.photo_file ? `/api/photo/c/${c.id}` : null, cvUrl: c.cv_file ? `/api/cv/c/${c.id}` : null,
+        applications: c.applications, createdAt: c.created_at,
+      })),
+    });
+  }
+
+  if (p === '/api/admin/payments' && method === 'GET') {
+    if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
+    const cfg = payConfig();
+    return send(res, 200, {
+      mp: { connected: mp.connected(), publicUrl: !!PUBLIC_URL },
+      settings: { charge: cfg.charge, prices: cfg.prices }, enabled: cfg.enabled, featuredDays: FEATURED_DAYS,
+      totals: store.paymentTotals(),
+      payments: store.allPayments().map((x) => ({
+        reference: x.id, companyName: x.company_name || '', jobId: x.job_id, jobTitle: x.job_title, days: x.days,
+        amount: x.amount, status: x.status, mpPaymentId: x.mp_payment_id || '', createdAt: x.created_at, paidAt: x.paid_at,
+      })),
+    });
+  }
+  if (p === '/api/admin/payments/settings' && method === 'PUT') {
+    if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
+    const b = await readBody(req);
+    const prices = b.prices && typeof b.prices === 'object' ? b.prices : {};
+    const next = {};
+    for (const d of FEATURED_DAYS) {
+      const raw = prices[d];
+      if (raw === undefined || raw === null || raw === '' || Number(raw) === 0) { next[d] = 0; continue; }
+      const v = Number(raw);
+      if (!Number.isInteger(v) || v < 100 || v > 10000000) return send(res, 400, { error: `El precio de ${d} días tiene que ser un número entero de pesos (mínimo $ 100)` });
+      next[d] = v;
+    }
+    for (const d of FEATURED_DAYS) store.setAdminMeta(`price_${d}`, next[d]);
+    store.setAdminMeta('charge_featured', b.charge ? '1' : '0');
+    const cfg = payConfig();
+    return send(res, 200, { settings: { charge: cfg.charge, prices: cfg.prices }, enabled: cfg.enabled });
   }
 
   if (p === '/api/admin/search' && method === 'GET') {

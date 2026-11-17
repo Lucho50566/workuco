@@ -387,3 +387,26 @@ pierden las cuentas y postulaciones reales y vuelven los datos demo.
 - El aviso de aprobación/rechazo se consulta en el panel (no hay notificación push).
 - La IA depende de la key y la cuota de cada empresa; sin key, el panel funciona igual.
 - En Render free el servicio se duerme a los 15 minutos sin visitas (~50 s para despertar).
+
+## Cobro de destacados (Mercado Pago)
+
+Las empresas pagan el destacado de un aviso con Mercado Pago (tarjeta, débito, dinero en cuenta o efectivo) y el
+aviso se destaca solo. La plata entra a la cuenta de Mercado Pago del dueño.
+
+1. En https://www.mercadopago.com.ar/developers entrá con tu cuenta, **Tus integraciones → Crear aplicación**
+   (tipo "Pagos online", producto **Checkout Pro**). En **Credenciales de producción** copiá el **Access Token**
+   (empieza con `APP_USR-`). Es secreto: no lo compartas ni lo subas a GitHub.
+2. En el servidor: `sudo nano /etc/workuco.env`, agregá `WORKUCO_MP_TOKEN=APP_USR-...` y
+   `sudo systemctl restart workuco`.
+3. En el panel de admin, pestaña **Pagos**: poné los precios (7, 15 y 30 días) y activá **Cobrar los destacados**.
+
+Cómo funciona: la empresa elige los días → WorkUco crea el link de pago → al pagar, Mercado Pago avisa a
+`/api/mp/webhook` y además el panel confirma al volver. **Nunca se le cree al aviso**: el servidor consulta el
+pago a Mercado Pago con la clave y controla que sea de ese pedido, que esté aprobado, en pesos y por el monto
+correcto; recién ahí destaca el aviso (una sola vez; si ya estaba destacado, suma los días). Todo queda en la
+pestaña **Pagos** del admin.
+
+| Variable | Qué es |
+|---|---|
+| `WORKUCO_MP_TOKEN` | Access Token de producción de Mercado Pago. Sin él, el cobro queda apagado. |
+| `WORKUCO_MP_API` | Sólo pruebas: otra dirección para la API (las pruebas usan un Mercado Pago simulado). |

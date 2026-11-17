@@ -57,11 +57,13 @@
     <div class="tabs" role="tablist">
       <button class="tab is-active" data-tab="home" type="button">Inicio <span class="tab-count" data-count="total" hidden></span></button>
       <button class="tab" data-tab="jobs" type="button">Ofertas <span class="tab-count" data-count="jobs" hidden></span></button>
+      <button class="tab" data-tab="people" type="button">Personas</button>
       <button class="tab" data-tab="apps" type="button">Postulaciones</button>
       <button class="tab" data-tab="companies" type="button">Empresas</button>
       <button class="tab" data-tab="import" type="button">Importar</button>
       <button class="tab" data-tab="guide" type="button">Guía <span class="tab-count" data-count="places" hidden></span></button>
       <button class="tab" data-tab="services" type="button">Servicios</button>
+      <button class="tab" data-tab="payments" type="button">Pagos</button>
     </div>
 
     <section data-panel="home">
@@ -99,6 +101,31 @@
           </select>
         </div>
         <div id="admin-jobs"></div>
+      </div>
+    </section>
+
+    <section data-panel="people" hidden>
+      <div class="card">
+        <div class="adm-inbox-head">
+          <div>
+            <h2>Personas</h2>
+            <p class="sub" style="margin:0" id="people-sub">Gente registrada en WorkUco. Las disponibles marcaron "estoy buscando trabajo".</p>
+          </div>
+        </div>
+        <div class="people-tools">
+          <input class="input" type="search" id="people-q" placeholder="Nombre, mail u oficio" autocomplete="off">
+          <select class="input" id="people-loc" aria-label="Localidad"><option value="">Todo el Valle</option></select>
+          <label class="people-check"><input type="checkbox" id="people-av" checked> Sólo disponibles</label>
+        </div>
+        <div id="admin-people"><div class="skeleton" style="height:140px"></div></div>
+      </div>
+    </section>
+
+    <section data-panel="payments" hidden>
+      <div class="card">
+        <h2>Pagos de destacados</h2>
+        <p class="sub">Las empresas pagan con Mercado Pago y el aviso se destaca solo. La plata entra a tu cuenta de Mercado Pago.</p>
+        <div id="admin-payments"><div class="skeleton" style="height:140px"></div></div>
       </div>
     </section>
 

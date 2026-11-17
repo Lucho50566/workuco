@@ -241,14 +241,14 @@
             </div>
           </div>
 
-          <div class="toggle-row">
-            <label class="switch"><input type="checkbox" id="ai-enabled"><span></span></label>
-            <div><strong>Usar IA en esta empresa</strong><small>Habilita el botón “Analizar CV” en cada postulante.</small></div>
-          </div>
-          <div class="toggle-row">
-            <label class="switch"><input type="checkbox" id="ai-auto"><span></span></label>
-            <div><strong>Analizar automáticamente</strong><small>Cada postulación nueva se resume sola (consume tu cuota de IA).</small></div>
-          </div>
+          <label class="switch-row ai-toggle">
+            <input type="checkbox" id="ai-enabled"><span class="switch" aria-hidden="true"></span>
+            <span><strong>Usar IA en esta empresa</strong><small>Habilita el botón “Analizar CV” en cada postulante.</small></span>
+          </label>
+          <label class="switch-row ai-toggle">
+            <input type="checkbox" id="ai-auto"><span class="switch" aria-hidden="true"></span>
+            <span><strong>Analizar automáticamente</strong><small>Cada postulación nueva se resume sola (consume tu cuota de IA).</small></span>
+          </label>
 
           <div class="ai-actions">
             <button class="btn btn-primary" type="button" id="ai-save">Guardar configuración</button>
