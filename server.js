@@ -26,6 +26,7 @@ const seo = require('./lib/seo');
 const placesLib = require('./lib/places');
 const servicesLib = require('./lib/services');
 const mp = require('./lib/mp');
+const cvpro = require('./lib/cvpro');
 const { createMailer, emailHtml, emailText } = require('./lib/mail');
 const DEMO = process.env.WORKUCO_DEMO === '1';
 
@@ -428,30 +429,82 @@ function payConfig() {
   const enabled = mp.connected() && charge && mp.isPublicHttps(PUBLIC_URL) && Object.keys(prices).length > 0;
   return { charge, prices, enabled };
 }
+
+/* ---------- CV Pro ---------- */
+const CV_PRICE_DEFAULT = 5000;
+const CV_MAX_VERSIONS = 3; // antes de pagar (la primera incluida)
+const CV_MAX_DAILY = 3; // análisis por día por cuenta
+/* la IA del CV Pro es la del servidor (la misma del importador) */
+const cvProAi = () => !!(IMPORT_FAKE || ai.importConfig());
+function cvSettings() {
+  return { cvPrice: Number(store.adminMeta('price_cv')) || CV_PRICE_DEFAULT, sellCv: store.adminMeta('sell_cv') === '1' };
+}
+function cvProConfig() {
+  const s = cvSettings();
+  const enabled = cvProAi();
+  return { enabled, price: s.cvPrice, canPay: enabled && s.sellCv && mp.connected() && mp.isPublicHttps(PUBLIC_URL) };
+}
+/** Pide algo a la IA del servidor y devuelve el JSON (o la respuesta simulada en pruebas). */
+async function cvAi(prompt, { images = [], fake }) {
+  if (IMPORT_FAKE) return fake();
+  const cfg = ai.importConfig();
+  if (!cfg) { const e = new Error('El servicio no está disponible en este momento'); e.status = 503; throw e; }
+  const out = await ai.callProvider(cfg, { ...prompt, images, maxTokens: 4000 });
+  return ai.parseJson(out);
+}
+/** Lo que la persona dio (perfil), en texto: sirve para la IA y para el control anti-invención. */
+function cvProfileOf(c) {
+  return {
+    name: c.name, email: c.email, phone: c.phone || '', locality: c.locality || '', headline: c.headline || '', about: c.about || '',
+    skills: jparse(c.skills, []), experience: c.experience || '', education: c.education || '', availability: c.availability || '',
+  };
+}
+/** Lo que ve la persona: sin el texto original; antes de pagar, el CV recortado. */
+function cvOrderOut(o) {
+  const { sourceText, candidateId, ...rest } = o;
+  return { ...rest, cv: o.cv ? (o.status === 'pagado' ? o.cv : cvpro.previewCv(o.cv)) : null };
+}
+async function cvGenerate(order, cand, { inputs, request }) {
+  const extracted = (order.analysis && order.analysis.extracted) || {};
+  const raw = await cvAi(cvpro.generatePrompt({ extracted, inputs, request }), { fake: () => cvpro.fakeCv(extracted) });
+  const corpus = cvpro.allowedCorpus(order.sourceText, extracted, inputs, cvProfileOf(cand));
+  return cvpro.normalizeCv(raw, corpus);
+}
 /**
  * Aplica un pago de Mercado Pago: lo consulta con nuestra clave (nunca se cree el aviso tal cual),
- * controla referencia, estado, moneda y monto, y destaca el aviso una sola vez.
- * Con companyId, sólo lo aplica si el pago es de esa empresa (si no, devuelve null).
+ * controla referencia, estado, moneda y monto, y lo aplica una sola vez según el tipo:
+ * 'destacado' → destaca el aviso; 'cv' → marca pagada la orden de CV Pro.
+ * Con ownerId (y kind), sólo lo aplica si el pago es de esa cuenta y de ese tipo (si no, devuelve null).
  */
-async function settlePayment(mpPaymentId, { companyId = null } = {}) {
+async function settlePayment(mpPaymentId, { companyId = null, kind = null } = {}) {
   const p = await mp.getPayment(mpPaymentId);
   const row = store.payment(p.external_reference);
-  if (!row || (companyId && row.company_id !== companyId)) return null;
+  if (!row || (companyId && row.company_id !== companyId) || (kind && row.kind !== kind)) return null;
   if (p.status === 'approved') {
     if (p.currency_id !== 'ARS' || Number(p.transaction_amount) < row.amount) {
       store.setPaymentStatus(row.id, 'monto_incorrecto', p.id);
       console.warn(`Pago ${p.id}: monto o moneda distintos (${p.transaction_amount} ${p.currency_id}, esperado ${row.amount} ARS)`);
     } else if (store.approvePayment(row.id, p.id)) {
-      const j = store.job(row.job_id);
-      /* si ya estaba destacado, los días se suman a los que le quedaban; uno sin vencimiento queda igual */
-      if (j && !(j.featured && j.featuredUntil == null)) {
-        const base = Math.max(Date.now(), j.featured && j.featuredUntil ? j.featuredUntil : 0);
-        store.setJobFeatured(j.id, base + row.days * 86400000);
+      /* approvePayment devuelve true sólo la primera vez: lo que sigue pasa una sola vez por pago */
+      if (row.kind === 'cv') {
+        if (row.ref_id && store.payCvOrder(row.ref_id, p.id)) {
+          tryNotify('candidate', row.company_id, {
+            kind: 'cvpro', title: 'Tu CV Pro ya está listo para descargar',
+            body: `Pago aprobado por $ ${row.amount.toLocaleString('es-AR')}. Podés bajarlo y ajustarlo cuando quieras.`, link: `/cv-pro/${row.ref_id}`,
+          });
+        }
+      } else {
+        const j = store.job(row.job_id);
+        /* si ya estaba destacado, los días se suman a los que le quedaban; uno sin vencimiento queda igual */
+        if (j && !(j.featured && j.featuredUntil == null)) {
+          const base = Math.max(Date.now(), j.featured && j.featuredUntil ? j.featuredUntil : 0);
+          store.setJobFeatured(j.id, base + row.days * 86400000);
+        }
+        tryNotify('company', row.company_id, {
+          kind: 'oferta', title: `Tu aviso quedó destacado por ${row.days} días`,
+          body: `${row.job_title} — pago aprobado por $ ${row.amount.toLocaleString('es-AR')}`, link: '/panel#ofertas',
+        });
       }
-      tryNotify('company', row.company_id, {
-        kind: 'oferta', title: `Tu aviso quedó destacado por ${row.days} días`,
-        body: `${row.job_title} — pago aprobado por $ ${row.amount.toLocaleString('es-AR')}`, link: '/panel#ofertas',
-      });
     }
   } else if (['pending', 'in_process', 'rejected', 'cancelled', 'refunded', 'charged_back'].includes(p.status)) {
     store.setPaymentStatus(row.id, p.status, p.id);
@@ -1023,6 +1076,7 @@ async function handleApi(req, res, url) {
       salaryPeriods: SALARY_PERIODS, templates: TEMPLATES, counts: store.publicCounts(), contactWa: CONTACT_WA,
       launchFree: LAUNCH_FREE,
       payments: ((c) => ({ enabled: c.enabled, options: c.enabled ? FEATURED_DAYS.filter((d) => c.prices[d]).map((d) => ({ days: d, price: c.prices[d] })) : [] }))(payConfig()),
+      cvPro: cvProConfig(),
       contactWaUrl: normPhone(CONTACT_WA) ? `https://wa.me/549${normPhone(CONTACT_WA)}` : '',
       legal: legal.legalInfo(), discriminationRules: legal.DISCRIMINATION_RULES,
     });
@@ -1333,6 +1387,7 @@ async function handleApi(req, res, url) {
       data.guardados = store.all('SELECT job_id, created_at FROM saved_jobs WHERE candidate_id=?', c.id);
       data.alertas = store.all('SELECT * FROM alerts WHERE candidate_id=?', c.id);
       data.invitaciones = store.all('SELECT id, job_id, company_id, message, status, created_at FROM invitations WHERE candidate_id=?', c.id);
+      data.cvPro = store.cvOrdersOf(c.id).map(({ sourceText, ...o }) => o);
     } else {
       data.empresa = strip(store.company(me.company.id));
       data.avisos = store.all('SELECT * FROM jobs WHERE company_id=?', me.company.id);
@@ -1517,6 +1572,145 @@ async function handleApi(req, res, url) {
     return send(res, 200, { job: updated, message: 'Los cambios quedaron pendientes de aprobación', warnings: legal.discriminationHints(updated.title, updated.description, updated.requirements, updated.responsibilities) });
   }
 
+  /* ---------- CV Pro (personas) ---------- */
+  if (p.startsWith('/api/cvpro')) {
+    if (!me || me.role !== 'candidate') return send(res, 401, { error: 'Iniciá sesión con tu cuenta de persona' });
+    const cand = store.candidate(me.candidate.id);
+    if (!cand) return send(res, 401, { error: 'Iniciá sesión con tu cuenta de persona' });
+    const conf = cvProConfig();
+
+    if (p === '/api/cvpro' && method === 'GET') {
+      return send(res, 200, { orders: store.cvOrdersOf(cand.id).map(cvOrderOut) });
+    }
+
+    if (p === '/api/cvpro/analyze' && method === 'POST') {
+      if (!conf.enabled) return send(res, 503, { error: 'El servicio no está disponible en este momento' });
+      const b = await readBody(req, 24 * 1024 * 1024);
+      if (b.consent !== true) return send(res, 400, { error: 'Para analizar tu CV tenés que aceptar que se procese con IA', fields: { consent: 'Obligatorio' } });
+      if (!['pdf', 'fotos', 'perfil'].includes(b.source)) return send(res, 400, { error: 'Elegí cómo cargar tu CV' });
+      if (b.source === 'fotos' && (!Array.isArray(b.photos) || !b.photos.length || b.photos.length > 3)) return send(res, 400, { error: 'Subí entre 1 y 3 fotos de tu CV' });
+      if (store.countCvAnalysesToday(cand.id) >= CV_MAX_DAILY) return send(res, 429, { error: `Podés analizar hasta ${CV_MAX_DAILY} CV por día. Probá mañana.` });
+      const profile = cvProfileOf(cand);
+      let text = '';
+      const images = [];
+      if (b.source === 'pdf') {
+        const buf = Buffer.from(String((b.pdf && b.pdf.data) || ''), 'base64');
+        if (buf.length > 5 * 1024 * 1024) return send(res, 413, { error: 'El PDF supera los 5 MB' });
+        /* el archivo no se guarda: se lee el texto y se borra */
+        const tmp = path.join(UP_DIR, `tmp-cvpro-${crypto.randomBytes(6).toString('hex')}.pdf`);
+        fs.writeFileSync(tmp, buf);
+        let r;
+        try { r = extractCv(tmp); } finally { fs.rmSync(tmp, { force: true }); }
+        if (!r.ok) return send(res, 400, { error: 'No pudimos leer el texto de tu PDF (parece escaneado). Subí fotos de tu CV.' });
+        text = r.text.slice(0, 60000);
+      } else if (b.source === 'fotos') {
+        for (const ph of b.photos) {
+          const img = parseDataUrl(ph);
+          if (!img) return send(res, 400, { error: 'Alguna foto no es válida (usá JPG, PNG o WebP)' });
+          if (img.buf.length > 5 * 1024 * 1024) return send(res, 413, { error: 'Cada foto puede pesar hasta 5 MB' });
+          images.push({ mime: img.mime, base64: img.buf.toString('base64') });
+        }
+      } else {
+        text = [profile.headline, profile.about, profile.experience, profile.education, profile.skills.join(', '), profile.availability].filter(Boolean).join('\n');
+      }
+      let analysis;
+      try {
+        const raw = await cvAi(cvpro.analyzePrompt({ text, profile }), { images, fake: () => cvpro.fakeAnalysis(text || `${profile.name}\n${profile.experience}`) });
+        analysis = cvpro.normalizeAnalysis(raw);
+      } catch (e) {
+        console.warn('CV Pro (análisis):', e.message);
+        return send(res, e.status === 503 ? 503 : 502, { error: 'No pudimos analizar tu CV en este momento. Probá de nuevo en un rato.' });
+      }
+      /* con fotos no hay texto: lo que la IA leyó de la foto es la base para el control anti-invención */
+      const sourceText = text || JSON.stringify(analysis.extracted);
+      const order = store.insertCvOrder({ candidateId: cand.id, sourceKind: b.source, sourceText, analysis, price: conf.price });
+      return send(res, 201, { order: cvOrderOut(order) });
+    }
+
+    if (p === '/api/cvpro/payments/confirm' && method === 'POST') {
+      const b = await readBody(req);
+      const id = String(b.paymentId || '');
+      if (!/^\d{1,20}$/.test(id)) return send(res, 400, { error: 'Número de pago inválido' });
+      let row;
+      try { row = await settlePayment(id, { companyId: cand.id, kind: 'cv' }); } catch (e) {
+        if (e.status === 404) return send(res, 404, { error: 'No encontramos ese pago' });
+        console.warn('Mercado Pago:', e.message);
+        return send(res, 502, { error: 'No pudimos consultar el pago. Si se aprobó, tu CV se habilita solo en unos minutos.' });
+      }
+      if (!row) return send(res, 404, { error: 'No encontramos ese pago' });
+      return send(res, 200, { status: row.status, orderId: row.ref_id });
+    }
+
+    const m = p.match(/^\/api\/cvpro\/(cv[a-f0-9]{16})(\/generate|\/style|\/rewrite|\/checkout)?$/);
+    const order = m ? store.cvOrder(m[1]) : null;
+    if (!order || order.candidateId !== cand.id) return send(res, 404, { error: 'No encontramos ese CV' });
+    const action = m[2] || '';
+
+    if (!action && method === 'GET') return send(res, 200, { order: cvOrderOut(order) });
+
+    if (action === '/generate' && method === 'POST') {
+      if (order.status === 'pagado') return send(res, 400, { error: 'Tu CV ya está pago: usá "Reescribir con IA"' });
+      if (order.versions >= CV_MAX_VERSIONS) return send(res, 400, { error: `Llegaste a las ${CV_MAX_VERSIONS} versiones de prueba. Elegí una y pagá para descargarla.` });
+      const b = await readBody(req);
+      const inputs = { ...order.inputs };
+      for (const [k, v] of Object.entries(b.inputs && typeof b.inputs === 'object' ? b.inputs : {}).slice(0, 20)) {
+        const val = clean(v, 500);
+        if (val) inputs[clean(k, 40)] = val;
+      }
+      let cv;
+      try { cv = await cvGenerate(order, cand, { inputs, request: clean(b.request, 300) }); } catch (e) {
+        console.warn('CV Pro (generar):', e.message);
+        return send(res, 502, { error: 'No pudimos armar tu CV en este momento. Probá de nuevo en un rato.' });
+      }
+      const up = store.updateCvOrder(order.id, { cv, inputs, versions: order.versions + 1, status: 'generado' });
+      return send(res, 200, { order: cvOrderOut(up) });
+    }
+
+    if (action === '/style' && method === 'PATCH') {
+      if (!order.cv) return send(res, 400, { error: 'Primero generá tu CV' });
+      const b = await readBody(req);
+      const cv = { ...order.cv };
+      if (b.design !== undefined) {
+        if (!cvpro.DESIGNS.includes(b.design)) return send(res, 400, { error: 'Diseño inválido' });
+        cv.design = b.design;
+      }
+      if (b.accent !== undefined) {
+        if (!cvpro.ACCENTS.some((a) => a.id === b.accent)) return send(res, 400, { error: 'Color inválido' });
+        cv.accent = b.accent;
+      }
+      return send(res, 200, { order: cvOrderOut(store.updateCvOrder(order.id, { cv })) });
+    }
+
+    if (action === '/rewrite' && method === 'POST') {
+      if (order.status !== 'pagado') return send(res, 400, { error: 'Las reescrituras con IA se habilitan cuando el CV está pago' });
+      if (order.rewritesLeft <= 0) return send(res, 400, { error: 'Ya usaste las reescrituras incluidas' });
+      const b = await readBody(req);
+      let cv;
+      try { cv = await cvGenerate(order, cand, { inputs: order.inputs, request: clean(b.request, 300) }); } catch (e) {
+        console.warn('CV Pro (reescribir):', e.message);
+        return send(res, 502, { error: 'No pudimos reescribir tu CV en este momento. Probá de nuevo en un rato.' });
+      }
+      return send(res, 200, { order: cvOrderOut(store.updateCvOrder(order.id, { cv, rewritesLeft: order.rewritesLeft - 1 })) });
+    }
+
+    if (action === '/checkout' && method === 'POST') {
+      if (order.status === 'pagado') return send(res, 409, { error: 'Este CV ya está pago' });
+      if (!order.cv) return send(res, 400, { error: 'Primero generá tu CV' });
+      if (!conf.canPay) return send(res, 400, { error: 'El pago en línea no está activo en este momento' });
+      const row = store.insertPayment({ companyId: cand.id, jobTitle: 'CV Pro', amount: order.price, kind: 'cv', refId: order.id });
+      try {
+        const pref = await mp.createPreference({ reference: row.id, title: 'CV Pro WorkUco', amount: order.price, publicUrl: PUBLIC_URL, returnPath: `/cv-pro/${order.id}` });
+        store.setPaymentPreference(row.id, pref.id);
+        return send(res, 200, { url: pref.url });
+      } catch (e) {
+        console.warn('Mercado Pago:', e.message);
+        store.setPaymentStatus(row.id, 'error');
+        return send(res, 502, { error: 'No pudimos abrir Mercado Pago. Probá de nuevo en un rato.' });
+      }
+    }
+    return send(res, 405, { error: 'Método no permitido' });
+  }
+
   /* la empresa pide que se destaque su aviso (en el lanzamiento es gratis; lo aprueba el admin) */
   /* pagar un destacado: crea el pago y devuelve el link de Mercado Pago */
   const compCheckout = p.match(/^\/api\/company\/jobs\/([a-z0-9]+)\/checkout$/);
@@ -1566,7 +1760,7 @@ async function handleApi(req, res, url) {
     const id = String(b.paymentId || '');
     if (!/^\d{1,20}$/.test(id)) return send(res, 400, { error: 'Número de pago inválido' });
     let row;
-    try { row = await settlePayment(id, { companyId: me.company.id }); } catch (e) {
+    try { row = await settlePayment(id, { companyId: me.company.id, kind: 'destacado' }); } catch (e) {
       if (e.status === 404) return send(res, 404, { error: 'No encontramos ese pago' });
       console.warn('Mercado Pago:', e.message);
       return send(res, 502, { error: 'No pudimos consultar el pago. Si se aprobó, el destacado se activa solo en unos minutos.' });
@@ -2362,10 +2556,11 @@ async function handleApi(req, res, url) {
     const cfg = payConfig();
     return send(res, 200, {
       mp: { connected: mp.connected(), publicUrl: mp.isPublicHttps(PUBLIC_URL), webhookSecret: mp.hasWebhookSecret() },
-      settings: { charge: cfg.charge, prices: cfg.prices }, enabled: cfg.enabled, featuredDays: FEATURED_DAYS,
+      settings: { charge: cfg.charge, prices: cfg.prices, ...cvSettings() }, enabled: cfg.enabled, featuredDays: FEATURED_DAYS,
+      cvPro: { ai: cvProAi(), canPay: cvProConfig().canPay },
       totals: store.paymentTotals(),
       payments: store.allPayments().map((x) => ({
-        reference: x.id, companyName: x.company_name || '', jobId: x.job_id, jobTitle: x.job_title, days: x.days,
+        reference: x.id, kind: x.kind || 'destacado', companyName: x.company_name || '', jobId: x.job_id, jobTitle: x.job_title, days: x.days,
         amount: x.amount, status: x.status, mpPaymentId: x.mp_payment_id || '', createdAt: x.created_at, paidAt: x.paid_at,
       })),
     });
@@ -2373,19 +2568,25 @@ async function handleApi(req, res, url) {
   if (p === '/api/admin/payments/settings' && method === 'PUT') {
     if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
     const b = await readBody(req);
-    const prices = b.prices && typeof b.prices === 'object' ? b.prices : {};
-    const next = {};
-    for (const d of FEATURED_DAYS) {
-      const raw = prices[d];
-      if (raw === undefined || raw === null || raw === '' || Number(raw) === 0) { next[d] = 0; continue; }
-      const v = Number(raw);
-      if (!Number.isInteger(v) || v < 100 || v > 10000000) return send(res, 400, { error: `El precio de ${d} días tiene que ser un número entero de pesos (mínimo $ 100)` });
-      next[d] = v;
+    /* sólo se cambia lo que viene: precios de destacados, cobrar destacados, precio y venta del CV Pro */
+    const okPrice = (v) => Number.isInteger(v) && v >= 100 && v <= 10000000;
+    if (b.prices && typeof b.prices === 'object') {
+      const next = {};
+      for (const d of FEATURED_DAYS) {
+        const raw = b.prices[d];
+        if (raw === undefined || raw === null || raw === '' || Number(raw) === 0) { next[d] = 0; continue; }
+        const v = Number(raw);
+        if (!okPrice(v)) return send(res, 400, { error: `El precio de ${d} días tiene que ser un número entero de pesos (mínimo $ 100)` });
+        next[d] = v;
+      }
+      for (const d of FEATURED_DAYS) store.setAdminMeta(`price_${d}`, next[d]);
     }
-    for (const d of FEATURED_DAYS) store.setAdminMeta(`price_${d}`, next[d]);
-    store.setAdminMeta('charge_featured', b.charge ? '1' : '0');
+    if ('cvPrice' in b && !okPrice(Number(b.cvPrice))) return send(res, 400, { error: 'El precio del CV Pro tiene que ser un número entero de pesos (mínimo $ 100)' });
+    if ('cvPrice' in b) store.setAdminMeta('price_cv', Number(b.cvPrice));
+    if ('charge' in b) store.setAdminMeta('charge_featured', b.charge ? '1' : '0');
+    if ('sellCv' in b) store.setAdminMeta('sell_cv', b.sellCv ? '1' : '0');
     const cfg = payConfig();
-    return send(res, 200, { settings: { charge: cfg.charge, prices: cfg.prices }, enabled: cfg.enabled });
+    return send(res, 200, { settings: { charge: cfg.charge, prices: cfg.prices, ...cvSettings() }, enabled: cfg.enabled });
   }
 
   if (p === '/api/admin/search' && method === 'GET') {
@@ -2513,6 +2714,9 @@ const server = http.createServer(async (req, res) => {
     }
     if (/^\/cv\/[a-z0-9]+$/.test(url.pathname) && req.method === 'GET') {
       return renderPage(res, 'cv.html', { req, title: 'CV · WorkUco' });
+    }
+    if (/^\/cv-pro(\/cv[a-f0-9]{16})?$/.test(url.pathname) && req.method === 'GET') {
+      return renderPage(res, 'cv-pro.html', { req, active: '/cv-pro', title: 'Mejorá tu CV con IA · WorkUco' });
     }
     if (/^\/p\/[a-z0-9-]+$/.test(url.pathname) && req.method === 'GET') {
       return renderPage(res, 'perfil-publico.html', { req, title: 'Perfil · WorkUco' });
