@@ -1230,13 +1230,14 @@
     try { d = await api('/api/admin/payments'); } catch (err) { box.innerHTML = `<div class="list-empty">${esc(err.message)}</div>`; return; }
     const missing = [];
     if (!d.mp.connected) missing.push('cargar la clave de Mercado Pago en el servidor (<code>WORKUCO_MP_TOKEN</code> en <code>/etc/workuco.env</code>)');
-    if (!d.mp.publicUrl) missing.push('cargar la dirección del sitio (<code>PUBLIC_URL</code>)');
+    if (!d.mp.publicUrl) missing.push('que la dirección del sitio (<code>PUBLIC_URL</code>) sea pública y con https, p. ej. <code>https://workuco.com.ar</code>');
     if (!Object.keys(d.settings.prices).length) missing.push('poner al menos un precio');
     if (!d.settings.charge) missing.push('activar "Cobrar los destacados"');
     box.innerHTML = `<div class="pay-status ${d.enabled ? 'is-on' : ''}">
         <strong>${d.enabled ? `${icon('check', 16)} El cobro está activo: las empresas pagan con Mercado Pago y el aviso se destaca solo.` : 'El cobro todavía no está activo.'}</strong>
         ${missing.length ? `<p>Falta: ${missing.join(' · ')}.</p>` : ''}
-        <p>Mercado Pago: ${d.mp.connected ? '<span class="badge badge-green">Conectado</span>' : '<span class="badge badge-amber">Sin conectar</span>'}</p>
+        <p>Mercado Pago: ${d.mp.connected ? '<span class="badge badge-green">Conectado</span>' : '<span class="badge badge-amber">Sin conectar</span>'}
+          · Firma de los avisos: ${d.mp.webhookSecret ? '<span class="badge badge-green">Verificada</span>' : '<span class="badge badge-amber">Sin clave secreta</span> (recomendado: <code>WORKUCO_MP_WEBHOOK_SECRET</code>)'}</p>
       </div>
       <form id="pay-form" class="pay-form">
         <label class="switch-row"><input type="checkbox" id="pay-charge" ${d.settings.charge ? 'checked' : ''}><span class="switch" aria-hidden="true"></span>

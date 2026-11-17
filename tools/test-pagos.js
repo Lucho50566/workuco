@@ -8,6 +8,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
 
 const ROOT = path.join(__dirname, '..');
 const PORT = 4643;
@@ -16,6 +17,7 @@ const BASE = `http://127.0.0.1:${PORT}`;
 const DATA = path.join(os.tmpdir(), `workuco-pagos-${Date.now()}`);
 const ADMIN = { email: 'admin@workuco.com.ar', pass: 'workuco2026' };
 const DAY = 86400000;
+const SECRET = 'secreto-de-prueba';
 
 let ok = 0; let fail = 0;
 function check(name, cond, extra = '') {
@@ -23,8 +25,8 @@ function check(name, cond, extra = '') {
 }
 function client() {
   let cookie = '';
-  async function req(p, { method = 'GET', body } = {}) {
-    const h = {};
+  async function req(p, { method = 'GET', body, headers = {} } = {}) {
+    const h = { ...headers };
     if (cookie) h.Cookie = cookie;
     if (body !== undefined) h['Content-Type'] = 'application/json';
     const res = await fetch(BASE + p, { method, headers: h, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -37,6 +39,14 @@ function client() {
   return {
     get: (p) => req(p), post: (p, b = {}) => req(p, { method: 'POST', body: b }),
     put: (p, b) => req(p, { method: 'PUT', body: b }),
+    /* aviso de Mercado Pago firmado como lo firma Mercado Pago (x-signature con HMAC-SHA256) */
+    hook: (p, b, dataId, { secret = SECRET, badSig = false } = {}) => {
+      const ts = String(Date.now());
+      const rid = `req-${Math.random().toString(36).slice(2)}`;
+      let v1 = crypto.createHmac('sha256', secret).update(`id:${dataId};request-id:${rid};ts:${ts};`).digest('hex');
+      if (badSig) v1 = v1.replace(/^./, (c) => (c === 'a' ? 'b' : 'a'));
+      return req(p, { method: 'POST', body: b, headers: { 'x-signature': `ts=${ts},v1=${v1}`, 'x-request-id': rid } });
+    },
   };
 }
 async function waitServer() {
@@ -78,7 +88,7 @@ async function main() {
     cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, PORT: String(PORT), WORKUCO_DATA: DATA, WORKUCO_DEMO: '1', WORKUCO_MAIL_FAKE: '1',
       PUBLIC_URL: 'https://workuco.com.ar', WORKUCO_ADMIN_EMAIL: ADMIN.email, WORKUCO_ADMIN_PASS: ADMIN.pass,
-      WORKUCO_MP_TOKEN: 'APP_USR-prueba', WORKUCO_MP_API: `http://127.0.0.1:${MP_PORT}` },
+      WORKUCO_MP_TOKEN: 'APP_USR-prueba', WORKUCO_MP_API: `http://127.0.0.1:${MP_PORT}`, WORKUCO_MP_WEBHOOK_SECRET: SECRET },
   });
   try {
     await waitServer();
@@ -117,24 +127,30 @@ async function main() {
 
     console.log('— Aviso de pago (webhook) —');
     mp.payments.set('111', { id: 111, status: 'pending', external_reference: ref, transaction_amount: 5000, currency_id: 'ARS' });
-    let w = await pub.post('/api/mp/webhook?type=payment&data.id=111', { type: 'payment', data: { id: '111' } });
+    let w = await pub.hook('/api/mp/webhook?type=payment&data.id=111', { type: 'payment', data: { id: '111' } }, '111');
     await sleep(300);
     check('el webhook responde 200', w.status === 200);
     check('pago pendiente: todavía no se destaca', !(await emp.get('/api/company/jobs')).data.jobs.find((j) => j.id === job.id).featured);
     mp.payments.set('222', { id: 222, status: 'approved', external_reference: ref, transaction_amount: 10, currency_id: 'ARS' });
-    await pub.post('/api/mp/webhook?type=payment&data.id=222', { type: 'payment', data: { id: '222' } });
+    await pub.hook('/api/mp/webhook?type=payment&data.id=222', { type: 'payment', data: { id: '222' } }, '222');
     await sleep(300);
     check('monto menor al precio: no se destaca', !(await emp.get('/api/company/jobs')).data.jobs.find((j) => j.id === job.id).featured);
     mp.payments.set('333', { id: 333, status: 'approved', external_reference: 'otra-cosa', transaction_amount: 5000, currency_id: 'ARS' });
-    await pub.post('/api/mp/webhook', { type: 'payment', data: { id: '333' } });
+    await pub.hook('/api/mp/webhook', { type: 'payment', data: { id: '333' } }, '333');
     await sleep(300);
     check('pago de otra referencia: se ignora', !(await emp.get('/api/company/jobs')).data.jobs.find((j) => j.id === job.id).featured);
     mp.payments.set('444', { id: 444, status: 'approved', external_reference: ref, transaction_amount: 5000, currency_id: 'ARS' });
-    w = await pub.post('/api/mp/webhook?type=payment&data.id=444', { type: 'payment', data: { id: '444' } });
+    const sinFirma = await pub.post('/api/mp/webhook?type=payment&data.id=444', { type: 'payment', data: { id: '444' } });
+    const malaFirma = await pub.hook('/api/mp/webhook?type=payment&data.id=444', { type: 'payment', data: { id: '444' } }, '444', { badSig: true });
+    const otraClave = await pub.hook('/api/mp/webhook?type=payment&data.id=444', { type: 'payment', data: { id: '444' } }, '444', { secret: 'otra' });
+    await sleep(300);
+    check('aviso sin firma, con firma mala o con otra clave: 401 y no destaca', sinFirma.status === 401 && malaFirma.status === 401 && otraClave.status === 401
+      && !(await emp.get('/api/company/jobs')).data.jobs.find((j) => j.id === job.id).featured, `${sinFirma.status} ${malaFirma.status} ${otraClave.status}`);
+    w = await pub.hook('/api/mp/webhook?type=payment&data.id=444', { type: 'payment', data: { id: '444' } }, '444');
     await sleep(300);
     const j1 = (await emp.get('/api/company/jobs')).data.jobs.find((j) => j.id === job.id);
     check('pago aprobado: el aviso queda destacado 15 días', j1.featured && Math.abs(j1.featuredUntil - (Date.now() + 15 * DAY)) < 120000, JSON.stringify({ f: j1.featured, u: j1.featuredUntil }));
-    await pub.post('/api/mp/webhook?topic=payment&id=444', {});
+    await pub.hook('/api/mp/webhook?type=payment&data.id=444', { type: 'payment', data: { id: '444' } }, '444');
     await sleep(300);
     const j2 = (await emp.get('/api/company/jobs')).data.jobs.find((j) => j.id === job.id);
     check('el mismo aviso repetido no suma días de nuevo', j2.featuredUntil === j1.featuredUntil);
@@ -156,6 +172,12 @@ async function main() {
     check('al volver se confirma y suma 7 días a los que quedaban', conf.status === 200 && conf.data.status === 'approved' && Math.abs(j3.featuredUntil - (j1.featuredUntil + 7 * DAY)) < 120000, JSON.stringify(conf.data));
     check('pago desconocido: 404', (await emp.post('/api/company/payments/confirm', { paymentId: '999' })).status === 404);
 
+    console.log('— Vuelta automática sólo con un sitio público https —');
+    const mpLib = require('../lib/mp');
+    check('https público: con auto_return', mpLib.isPublicHttps('https://workuco.com.ar') === true);
+    check('localhost o http: sin auto_return', !mpLib.isPublicHttps('http://localhost:4250') && !mpLib.isPublicHttps('https://localhost') && !mpLib.isPublicHttps('https://127.0.0.1:4250') && !mpLib.isPublicHttps('http://workuco.com.ar'));
+    check('la preferencia del servidor (https) lleva auto_return', pref.auto_return === 'approved');
+
     console.log('— Apagar el cobro —');
     await admin.put('/api/admin/payments/settings', { charge: false, prices: { 7: 3000, 15: 5000, 30: 9000 } });
     check('con el cobro apagado no se puede pagar', (await emp.post(`/api/company/jobs/${job.id}/checkout`, { days: 7 })).status === 400);
@@ -163,6 +185,30 @@ async function main() {
     fail++; console.error('ERROR en las pruebas:', e);
   } finally {
     child.kill();
+    await sleep(300);
+    fs.rmSync(DATA, { recursive: true, force: true });
+  }
+
+  /* un sitio sin https no puede cobrar: Mercado Pago tiene que avisar y volver por https */
+  console.log('— Sin https no se cobra —');
+  const child2 = spawn(process.execPath, ['server.js'], {
+    cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, PORT: String(PORT), WORKUCO_DATA: DATA, WORKUCO_DEMO: '1', WORKUCO_MAIL_FAKE: '1',
+      PUBLIC_URL: 'http://workuco.com.ar', WORKUCO_ADMIN_EMAIL: ADMIN.email, WORKUCO_ADMIN_PASS: ADMIN.pass,
+      WORKUCO_MP_TOKEN: 'APP_USR-prueba', WORKUCO_MP_API: `http://127.0.0.1:${MP_PORT}` },
+  });
+  try {
+    await waitServer();
+    const admin = client();
+    await admin.post('/api/admin/login', { email: ADMIN.email, password: ADMIN.pass });
+    await admin.put('/api/admin/payments/settings', { charge: true, prices: { 7: 3000 } });
+    const cfg = (await admin.get('/api/admin/payments')).data;
+    check('con PUBLIC_URL http el cobro queda apagado y el admin ve por qué', cfg.enabled === false && cfg.mp.publicUrl === false
+      && (await client().get('/api/meta')).data.payments.enabled === false, JSON.stringify(cfg.mp));
+  } catch (e) {
+    fail++; console.error('ERROR en las pruebas:', e);
+  } finally {
+    child2.kill();
     mpServer.close();
     await sleep(300);
     fs.rmSync(DATA, { recursive: true, force: true });

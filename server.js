@@ -424,7 +424,8 @@ function payConfig() {
     if (v > 0) prices[d] = v;
   }
   const charge = store.adminMeta('charge_featured') === '1';
-  const enabled = mp.connected() && charge && !!PUBLIC_URL && Object.keys(prices).length > 0;
+  /* Mercado Pago avisa y vuelve por https: sin una dirección pública https no se cobra */
+  const enabled = mp.connected() && charge && mp.isPublicHttps(PUBLIC_URL) && Object.keys(prices).length > 0;
   return { charge, prices, enabled };
 }
 /**
@@ -1550,6 +1551,8 @@ async function handleApi(req, res, url) {
     try { b = await readBody(req, 64 * 1024); } catch (_) {}
     const type = q.get('type') || q.get('topic') || b.type || b.topic || '';
     const id = String(q.get('data.id') || q.get('id') || (b.data && b.data.id) || '');
+    /* con la clave secreta de Webhooks cargada, un aviso sin firma válida no se procesa */
+    if (!mp.verifySignature(req.headers, id)) return send(res, 401, { error: 'Firma inválida' });
     if ((!type || type === 'payment') && /^\d{1,20}$/.test(id)) {
       settlePayment(id).catch((e) => console.warn(`Webhook de Mercado Pago (${id}):`, e.message));
     }
@@ -2358,7 +2361,7 @@ async function handleApi(req, res, url) {
     if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
     const cfg = payConfig();
     return send(res, 200, {
-      mp: { connected: mp.connected(), publicUrl: !!PUBLIC_URL },
+      mp: { connected: mp.connected(), publicUrl: mp.isPublicHttps(PUBLIC_URL), webhookSecret: mp.hasWebhookSecret() },
       settings: { charge: cfg.charge, prices: cfg.prices }, enabled: cfg.enabled, featuredDays: FEATURED_DAYS,
       totals: store.paymentTotals(),
       payments: store.allPayments().map((x) => ({
