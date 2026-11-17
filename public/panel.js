@@ -1244,14 +1244,21 @@
           <span><strong>Cobrar los destacados</strong><small>Apagado: las empresas sólo "piden" el destacado y vos lo activás a mano (como en el lanzamiento).</small></span></label>
         <div class="pay-prices">${d.featuredDays.map((n) => `<label class="field"><span>${n} días</span>
           <span class="pay-input"><span>$</span><input class="input" type="number" min="0" step="100" inputmode="numeric" data-price="${n}" value="${d.settings.prices[n] || ''}" placeholder="Sin vender"></span></label>`).join('')}</div>
+        <div class="pay-cv">
+          <label class="switch-row"><input type="checkbox" id="pay-sellcv" ${d.settings.sellCv ? 'checked' : ''}><span class="switch" aria-hidden="true"></span>
+            <span><strong>Vender CV Pro</strong><small>${d.cvPro && d.cvPro.ai ? 'Las personas pagan el CV hecho con IA. El análisis y la vista previa siempre son gratis.' : 'Falta la IA del servidor (<code>WORKUCO_IMPORT_AI_PROVIDER</code> y <code>_KEY</code>): sin ella el CV Pro no se ofrece.'}</small></span></label>
+          <label class="field"><span>Precio del CV Pro</span>
+            <span class="pay-input"><span>$</span><input class="input" type="number" min="100" step="100" inputmode="numeric" id="pay-cvprice" value="${d.settings.cvPrice || 5000}"></span></label>
+        </div>
         <button class="btn btn-primary" type="submit">Guardar</button>
       </form>
       <h3 class="pay-h">Cobrado: ${money(d.totals.approved)} <small>(${d.totals.count} pago${d.totals.count === 1 ? '' : 's'} aprobado${d.totals.count === 1 ? '' : 's'})</small></h3>
-      ${d.payments.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Fecha</th><th>Empresa y aviso</th><th>Días</th><th>Monto</th><th>Estado</th><th>N° de Mercado Pago</th></tr></thead><tbody>
+      ${d.payments.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Fecha</th><th>Qué</th><th>Quién</th><th>Monto</th><th>Estado</th><th>N° de Mercado Pago</th></tr></thead><tbody>
         ${d.payments.map((x) => { const st = PAY_STATUS[x.status] || ['', x.status]; return `<tr>
           <td class="cell-sub">${fmtDate(x.paidAt || x.createdAt)}</td>
-          <td><div class="cell-title">${esc(x.companyName)}</div><div class="cell-sub">${esc(x.jobTitle || '')}</div></td>
-          <td>${x.days}</td><td>${money(x.amount)}</td>
+          <td>${x.kind === 'cv' ? '<span class="badge">CV Pro</span>' : `<span class="badge">Destacado ${x.days} días</span><div class="cell-sub">${esc(x.jobTitle || '')}</div>`}</td>
+          <td><div class="cell-title">${esc(x.companyName || (x.kind === 'cv' ? 'Cuenta borrada' : ''))}</div></td>
+          <td>${money(x.amount)}</td>
           <td><span class="badge ${st[0]}">${esc(st[1])}</span></td>
           <td class="cell-sub">${esc(x.mpPaymentId || '—')}</td></tr>`; }).join('')}
       </tbody></table></div>` : '<div class="list-empty">Todavía no hay pagos.</div>'}`;
@@ -1260,7 +1267,9 @@
       const prices = {};
       $$('[data-price]', box).forEach((i) => { prices[i.dataset.price] = i.value === '' ? 0 : Number(i.value); });
       try {
-        await api('/api/admin/payments/settings', { method: 'PUT', body: { charge: $('#pay-charge').checked, prices } });
+        await api('/api/admin/payments/settings', { method: 'PUT', body: {
+          charge: $('#pay-charge').checked, prices, sellCv: $('#pay-sellcv').checked, cvPrice: Number($('#pay-cvprice').value) || 0,
+        } });
         toast('Guardado', 'ok');
         adminPayments();
       } catch (err) { toast(err.message, 'err'); }

@@ -415,3 +415,20 @@ pestaña **Pagos** del admin.
 | `WORKUCO_MP_TOKEN` | Access Token de producción de Mercado Pago. Sin él, el cobro queda apagado. |
 | `WORKUCO_MP_WEBHOOK_SECRET` | Clave secreta de Webhooks. Con ella, un aviso sin firma válida se rechaza (401). |
 | `WORKUCO_MP_API` | Sólo pruebas: otra dirección para la API (las pruebas usan un Mercado Pago simulado). |
+
+## CV Pro ("Mejorá tu CV con IA")
+
+Servicio pago y opcional para personas (la única excepción a "nunca cobrarle a quien busca trabajo"): en `/cv-pro`
+la persona sube su CV (PDF o fotos) o usa su perfil, recibe **gratis** un análisis con puntaje y "lo que falta",
+completa los datos y ve una **vista previa** del CV nuevo. Pagando (por defecto **$ 5.000**, con Mercado Pago) lo
+descarga completo, puede cambiar el diseño y el color, y tiene 3 reescrituras con IA.
+
+- **IA:** la misma del importador (`WORKUCO_IMPORT_AI_PROVIDER` / `WORKUCO_IMPORT_AI_KEY`). Sin ella, el servicio no
+  aparece. La IA elige uno de 6 diseños (Clásico, Moderno, Campo y oficios, Atención al público, Creativo, Primer
+  empleo), un color y el orden de las secciones.
+- **No inventa:** el servidor descarta empresas y estudios que la persona no dio, y borra cargos que no dio.
+- **Vista previa recortada:** antes de pagar el servidor no manda el contenido completo.
+- **Límites:** 3 análisis por día por cuenta, 3 versiones antes de pagar, 3 reescrituras después.
+- **Admin → Pagos:** "Vender CV Pro" y el precio. Los pagos de CV aparecen en la misma lista que los destacados.
+- **Datos:** el archivo subido no se guarda; el texto, el análisis y el CV se borran con la cuenta.
+- Lógica en `lib/cvpro.js`; pruebas: `tools/test-cvpro-lib.js` y `tools/test-cvpro.js` (IA y Mercado Pago simulados).

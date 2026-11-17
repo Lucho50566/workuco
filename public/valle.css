@@ -1103,3 +1103,7 @@ select.input.input-sm, select.input-sm { padding-right: 32px; background-positio
 .cvpro-cta svg { color: var(--lime); flex: none; }
 .cvpro-cta small { display: block; color: var(--night-muted); font-size: 12.5px; }
 .cvpro-cta:hover { background: #17302a; }
+
+.pay-cv { display: grid; grid-template-columns: 1fr 200px; gap: 14px; align-items: end; padding-top: 14px; border-top: 1px solid var(--line); }
+.pay-cv .field > span { display: block; font-weight: 700; font-size: 13.5px; margin-bottom: 6px; }
+@media (max-width: 640px) { .pay-cv { grid-template-columns: 1fr; } }
