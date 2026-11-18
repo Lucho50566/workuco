@@ -1107,3 +1107,12 @@ select.input.input-sm, select.input-sm { padding-right: 32px; background-positio
 .pay-cv { display: grid; grid-template-columns: 1fr 200px; gap: 14px; align-items: end; padding-top: 14px; border-top: 1px solid var(--line); }
 .pay-cv .field > span { display: block; font-weight: 700; font-size: 13.5px; margin-bottom: 6px; }
 @media (max-width: 640px) { .pay-cv { grid-template-columns: 1fr; } }
+
+/* cerrar sesión */
+.btn-logout { color: var(--night-muted); }
+.btn-logout:hover { color: #fff; }
+.mobile-logout { display: flex; align-items: center; gap: 8px; margin-top: 6px; padding: 12px 4px 4px; border: 0; border-top: 1px solid rgba(255, 255, 255, .1);
+  background: none; color: #ffb4a8; font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
+.mobile-logout:hover { color: #fff; }
+.profile-logout { color: var(--muted); margin-top: 4px; }
+.profile-logout:hover { color: var(--red, #c0392b); }

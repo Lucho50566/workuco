@@ -169,12 +169,18 @@ function paintAuth() {
     if (mobile) { mobile.textContent = 'Mi panel'; mobile.href = '/panel'; }
   } else if (u && u.role === 'candidate') {
     slot.innerHTML = `${bellHtml()}<a class="btn btn-ghost btn-sm btn-avatar" href="/mi-perfil">${avatarHtml(u.candidate.name, u.candidate.photo, 'avatar-xs')} Mi perfil</a>
-      <a class="btn btn-primary btn-sm" href="/buscar">Buscar empleo</a>`;
+      <a class="btn btn-primary btn-sm" href="/buscar">Buscar empleo</a>
+      <button class="btn btn-ghost btn-sm btn-logout" type="button" data-logout title="Cerrar sesión">${icon('logout', 16)} Salir</button>`;
     if (mobile) { mobile.textContent = 'Mi perfil'; mobile.href = '/mi-perfil'; }
   } else if (u && u.role === 'admin') {
     slot.innerHTML = `<a class="btn btn-ghost btn-sm" href="/admin">Admin</a>
       <button class="btn btn-outline btn-sm" type="button" data-logout>Salir</button>`;
     if (mobile) { mobile.textContent = 'Admin'; mobile.href = '/admin'; }
+  }
+  /* en el celular el menú (☰) también permite cerrar la sesión, para cualquier cuenta */
+  const menu = $('[data-mobile-menu]');
+  if (u && menu && !$('[data-logout]', menu)) {
+    menu.insertAdjacentHTML('beforeend', `<button class="mobile-logout" type="button" data-logout>${icon('logout', 16)} Cerrar sesión</button>`);
   }
 }
 
