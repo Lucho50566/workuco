@@ -49,6 +49,13 @@ async function waitServer() {
 }
 
 async function main() {
+  console.log('— Mail de contacto —');
+  const { legalInfo, CONTACT_EMAIL } = require('../lib/legal');
+  check('el mail de contacto de WorkUco es el Gmail', CONTACT_EMAIL === 'contacto.workuco@gmail.com');
+  check('sin configurar, se usa el Gmail', legalInfo({}).email === 'contacto.workuco@gmail.com');
+  check('el valor viejo del instalador (casilla que no existe) pasa al Gmail', legalInfo({ WORKUCO_LEGAL_EMAIL: 'hola@workuco.com.ar' }).email === 'contacto.workuco@gmail.com');
+  check('otro mail configurado a mano se respeta', legalInfo({ WORKUCO_LEGAL_EMAIL: 'legales@estudio.com' }).email === 'legales@estudio.com');
+
   console.log('— Reglas de avisos discriminatorios —');
   check('"buena presencia" se marca', discriminationHints('Mozo con buena presencia').length === 1);
   check('una franja de edad se marca', discriminationHints('Edad entre 25 y 35 años').length === 1);

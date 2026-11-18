@@ -340,7 +340,7 @@ Variables de entorno para producción (aparecen en el pie, los términos y la pr
 | `WORKUCO_LEGAL_NAME` | Nombre o razón social del responsable |
 | `WORKUCO_LEGAL_CUIT` | CUIT |
 | `WORKUCO_LEGAL_ADDRESS` | Domicilio legal en Argentina |
-| `WORKUCO_LEGAL_EMAIL` | Mail para pedidos de datos (por defecto `hola@workuco.com.ar`) |
+| `WORKUCO_LEGAL_EMAIL` | Mail de contacto: pie, contacto, términos, privacidad y respuestas a los mails (por defecto `contacto.workuco@gmail.com`) |
 | `WORKUCO_DB_REGISTRY` | Número de inscripción de la base en el Registro Nacional de Bases de Datos (AAIP) |
 
 Lo que tiene que hacer el responsable (no se resuelve con código): inscribir las bases de datos en la AAIP

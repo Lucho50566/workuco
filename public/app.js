@@ -1536,7 +1536,7 @@ const INFO = {
   contacto: `<h1>Contacto</h1>
     <p class="lead">¿Tenés una consulta sobre una oferta, tu cuenta o una publicación?</p>
     <div class="info-card"><h2 style="margin-top:0">Escribinos</h2>
-      <p>Email: <a href="mailto:hola@workuco.com.ar" class="link-inline">hola@workuco.com.ar</a></p>
+      <p>Email: {{EMAIL}}</p>
       <p>Horario de atención: lunes a viernes de 9 a 18 h.</p>
       <p>También podés escribirnos desde la cuenta de empresa que creaste; respondemos dentro de las 24 horas hábiles.</p>
     </div>
@@ -1796,7 +1796,7 @@ async function initInfo() {
   let meta = {};
   try { meta = await loadMeta(); } catch (_) { /* sin meta, quedan los datos por defecto */ }
   const l = meta.legal || {};
-  const mail = esc(l.email || 'hola@workuco.com.ar');
+  const mail = esc(l.email || 'contacto.workuco@gmail.com');
   const resp = [l.name ? `<strong>Responsable:</strong> ${esc(l.name)}` : '<strong>Responsable:</strong> WorkUco',
     l.cuit ? `CUIT ${esc(l.cuit)}` : '', l.address ? `Domicilio legal: ${esc(l.address)}` : '',
     `Contacto: <a class="link-inline" href="mailto:${mail}">${mail}</a>`].filter(Boolean).join(' · ');
