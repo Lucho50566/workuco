@@ -1092,3 +1092,51 @@ table.data .cell-sub { color: var(--muted); font-size: 12.3px; }
 .adm-item-main .cell-title:hover { text-decoration: underline; }
 .adm-item .badge { margin-left: 4px; }
 @media (max-width: 560px) { .adm-item .row-actions { width: 100%; } }
+
+/* ---------- instalar como app (PWA) ---------- */
+.app-install {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; margin-left: 6px;
+  border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); color: var(--ink);
+  font: inherit; font-size: 12.5px; font-weight: 650; cursor: pointer; white-space: nowrap; transition: .15s;
+}
+.app-install:hover { border-color: var(--green); color: var(--green-dark); background: var(--green-soft); }
+.app-install[hidden], .mobile-install[hidden], .footer-install[hidden] { display: none; }
+.mobile-install {
+  display: flex; align-items: center; gap: 8px; margin-top: 6px; padding: 12px 4px; border: 0; border-top: 1px solid var(--line);
+  background: none; color: var(--green-dark); font: inherit; font-weight: 650; text-align: left; cursor: pointer;
+}
+.footer-install {
+  display: inline-flex; align-items: center; gap: 6px; padding: 0; margin-top: 4px; border: 0; background: none;
+  color: var(--lime); font: inherit; font-size: 13.3px; font-weight: 650; cursor: pointer;
+}
+.footer-install:hover { color: #fff; }
+@media (max-width: 760px) {
+  .app-install { margin-left: auto; }
+  .app-install:not([hidden]) + .menu-toggle { margin-left: 4px; }
+}
+@media (max-width: 360px) { .app-install span { display: none; } .app-install { padding: 0 10px; } }
+
+.install-banner {
+  position: fixed; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom)); z-index: 85;
+  width: min(560px, calc(100% - 24px)); transform: translate(-50%, calc(100% + 40px)); opacity: 0;
+  display: grid; grid-template-columns: 52px 1fr; gap: 12px 14px; align-items: center;
+  padding: 16px; border-radius: 20px; background: var(--night); color: var(--cream);
+  box-shadow: 0 24px 60px -18px rgba(9, 18, 13, .55); transition: transform .38s var(--ease-out), opacity .25s;
+}
+.install-banner.is-in { transform: translate(-50%, 0); opacity: 1; }
+.install-banner-icon { width: 52px; height: 52px; border-radius: 14px; }
+.install-banner-text strong { display: block; font-family: var(--font-display); font-size: 17px; letter-spacing: -.01em; }
+.install-banner-text span { display: block; margin-top: 2px; color: var(--night-muted); font-size: 13.5px; line-height: 1.4; }
+.install-banner-actions { grid-column: 1 / -1; display: flex; gap: 8px; }
+.install-banner-actions .btn { flex: 1; min-height: 42px; font-size: 14px; }
+.install-banner-go { background: var(--lime); color: var(--night); }
+.install-banner-go:hover { background: var(--lime-2); }
+.install-banner-later { border-color: rgba(245, 241, 230, .25); color: var(--cream); }
+.install-banner-later:hover { background: rgba(245, 241, 230, .08); }
+@media (prefers-reduced-motion: reduce) { .install-banner { transition: none; } }
+
+.install-modal .modal-sub { font-size: 14px; }
+.install-steps { list-style: none; margin: 4px 0 20px; padding: 0; display: grid; gap: 12px; counter-reset: paso; }
+.install-steps li { display: grid; grid-template-columns: 44px 1fr; gap: 12px; align-items: center; font-size: 15px; line-height: 1.4; }
+.install-step-ic { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--green-soft); color: var(--green-dark); }
+@media (min-width: 640px) { .install-help { align-items: center; } .install-help .modal { border-radius: 20px; } }

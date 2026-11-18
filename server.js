@@ -591,7 +591,12 @@ const HEAD_EXTRA = `<link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="/styles.css">
-  <link rel="stylesheet" href="/valle.css">`;
+  <link rel="stylesheet" href="/valle.css">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <script src="/pwa.js" defer></script>`;
+
+/* ícono del botón "Instalar app" (flecha hacia un celular) */
+const APP_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M12 7v7"/><path d="m9 11 3 3 3-3"/><path d="M10.5 18.5h3"/></svg>';
 
 /* Animación de inicio: se dibuja la W del logo, se cierra el tilde y se completa "WorkUco".
    Una vez por visita (sessionStorage), se saltea con un toque o una tecla y no se muestra
@@ -616,6 +621,7 @@ function navHtml(active) {
       <a class="btn btn-ghost btn-sm" href="/acceder">Ingresar</a>
       <a class="btn btn-primary btn-sm" href="/publicar">Publicar empleo</a>
     </div>
+    <button class="app-install" type="button" data-app-install hidden title="Instalar WorkUco en tu celular o compu">${APP_ICON}<span>Instalar app</span></button>
     <button class="menu-toggle" type="button" aria-label="Abrir menú" aria-expanded="false" data-menu-toggle>
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
     </button>
@@ -623,6 +629,7 @@ function navHtml(active) {
   <div class="mobile-menu" data-mobile-menu hidden>
     ${NAV_ITEMS.map(([href, label]) => `<a href="${href}">${label}</a>`).join('')}
     <a href="/acceder" data-auth-mobile>Ingresar</a>
+    <button class="mobile-install" type="button" data-app-install hidden>${APP_ICON} Instalar la app de WorkUco</button>
   </div>
 </header>${process.env.WORKUCO_DEMO === '1' ? '\n<div class="demo-strip" role="note"><span class="ds-long">Modo demostración: las empresas, personas y ofertas que ves son ficticias.</span><span class="ds-short">Demo: empresas y personas ficticias</span></div>' : ''}`;
 }
@@ -659,6 +666,7 @@ function footerHtml() {
       <a href="/terminos">Términos y condiciones</a>
       <a href="/privacidad">Privacidad</a>
       <a href="/baja">Botón de baja</a>
+      <button class="footer-install" type="button" data-app-install hidden>${APP_ICON} Instalar la app</button>
     </div>
   </div>
   <div class="container footer-bottom">

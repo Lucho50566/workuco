@@ -1,20 +1,54 @@
 {
+  "id": "/",
   "name": "WorkUco — Empleos del Valle de Uco",
   "short_name": "WorkUco",
-  "description": "Portal de empleo del Valle de Uco: San Carlos, Tunuyán y Tupungato.",
+  "description": "Empleos, changas y la Guía del Valle de Uco: San Carlos, Tunuyán y Tupungato.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#f7f8f7",
-  "theme_color": "#0ba37c",
+  "background_color": "#f5f1e6",
+  "theme_color": "#0b1612",
   "lang": "es-AR",
+  "categories": [
+    "business",
+    "lifestyle"
+  ],
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ],
   "shortcuts": [
-    { "name": "Buscar empleo", "url": "/buscar" },
-    { "name": "Publicar empleo", "url": "/publicar" }
+    {
+      "name": "Buscar empleo",
+      "url": "/buscar"
+    },
+    {
+      "name": "Changas",
+      "url": "/changas"
+    },
+    {
+      "name": "Guía del Valle",
+      "url": "/guia"
+    },
+    {
+      "name": "Publicar empleo",
+      "url": "/publicar"
+    }
   ]
 }
