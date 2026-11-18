@@ -40,6 +40,10 @@ async function main() {
   check('hay ayuda para iPhone (Agregar a inicio)', /Agregar a inicio/.test(pwa));
   check('hay ayuda para abrir desde Instagram/Facebook', /Instagram/.test(pwa) && /Abrir en/.test(pwa));
   check('el service worker no guarda páginas viejas (sólo la de sin conexión)', /mode !== 'navigate'/.test(sw) && !/cache\.put/.test(sw));
+  check('si tocan "Instalar" antes de tiempo, espera hasta 2 s el aviso del navegador', /waitPrompt\(2000\)/.test(pwa) && /waiters\.splice\(0\)\.forEach/.test(pwa));
+  check('desde Instagram/Facebook en Android abre la página en Chrome', /package=com\.android\.chrome/.test(pwa) && /inApp && isAndroid && !fromIntent/.test(pwa));
+  check('el salto a Chrome tiene vuelta segura (sin Chrome sigue en la misma página)', /S\.browser_fallback_url=/.test(pwa));
+  check('al llegar desde ese salto el cartel sale enseguida y se limpia la dirección', /fromIntent && !standalone\(\)/.test(pwa) && /params\.delete\('instalar'\)/.test(pwa));
   check('el service worker sólo borra sus propias cachés', /startsWith\('wk-offline-'\)/.test(sw));
   check('con el almacenamiento bloqueado no se rompe (se toma dentro del try)', /try \{ return area\(session\)/.test(pwa) && !/sessionStorage\)/.test(pwa.replace('window.sessionStorage', '')));
 

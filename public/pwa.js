@@ -26,9 +26,36 @@
   const isIOS = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const inApp = /FBAN|FBAV|Instagram|Line\/|TikTok|; wv\)/i.test(ua);
   const isMobile = /android|iphone|ipad|ipod|mobile/i.test(ua) || isIOS;
+  const isAndroid = /android/i.test(ua);
+  /* Chrome, Edge y Samsung Internet avisan cuándo se puede instalar (beforeinstallprompt) */
+  const canPrompt = 'onbeforeinstallprompt' in window && !inApp && !isIOS;
+  /* ?instalar=1: llegó desde "Abrir en Chrome" (desde Instagram/Facebook): el cartel sale enseguida */
+  const params = new URLSearchParams(location.search);
+  const fromIntent = params.get('instalar') === '1';
+  if (fromIntent) {
+    params.delete('instalar');
+    try { history.replaceState(history.state, '', location.pathname + (params.toString() ? `?${params}` : '') + location.hash); } catch (_) {}
+  }
 
   let deferred = null; // el pedido de instalación que guarda Chrome/Edge/Samsung
-  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferred = e; });
+  let waiters = [];
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferred = e; waiters.splice(0).forEach((f) => f()); });
+  /* si tocan "Instalar" antes de que el navegador avise, se espera un instante en vez de mostrar la explicación */
+  function waitPrompt(ms) {
+    if (deferred) return Promise.resolve();
+    return new Promise((resolve) => {
+      const t = setTimeout(() => { waiters = waiters.filter((f) => f !== done); resolve(); }, ms);
+      const done = () => { clearTimeout(t); resolve(); };
+      waiters.push(done);
+    });
+  }
+  /* Android: abre la misma página en Chrome (si no está Chrome, sigue en la misma página) */
+  function chromeIntent() {
+    const u = new URL(location.href);
+    u.searchParams.set('instalar', '1');
+    u.hash = ''; // el # cortaría el enlace
+    return `intent://${u.host}${u.pathname}${u.search}#Intent;scheme=${u.protocol.replace(':', '')};package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(u.href)};end`;
+  }
   window.addEventListener('appinstalled', () => {
     deferred = null; store.set(DONE_KEY, '1'); hideBanner(); paintButtons();
   });
@@ -49,7 +76,15 @@
   }
 
   /* ---------- instalar ---------- */
-  async function install(from) {
+  async function install(from, btn) {
+    /* dentro de Instagram/Facebook en Android: un toque y se abre en Chrome, donde sí se instala.
+       Si ya vino de ese salto y sigue adentro (no hay Chrome), se explica en vez de repetirlo. */
+    if (!deferred && inApp && isAndroid && !fromIntent) { location.href = chromeIntent(); return; }
+    if (!deferred && canPrompt) {
+      if (btn) { btn.classList.add('is-busy'); btn.setAttribute('aria-busy', 'true'); }
+      await waitPrompt(2000);
+      if (btn) { btn.classList.remove('is-busy'); btn.removeAttribute('aria-busy'); }
+    }
     if (deferred) {
       const ev = deferred; deferred = null;
       try {
@@ -85,7 +120,7 @@
     document.body.appendChild(banner);
     void banner.offsetWidth; // fija la posición de salida para que la entrada se anime
     banner.classList.add('is-in');
-    banner.querySelector('[data-install-go]').addEventListener('click', () => install('banner'));
+    banner.querySelector('[data-install-go]').addEventListener('click', (e) => install('banner', e.currentTarget));
     banner.querySelector('[data-install-later]').addEventListener('click', () => { later(); hideBanner(); });
   }
   function hideBanner() {
@@ -145,6 +180,7 @@
       <div class="modal-head"><div><h2 id="install-help-title">Instalar WorkUco</h2><p class="modal-sub">${s.intro}</p></div>
         <button class="modal-close" type="button" aria-label="Cerrar" data-install-close>${svg('<path d="M6 6l12 12M18 6 6 18"/>', 16)}</button></div>
       <ol class="install-steps">${s.list.map(([ic, t]) => `<li><span class="install-step-ic">${svg(ic, 20)}</span><span>${t}</span></li>`).join('')}</ol>
+      ${isIOS || inApp ? '' : '<p class="install-note">¿Ya la instalaste? Buscá el ícono de WorkUco entre tus apps: el navegador no la ofrece dos veces.</p>'}
       <button class="btn btn-primary btn-block" type="button" data-install-close>Entendido</button>
     </div>`;
     const prev = document.activeElement;
@@ -162,14 +198,16 @@
     e.preventDefault();
     const menu = document.querySelector('[data-mobile-menu]');
     if (menu && menu.contains(b)) { menu.hidden = true; const t = document.querySelector('[data-menu-toggle]'); if (t) t.setAttribute('aria-expanded', 'false'); }
-    install('button');
+    install('button', b);
   });
 
   function start() {
     paintButtons();
+    /* llegó desde "Abrir en Chrome": el cartel sale enseguida, para instalar con un toque */
+    if (fromIntent && !standalone() && store.get(DONE_KEY) !== '1') { setTimeout(showBanner, 700); return; }
     if (shouldAutoShow()) setTimeout(() => { if (shouldAutoShow() && !document.querySelector('.modal-backdrop')) showBanner(); }, DELAY_MS);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 
-  window.WKInstall = { install, showBanner, showHelp };
+  window.WKInstall = { install, showBanner, showHelp, chromeIntent };
 })();
