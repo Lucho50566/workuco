@@ -622,9 +622,11 @@ const brandMark = () => `<svg class="brand-svg" viewBox="0 0 40 40" width="30" h
   <path class="brand-dot" d="M18 18 22.8 26.8 33.2 11.6" fill="none" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`;
 
-const HEAD_EXTRA = `<link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&display=swap">
+/* Tipografías propias (antes Google Fonts: dos conexiones más antes de mostrar texto en el celular).
+   Se precargan las dos de letras latinas, que son las que usa la página. */
+const HEAD_EXTRA = `<link rel="preload" href="/fonts/bricolage-grotesque-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/fonts/fonts.css">
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/valle.css">
   <link rel="manifest" href="/manifest.webmanifest">
@@ -749,7 +751,10 @@ function renderPage(res, file, { active = '', title = 'WorkUco', req = null, hea
     const hidden = noindex || DEMO || /<meta name="robots" content="noindex">/.test(html);
     if (!head && req) {
       const own = /<meta name="description" content="([^"]*)">/.exec(html);
-      head = seo.pageMeta({ origin: originOf(req), path: new URL(req.url || '/', 'http://x').pathname, title, description: own ? own[1] : undefined, noindex: hidden });
+      const pth = new URL(req.url || '/', 'http://x').pathname;
+      head = seo.pageMeta({ origin: originOf(req), path: pth, title, description: own ? own[1] : undefined, noindex: hidden });
+      /* portada: WorkUco como organización y sitio web con buscador (datos estructurados) */
+      if (pth === '/') head += `\n  ${seo.siteLd(originOf(req), { email: legal.legalInfo().email })}`;
     } else if (head && hidden && !/name="robots"/.test(head)) head += '\n  <meta name="robots" content="noindex">';
     if (head) {
       html = html.replace(/\s*<meta name="description" content="[^"]*">/, '').replace(/\s*<meta name="robots" content="noindex">/, '');
@@ -2787,7 +2792,22 @@ const MIME = {
   '.pdf': 'application/pdf',
 };
 
+/* Encabezados de seguridad en todas las respuestas:
+   - nadie puede meter la página dentro de otro sitio (clickjacking): X-Frame-Options + CSP frame-ancestors;
+   - al hacer clic hacia otro sitio sólo viaja el dominio, no la dirección completa (Referrer-Policy);
+   - por https, el navegador recuerda usar siempre https durante un año (HSTS). Sin includeSubDomains:
+     no sabemos si todos los subdominios tienen https. */
+function setSecurityHeaders(req, res) {
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'self'");
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  const https = /https/i.test(String(req.headers['x-forwarded-proto'] || '')) || !!(req.socket && req.socket.encrypted) || /^https:/.test(PUBLIC_URL);
+  if (https) res.setHeader('Strict-Transport-Security', 'max-age=31536000');
+}
+
 const server = http.createServer(async (req, res) => {
+  setSecurityHeaders(req, res);
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
   try {
     if (url.pathname.startsWith('/api/')) return await handleApi(req, res, url);
@@ -2916,7 +2936,9 @@ const server = http.createServer(async (req, res) => {
       const ext = path.extname(file).toLowerCase();
       res.writeHead(200, {
         'Content-Type': MIME[ext] || 'application/octet-stream',
-        'Cache-Control': ['.html', '.css', '.js'].includes(ext) ? 'no-cache' : 'public, max-age=3600',
+        /* las tipografías no cambian (si cambian, cambia el nombre): un año en caché */
+        'Cache-Control': ext === '.woff2' && /[\\/]fonts[\\/]/.test(file) ? 'public, max-age=31536000, immutable'
+          : ['.html', '.css', '.js'].includes(ext) ? 'no-cache' : 'public, max-age=3600',
         'X-Content-Type-Options': 'nosniff',
       });
       fs.createReadStream(file).pipe(res);
