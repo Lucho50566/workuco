@@ -317,6 +317,7 @@ function jobCard(j) {
         <div class="job-company">${esc(j.companyName)} ${j.companyVerified ? `<span class="verified" title="Empresa verificada">${checkIcon}</span>` : ''}</div>
       </div>
       <div class="job-meta">
+        ${j.cosecha ? '<span class="badge badge-cosecha" title="Empresa con Pack Cosecha">Cosecha</span>' : ''}
         <span class="badge">${esc(j.locality)}</span>
         <span class="badge">${esc(j.modality)}</span>
         <span class="badge">${esc(j.category)}</span>
@@ -1849,6 +1850,30 @@ function gigCard(j) {
   </a>`;
 }
 
+/* Página /cosecha: avisos de Agricultura y changas del Valle; los del Pack Cosecha salen arriba */
+async function initCosecha() {
+  const list = $('#cosecha-list');
+  let loc = '';
+  const load = async () => {
+    try {
+      const qs = new URLSearchParams({ cosecha: '1', limit: '30' });
+      if (loc) qs.set('locality', loc);
+      const { jobs, total } = await api(`/api/jobs?${qs}`);
+      $('[data-cosecha-count]').textContent = total === 1 ? '1 aviso de cosecha' : `${total} avisos de cosecha`;
+      list.innerHTML = jobs.length ? jobs.map(jobCard).join('')
+        : `<div class="empty" style="grid-column:1/-1"><h3>Todavía no hay avisos de cosecha${loc ? ` en ${esc(loc)}` : ''}</h3><p>Volvé pronto: en temporada se publican todas las semanas.</p></div>`;
+    } catch (err) {
+      list.innerHTML = `<div class="empty" style="grid-column:1/-1"><h3>No pudimos cargar los avisos</h3><p>${esc(err.message)}</p></div>`;
+    }
+  };
+  $$('[data-cosecha-loc]').forEach((b) => b.addEventListener('click', () => {
+    $$('[data-cosecha-loc]').forEach((x) => x.classList.toggle('is-on', x === b));
+    loc = b.dataset.cosechaLoc;
+    load();
+  }));
+  await load();
+}
+
 async function initGigs() {
   const list = $('#gig-list');
   let loc = '';
@@ -2371,6 +2396,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       case 'company': await initCompanyPage(); break;
       case 'info': await initInfo(); break;
       case 'gigs': await initGigs(); break;
+      case 'cosecha': await initCosecha(); break;
       case 'cv': await initCv(); break;
       case 'public-profile': await initPublicProfile(); break;
       case 'claim': await initClaim(); break;

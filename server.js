@@ -2816,6 +2816,9 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/changas' && req.method === 'GET') {
       return renderPage(res, 'changas.html', { req, active: '/changas', title: 'Changas y trabajos por temporada · WorkUco' });
     }
+    if (url.pathname === '/cosecha' && req.method === 'GET') {
+      return renderPage(res, 'cosecha.html', { req, active: '/changas', title: 'Cosecha en el Valle de Uco · WorkUco' });
+    }
     if (/^\/cv\/[a-z0-9]+$/.test(url.pathname) && req.method === 'GET') {
       return renderPage(res, 'cv.html', { req, title: 'CV · WorkUco' });
     }
@@ -2888,7 +2891,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/sitemap.xml' && req.method === 'GET') {
       const today = todayAR();
-      const pages = ['/', '/buscar', '/changas', '/flyers', '/guia', '/empresas', '/publicar', ...Object.keys(INFO_PAGES)]
+      const pages = ['/', '/buscar', '/changas', '/cosecha', '/flyers', '/guia', '/empresas', '/publicar', ...Object.keys(INFO_PAGES)]
         .map((p) => ({ path: p, priority: p === '/' ? '1.0' : '0.6' }));
       /* una consulta para avisos y otra para empresas (las reclamadas con avisos vigentes); 45.000 URL entran en un solo sitemap */
       const live = "status='approved' AND (closes_at IS NULL OR closes_at='' OR closes_at>=?)";

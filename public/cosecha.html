@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{TITLE}}</title>
+  <meta name="description" content="Trabajo de cosecha en el Valle de Uco: vendimia, frutas y changas de temporada en Tunuyán, Tupungato y San Carlos.">
+  <meta name="theme-color" content="#0b1612">
+  <link rel="icon" href="/favicon.png" type="image/png" sizes="64x64">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body data-page="cosecha">
+{{NAV}}
+<main>
+  <section class="band-night gigs-hero cosecha-hero">
+    <div class="container">
+      <h1 class="display">Cosecha en el <span class="lime">Valle de Uco</span>.</h1>
+      <p class="hero-sub">Vendimia, frutas y changas de temporada en bodegas y fincas de la zona. Todos los avisos de cosecha, en un solo lugar.</p>
+      <div class="gig-filters" role="group" aria-label="Filtrar por localidad">
+        <button class="chip-filter is-on" type="button" data-cosecha-loc="">Toda la zona</button>
+        <button class="chip-filter" type="button" data-cosecha-loc="San Carlos">San Carlos</button>
+        <button class="chip-filter" type="button" data-cosecha-loc="Tunuyán">Tunuyán</button>
+        <button class="chip-filter" type="button" data-cosecha-loc="Tupungato">Tupungato</button>
+      </div>
+    </div>
+  </section>
+  <section class="section">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <h2 data-cosecha-count>Avisos de cosecha</h2>
+          <p class="soft-text">Primero los destacados; después, los más nuevos.</p>
+        </div>
+        <a class="btn btn-outline btn-sm" href="/changas">Ver todas las changas</a>
+      </div>
+      <div class="jobs-grid" id="cosecha-list">
+        <div class="skeleton" style="height:220px"></div>
+        <div class="skeleton" style="height:220px"></div>
+        <div class="skeleton" style="height:220px"></div>
+      </div>
+      <aside class="cosecha-cta">
+        <div>
+          <h2>¿Necesitás gente para la cosecha?</h2>
+          <p>Con el <strong>Pack Cosecha</strong> tus avisos de temporada salen arriba durante 30 días, con sello "Cosecha", y podés invitar hasta 100 personas disponibles por día.</p>
+        </div>
+        <a class="btn btn-primary" href="/panel">Ver el Pack Cosecha</a>
+      </aside>
+    </div>
+  </section>
+</main>
+{{FOOTER}}
+<script src="/app.js"></script>
+</body>
+</html>

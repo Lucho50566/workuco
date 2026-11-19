@@ -124,8 +124,41 @@
       if (b && b.closest('#panel-app')) showTab(b.dataset.goto);
     });
 
+    /* ---------- Pack Cosecha (tarjeta del resumen) ---------- */
+    async function renderCosecha() {
+      const box = $('#pack-cosecha');
+      if (!box) return;
+      let s;
+      try { s = await api('/api/company/cosecha'); } catch (_) { box.hidden = true; return; }
+      const money = (n) => `$ ${Number(n).toLocaleString('es-AR')}`;
+      const action = s.active
+        ? `<p class="pack-state is-on">${icon('check', 16)} Activo hasta el <strong>${fmtDate(s.until)}</strong> · ${s.featured} de ${s.maxJobs} avisos de cosecha destacados</p>${s.payEnabled ? `<button class="btn btn-outline" type="button" data-cosecha-pay>Sumar ${s.days} días · ${money(s.price)}</button>` : ''}`
+        : s.payEnabled ? `<button class="btn btn-primary" type="button" data-cosecha-pay>Activar con Mercado Pago · ${money(s.price)}</button>`
+          : s.requested ? `<p class="pack-state">${icon('clock', 16)} Lo pediste: te avisamos cuando esté activo.</p><button class="link-btn" type="button" data-cosecha-cancel>Cancelar pedido</button>`
+            : `<button class="btn btn-primary" type="button" data-cosecha-req>Pedir Pack Cosecha</button>${s.launchFree ? ' <span class="pack-free">Gratis durante el lanzamiento</span>' : ''}`;
+      box.innerHTML = `<div class="pack-head"><span class="pack-tag">Temporada</span><h2 id="pack-cosecha-title">Pack Cosecha</h2>
+          <p class="sub">Para bodegas y fincas que necesitan mucha gente rápido.</p></div>
+        <ul class="pack-list">
+          <li>${icon('star', 16)} <span>Hasta ${s.maxJobs} avisos de Agricultura o changas <strong>destacados ${s.days} días</strong>${s.eligible ? '' : ' (publicá uno para empezar)'}</span></li>
+          <li>${icon('users', 16)} <span>Hasta <strong>100 invitaciones por día</strong> a gente disponible (sin pack: 20)</span></li>
+          <li>${icon('check', 16)} <span>Sello <strong>"Cosecha"</strong> en tus avisos</span></li>
+          <li>${icon('external', 16)} <span>Arriba en <a href="/cosecha" target="_blank" rel="noopener">workuco.com.ar/cosecha</a></span></li>
+        </ul>
+        <div class="pack-action">${action}</div>`;
+      box.hidden = false;
+      const on = (sel, fn) => { const b = $(sel, box); if (b) b.addEventListener('click', fn); };
+      on('[data-cosecha-req]', async () => { try { await api('/api/company/cosecha/request', { method: 'POST' }); toast('Listo: te avisamos cuando el pack esté activo', 'ok'); renderCosecha(); } catch (err) { toast(err.message, 'err'); } });
+      on('[data-cosecha-cancel]', async () => { try { await api('/api/company/cosecha/request', { method: 'DELETE' }); renderCosecha(); } catch (err) { toast(err.message, 'err'); } });
+      on('[data-cosecha-pay]', async (e) => {
+        e.currentTarget.disabled = true;
+        try { const r = await api('/api/company/cosecha/checkout', { method: 'POST' }); location.href = r.url; }
+        catch (err) { toast(err.message, 'err'); e.currentTarget.disabled = false; }
+      });
+    }
+
     /* ---------- resumen ---------- */
     function renderOverview() {
+      renderCosecha();
       const k = data.kpis;
       $('#kpi-published').textContent = k.published;
       $('#kpi-pending').textContent = k.pending;
@@ -878,7 +911,10 @@
       else if (/^\d{1,20}$/.test(pid)) {
         try {
           const r = await api('/api/company/payments/confirm', { method: 'POST', body: { paymentId: pid } });
-          toast(r.status === 'approved' ? `¡Listo! Tu aviso quedó destacado por ${r.days} días.` : 'Tu pago está en proceso: el aviso se destaca solo cuando se apruebe.', 'ok');
+          if (r.kind === 'cosecha') {
+            toast(r.status === 'approved' ? '¡Listo! Tu Pack Cosecha está activo.' : 'Tu pago está en proceso: el Pack Cosecha se activa solo cuando se apruebe.', 'ok');
+            showTab('overview');
+          } else toast(r.status === 'approved' ? `¡Listo! Tu aviso quedó destacado por ${r.days} días.` : 'Tu pago está en proceso: el aviso se destaca solo cuando se apruebe.', 'ok');
           load();
         } catch (err) { toast(err.message, 'err'); }
       } else toast('Tu pago está en proceso: el aviso se destaca solo cuando se apruebe.', 'ok');
@@ -1301,13 +1337,19 @@
           <label class="field"><span>Precio del CV Pro</span>
             <span class="pay-input"><span>$</span><input class="input" type="number" min="100" step="100" inputmode="numeric" id="pay-cvprice" value="${d.settings.cvPrice || 5000}"></span></label>
         </div>
+        <div class="pay-cv">
+          <label class="switch-row"><input type="checkbox" id="pay-sellcosecha" ${d.settings.sellCosecha ? 'checked' : ''}><span class="switch" aria-hidden="true"></span>
+            <span><strong>Vender Pack Cosecha</strong><small>30 días: hasta 5 avisos de cosecha destacados, 100 invitaciones por día y sello "Cosecha". Apagado: las empresas lo piden y vos lo activás en Empresas.</small></span></label>
+          <label class="field"><span>Precio del Pack Cosecha</span>
+            <span class="pay-input"><span>$</span><input class="input" type="number" min="0" step="100" inputmode="numeric" id="pay-cosechaprice" value="${d.settings.cosechaPrice || ''}" placeholder="Sin vender"></span></label>
+        </div>
         <button class="btn btn-primary" type="submit">Guardar</button>
       </form>
       <h3 class="pay-h">Cobrado: ${money(d.totals.approved)} <small>(${d.totals.count} pago${d.totals.count === 1 ? '' : 's'} aprobado${d.totals.count === 1 ? '' : 's'})</small></h3>
       ${d.payments.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Fecha</th><th>Qué</th><th>Quién</th><th>Monto</th><th>Estado</th><th>N° de Mercado Pago</th></tr></thead><tbody>
         ${d.payments.map((x) => { const st = PAY_STATUS[x.status] || ['', x.status]; return `<tr>
           <td class="cell-sub">${fmtDate(x.paidAt || x.createdAt)}</td>
-          <td>${x.kind === 'cv' ? '<span class="badge">CV Pro</span>' : `<span class="badge">Destacado ${x.days} días</span><div class="cell-sub">${esc(x.jobTitle || '')}</div>`}</td>
+          <td>${x.kind === 'cv' ? '<span class="badge">CV Pro</span>' : x.kind === 'cosecha' ? `<span class="badge">Pack Cosecha ${x.days} días</span>` : `<span class="badge">Destacado ${x.days} días</span><div class="cell-sub">${esc(x.jobTitle || '')}</div>`}</td>
           <td><div class="cell-title">${esc(x.companyName || (x.kind === 'cv' ? 'Cuenta borrada' : ''))}</div></td>
           <td>${money(x.amount)}</td>
           <td><span class="badge ${st[0]}">${esc(st[1])}</span></td>
@@ -1320,6 +1362,7 @@
       try {
         await api('/api/admin/payments/settings', { method: 'PUT', body: {
           charge: $('#pay-charge').checked, prices, sellCv: $('#pay-sellcv').checked, cvPrice: Number($('#pay-cvprice').value) || 0,
+          sellCosecha: $('#pay-sellcosecha').checked, cosechaPrice: Number($('#pay-cosechaprice').value) || 0,
         } });
         toast('Guardado', 'ok');
         adminPayments();
@@ -1691,13 +1734,16 @@
     try {
       const { companies } = await api('/api/admin/companies');
       wrap.innerHTML = companies.length ? `<div class="table-wrap"><table class="data">
-        <thead><tr><th>Empresa</th><th>Contacto</th><th>Ofertas</th><th>Post.</th><th>IA</th><th>Plan</th><th>Verificada</th></tr></thead>
+        <thead><tr><th>Empresa</th><th>Contacto</th><th>Ofertas</th><th>Post.</th><th>IA</th><th>Pack Cosecha</th><th>Plan</th><th>Verificada</th></tr></thead>
         <tbody>${companies.map((c) => `<tr>
           <td><div class="company-cell">${logoHtml(c.name, c.logo, 'logo-xs')}<div><div class="cell-title">${esc(c.name)}</div><div class="cell-sub">${timeAgo(c.createdAt)}</div></div></div></td>
           <td class="cell-sub">${esc(c.email)}<br>${esc(c.phone || '')}</td>
           <td class="cell-sub">${c.published} publicadas / ${c.jobs} totales</td>
           <td class="cell-sub">${c.applications || 0}</td>
           <td class="cell-sub">${c.ai ? `${esc(c.ai.provider)}${c.ai.enabled ? ' ✓' : ''}` : '—'}</td>
+          <td class="cell-sub">${c.cosechaUntil
+            ? `<span class="badge badge-green">Activo hasta ${fmtDate(c.cosechaUntil)}</span><br><button class="link-btn" type="button" data-cosecha-off="${c.id}">Quitar</button>`
+            : `${c.cosechaRequestedAt ? `<span class="badge badge-amber">Lo pidió ${timeAgo(c.cosechaRequestedAt)}</span><br>` : ''}<button class="btn btn-outline btn-sm" type="button" data-cosecha-on="${c.id}">Activar 30 días</button>`}</td>
           <td><select class="input" data-plan="${c.id}" style="min-height:34px;padding:4px 8px;font-size:13px">
             ${['free', 'pro', 'premium'].map((p) => `<option value="${p}"${c.plan === p ? ' selected' : ''}>${p}</option>`).join('')}
           </select></td>
@@ -1710,6 +1756,16 @@
       }));
       $$('[data-plan]').forEach((sel) => sel.addEventListener('change', async () => {
         try { await api(`/api/admin/companies/${sel.dataset.plan}`, { method: 'PATCH', body: { plan: sel.value } }); toast('Plan actualizado', 'ok'); }
+        catch (err) { toast(err.message, 'err'); }
+      }));
+      /* Pack Cosecha: activar 30 días o quitarlo (los avisos conservan su fecha de destacado) */
+      $$('[data-cosecha-on]').forEach((b) => b.addEventListener('click', async () => {
+        try { await api(`/api/admin/companies/${b.dataset.cosechaOn}`, { method: 'PATCH', body: { cosechaDays: 30 } }); toast('Pack Cosecha activado por 30 días', 'ok'); adminCompanies(); }
+        catch (err) { toast(err.message, 'err'); }
+      }));
+      $$('[data-cosecha-off]').forEach((b) => b.addEventListener('click', async () => {
+        if (!confirm('¿Quitar el Pack Cosecha? Los avisos que ya están destacados siguen así hasta su fecha.')) return;
+        try { await api(`/api/admin/companies/${b.dataset.cosechaOff}`, { method: 'PATCH', body: { cosechaDays: null } }); toast('Pack Cosecha quitado', 'ok'); adminCompanies(); }
         catch (err) { toast(err.message, 'err'); }
       }));
     } catch (err) { wrap.innerHTML = `<div class="list-empty">${esc(err.message)}</div>`; }

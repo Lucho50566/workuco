@@ -217,6 +217,17 @@ async function testApi() {
     await otra.hook('772'); await sleep(300);
     check('el mismo pago avisado dos veces no suma días', (await otra.get('/api/company/cosecha')).data.until === paid.until);
     check('pagar no le activa el pack a otra empresa', (await emp.get('/api/company/cosecha')).data.active === false);
+    const conf = await otra.post('/api/company/payments/confirm', { paymentId: '772' });
+    check('al volver de Mercado Pago el panel reconoce el pago del pack', conf.status === 200 && conf.data.kind === 'cosecha' && conf.data.status === 'approved', JSON.stringify(conf.data));
+
+    console.log('— Páginas —');
+    const page = await pub.get('/cosecha');
+    check('/cosecha responde con su título', page.status === 200 && /Cosecha en el Valle de Uco · WorkUco/.test(page.text) && /data-page="cosecha"/.test(page.text));
+    check('el mapa del sitio incluye /cosecha', /https:\/\/workuco\.com\.ar\/cosecha</.test((await pub.get('/sitemap.xml')).text));
+    const panelJs = fs.readFileSync(path.join(ROOT, 'public/panel.js'), 'utf8');
+    check('el panel tiene la tarjeta del pack y sus botones', /\/api\/company\/cosecha/.test(panelJs) && /data-cosecha-pay/.test(panelJs) && /data-cosecha-req/.test(panelJs));
+    check('el admin puede activar, quitar y poner precio', /data-cosecha-on/.test(panelJs) && /data-cosecha-off/.test(panelJs) && /cosechaPrice/.test(panelJs));
+    check('las tarjetas de aviso muestran el sello', /badge-cosecha/.test(fs.readFileSync(path.join(ROOT, 'public/app.js'), 'utf8')));
   } finally {
     child.kill(); mpServer.close();
     await sleep(300);
