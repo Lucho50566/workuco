@@ -1116,3 +1116,23 @@ select.input.input-sm, select.input-sm { padding-right: 32px; background-positio
 .mobile-logout:hover { color: #fff; }
 .profile-logout { color: var(--muted); margin-top: 4px; }
 .profile-logout:hover { color: var(--red, #c0392b); }
+
+/* --- publicar: borrador sin cuenta, sueldo de referencia y próximos pasos --- */
+.guest-note, .draft-note { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--green-soft); color: var(--green-dark, #06664d); font-size: 14px; }
+.guest-note svg, .draft-note svg { flex: none; }
+.draft-note span { flex: 1; }
+.salary-nudge.is-warn { font-weight: 600; outline: 2px solid #e8c77d; }
+.salary-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 8px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--green-soft); color: var(--ink); font-size: 13.5px; }
+.salary-hint svg { flex: none; color: var(--green); }
+.salary-hint span { flex: 1 1 220px; }
+.salary-hint small { color: var(--muted); }
+.next-steps { text-align: left; margin: 28px auto 6px; max-width: 760px; }
+.next-steps h2 { font-size: 18px; margin: 0 0 12px; text-align: center; }
+.next-steps-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.next-step { display: flex; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); text-decoration: none; transition: border-color .15s, transform .15s; }
+.next-step:hover { border-color: var(--green); transform: translateY(-2px); }
+.next-step-ic { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--lime); color: var(--ink); }
+.next-step strong { display: block; font-size: 14.5px; }
+.next-step small { display: block; color: var(--muted); font-size: 13px; margin: 3px 0 6px; line-height: 1.4; }
+.next-step em { font-style: normal; font-weight: 700; font-size: 13px; color: var(--green); }
+@media (prefers-reduced-motion: reduce) { .next-step { transition: none; } .next-step:hover { transform: none; } }

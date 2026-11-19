@@ -99,7 +99,7 @@
           <div class="form-grid gig-fields" id="gig-fields" hidden>
             <div class="field">
               <label for="j-start">¿Cuándo empieza?</label>
-              <input class="input" id="j-start" type="date">
+              <input class="input" id="j-start" name="startDate" type="date">
               <span class="error-text" data-error="startDate" hidden></span>
             </div>
             <div class="field">
@@ -149,6 +149,7 @@
             <label for="j-description">Descripción del puesto</label>
             <textarea class="input" id="j-description" name="description" required minlength="60" maxlength="8000" rows="6" placeholder="Contá cómo es el equipo, el día a día y qué hace especial al puesto."></textarea>
             <span class="hint" id="desc-hint">Mínimo 60 caracteres. Podés editarlo todo lo que quieras.</span>
+            <span class="error-text" data-error="description" hidden></span>
           </div>
 
           <div class="field" style="margin-top:16px">
@@ -194,10 +195,11 @@
             <label for="j-salary-min">Sueldo</label>
             <div class="salary-grid">
               <div><span class="hint">Desde</span><input class="input" id="j-salary-min" inputmode="numeric" placeholder="900000"></div>
-              <div><span class="hint">Hasta</span><input class="input" id="j-salary-max" inputmode="numeric" placeholder="1100000"></div>
+              <div><span class="hint">Hasta</span><input class="input" id="j-salary-max" name="salaryMax" inputmode="numeric" placeholder="1100000"></div>
               <div><span class="hint">Por</span><select class="input" id="j-salary-period"><option value="mes">mes</option><option value="día">día</option><option value="hora">hora</option></select></div>
             </div>
             <span class="error-text" data-error="salaryMax" hidden></span>
+            <p class="salary-hint" id="salary-hint" role="status" hidden></p>
             <p class="salary-nudge" id="salary-nudge">Quien busca trabajo puede filtrar por avisos con sueldo publicado y ordenarlos por cuánto pagan. Sin sueldo, tu aviso no aparece en ese filtro.</p>
             <input class="input" id="j-salary" name="salary" maxlength="120" placeholder="Aclaración opcional: + propinas, + alojamiento, brutos…" style="margin-top:8px">
           </div>

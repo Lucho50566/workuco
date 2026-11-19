@@ -1581,6 +1581,14 @@ async function handleApi(req, res, url) {
     return send(res, 200, { jobs: store.companyJobs(me.company.id), stats: { applications: store.countApplicationsForCompany(me.company.id) } });
   }
 
+  /* sueldo de referencia del rubro, para sugerir al publicar (sólo empresas) */
+  if (p === '/api/company/salary-hint' && method === 'GET') {
+    if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
+    const cat = String(q.get('category') || ''); const per = String(q.get('period') || 'mes');
+    if (!CATEGORIES.includes(cat) || !SALARY_PERIODS.includes(per)) return send(res, 400, { error: 'Rubro o período inválido' });
+    return send(res, 200, { hint: store.salaryHint(cat, per) });
+  }
+
   if (p === '/api/company/jobs' && method === 'POST') {
     if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
     const b = await readBody(req);

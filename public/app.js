@@ -890,19 +890,26 @@ async function initPublish() {
   const gate = $('#publish-gate');
   const app = $('#publish-app');
 
-  if (!user || user.role !== 'company') {
+  if (user && user.role !== 'company') {
     gate.hidden = false;
     gate.innerHTML = `<div class="card gate-card">
-      ${user && user.role === 'candidate'
-        ? `<h1>Estás con tu cuenta de persona</h1><p>Para publicar una búsqueda necesitás una cuenta de empresa. Podés crear otra cuenta o volver a tu perfil.</p>
-           <div class="gate-actions"><a class="btn btn-primary" href="/acceder?rol=empresa&modo=registro&next=/publicar">Crear cuenta de empresa</a><a class="btn btn-outline" href="/mi-perfil">Ir a mi perfil</a></div>`
-        : `<h1>Publicá tu búsqueda laboral</h1><p>Creá una cuenta de empresa gratis y publicá en minutos. Vas a poder ver postulantes, ordenarlos y contactarlos desde un solo panel.</p>
-           <div class="gate-actions"><a class="btn btn-primary" href="/acceder?rol=empresa&modo=registro&next=/publicar">Crear cuenta de empresa</a><a class="btn btn-outline" href="/acceder?rol=empresa&next=/publicar">Ya tengo cuenta</a></div>`}
+      <h1>Estás con tu cuenta de persona</h1><p>Para publicar una búsqueda necesitás una cuenta de empresa. Podés crear otra cuenta o volver a tu perfil.</p>
+      <div class="gate-actions"><a class="btn btn-primary" href="/acceder?rol=empresa&modo=registro&next=/publicar">Crear cuenta de empresa</a><a class="btn btn-outline" href="/mi-perfil">Ir a mi perfil</a></div>
     </div>`;
     return;
   }
+  /* Sin sesión se arma el aviso igual: al enviarlo se guarda como borrador en este navegador
+     y se pide la cuenta; al volver con la cuenta lista, el borrador se recupera solo. */
+  const guest = !user;
+  const me = guest ? { company: { name: 'Tu empresa', email: '', phone: '', locality: '', logo: '', verified: false, ai: null } } : user;
   gate.hidden = true;
   app.hidden = false;
+  if (guest) {
+    $('.publish-head .btn').outerHTML = '<a class="btn btn-outline btn-sm" href="/acceder?rol=empresa&next=%2Fpublicar%3Fborrador%3D1">Ya tengo cuenta</a>';
+    $('#publish-alert').insertAdjacentHTML('beforebegin', `<div class="guest-note">${icon('sparkles', 16)}<span><strong>Armá tu aviso sin cuenta.</strong> Al final te pedimos crearla (gratis, un minuto) y el aviso queda guardado.</span></div>`);
+    $('.ai-strip').hidden = true;
+    $('.wizard-foot-right a[href="/panel"]').setAttribute('href', '/');
+  }
 
   const editId = new URLSearchParams(location.search).get('edit');
   let editing = null;
@@ -942,8 +949,8 @@ async function initPublish() {
     gig: editing ? !!editing.gig : false,
     startDate: editing ? (editing.startDate || '') : '',
     duration: editing ? (editing.duration || '') : '',
-    contactEmail: editing ? (editing.contactEmail || user.company.email) : user.company.email,
-    contactPhone: editing ? (editing.contactPhone || '') : (user.company.phone || ''),
+    contactEmail: editing ? (editing.contactEmail || me.company.email) : me.company.email,
+    contactPhone: editing ? (editing.contactPhone || '') : (me.company.phone || ''),
   };
   $('#j-title').value = s.title;
   $('#j-description').value = s.description;
@@ -960,7 +967,7 @@ async function initPublish() {
   s.flyers = editing ? (editing.flyers || []).map((url) => ({ url })) : [];
   const hasFlyer = () => s.flyers.length > 0;
   const flyerSrc = (f) => f.data || f.url;
-  const canAi = !!(user.company.ai && user.company.ai.hasKey);
+  const canAi = !!(me.company.ai && me.company.ai.hasKey);
   const renderFlyer = () => {
     const n = s.flyers.length;
     $('#flyer-box').classList.toggle('has-flyer', n > 0);
@@ -1074,6 +1081,9 @@ async function initPublish() {
     if (hasText && !confirm('La plantilla reemplaza la descripción, tareas y requisitos que escribiste. ¿Seguimos?')) return;
     s.title = t.title; $('#j-title').value = t.title;
     s.category = t.category; s.type = t.type;
+    /* lo que la plantilla no sabe se completa con lo más probable, sin pisar lo que ya eligió */
+    if (!s.modality) s.modality = t.modality || 'Presencial';
+    if (!s.locality && meta.localities.includes(me.company.locality)) s.locality = me.company.locality;
     s.description = t.description; $('#j-description').value = t.description;
     s.responsibilities.splice(0, s.responsibilities.length, ...splitLines(t.responsibilities));
     s.requirements.splice(0, s.requirements.length, ...splitLines(t.requirements));
@@ -1168,8 +1178,9 @@ async function initPublish() {
     const t = PUBLISH_TEMPLATES[b.dataset.template];
     if (!t) return;
     s.description = t.description;
-    s.responsibilities = [...t.responsibilities];
-    s.requirements = [...t.requirements];
+    /* splice y no "=": los editores de listas guardan la referencia al arreglo */
+    s.responsibilities.splice(0, s.responsibilities.length, ...t.responsibilities);
+    s.requirements.splice(0, s.requirements.length, ...t.requirements);
     $('#j-description').value = s.description;
     renderResp(); renderReq();
     toast('Plantilla aplicada. Podés editarla.', 'ok');
@@ -1185,8 +1196,8 @@ async function initPublish() {
         notes: $('#j-description').value.trim(),
       } });
       if (draft.description) { s.description = draft.description; $('#j-description').value = draft.description; }
-      if (draft.responsibilities.length) { s.responsibilities = draft.responsibilities; renderResp(); }
-      if (draft.requirements.length) { s.requirements = draft.requirements; renderReq(); }
+      if (draft.responsibilities.length) { s.responsibilities.splice(0, s.responsibilities.length, ...draft.responsibilities); renderResp(); }
+      if (draft.requirements.length) { s.requirements.splice(0, s.requirements.length, ...draft.requirements); renderReq(); }
       if (draft.experience) { s.experience = draft.experience; $('#j-experience').value = s.experience; }
       if (draft.schedule) { s.schedule = draft.schedule; $('#j-schedule').value = s.schedule; }
       if (draft.salary) { s.salary = draft.salary; $('#j-salary').value = s.salary; }
@@ -1198,7 +1209,7 @@ async function initPublish() {
 
   /* --- pasos --- */
   const steps = $$('.wizard-step');
-  const showStep = (n) => {
+  const showStep = (n, { scroll = true } = {}) => {
     s.step = Math.max(1, Math.min(steps.length, n));
     steps.forEach((el) => { el.hidden = Number(el.dataset.step) !== s.step; });
     $$('.wizard-dot').forEach((d, i) => {
@@ -1210,63 +1221,96 @@ async function initPublish() {
     $('#wizard-back').hidden = s.step === 1;
     $('#wizard-next').hidden = s.step === steps.length;
     $('#job-submit').hidden = s.step !== steps.length; // el botón de enviar sólo en el último paso
-    window.scrollTo({ top: $('#publish-app').offsetTop - 90, behavior: 'smooth' });
+    if (guest) $('#job-submit').textContent = 'Crear cuenta y enviar';
+    if (scroll) window.scrollTo({ top: $('#publish-app').offsetTop - 90, behavior: 'smooth' });
+    if (s.step === 3) loadSalaryHint();
     if (s.step === steps.length) { renderPreview(); renderLegalHints(); }
   };
 
+  /* Errores: se marcan al lado de cada campo y la pantalla baja hasta el primero (antes el aviso quedaba
+     arriba de todo y el campo con problema, mucho más abajo). */
+  const STEP_OF = { title: 1, category: 1, locality: 1, modality: 1, type: 1, startDate: 1, positions: 1,
+    description: 2, skills: 2, flyers: 2, salaryMin: 3, salaryMax: 3, salaryPeriod: 3, salary: 3, experience: 3, schedule: 3, closesAt: 3,
+    contactEmail: 4, contactPhone: 4 };
+  const showErrors = (errs) => {
+    const keys = Object.keys(errs);
+    showAlert($('#publish-alert'), keys.length > 1 ? `Revisá ${keys.length} datos marcados en rojo.` : Object.values(errs)[0], 'error');
+    setFieldErrors($('#job-form'), errs);
+    const first = $$('.wizard-step:not([hidden]) .error-text').find((el) => !el.hidden);
+    const target = first ? (first.closest('.field') || first) : $('#publish-alert');
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+  const hasSalary = () => readMoney('#j-salary-min') > 0 || readMoney('#j-salary-max') > 0;
+
   const validateStep = () => {
     hideAlert($('#publish-alert'));
+    setFieldErrors($('#job-form'), null);
+    const errs = {};
     if (s.step === 1) {
       s.title = $('#j-title').value.trim();
-      const errs = {};
       if (s.title.length < 5) errs.title = 'Escribí un nombre de puesto (mínimo 5 letras)';
       if (!s.category) errs.category = 'Elegí una categoría';
       if (!s.locality) errs.locality = 'Elegí la localidad';
       if (!s.modality) errs.modality = 'Elegí la modalidad';
       if (!s.type) errs.type = 'Elegí el tipo de empleo';
-      if (Object.keys(errs).length) {
-        showAlert($('#publish-alert'), Object.values(errs)[0], 'error');
-        setFieldErrors($('#job-form'), errs);
-        return false;
-      }
-    }
-    if (s.step === 1 && $('#j-gig').checked && !$('#j-start').value) {
-      showAlert($('#publish-alert'), 'Contá cuándo empieza la changa: es lo primero que mira quien busca.', 'error');
-      $('#j-start').focus();
-      return false;
-    }
-    if (s.step === 3) {
-      const min = readMoney('#j-salary-min'); const max = readMoney('#j-salary-max');
-      if (max && min && max < min) {
-        showAlert($('#publish-alert'), 'El sueldo "hasta" no puede ser menor que el "desde".', 'error');
-        $('#j-salary-max').focus();
-        return false;
-      }
+      if ($('#j-gig').checked && !$('#j-start').value) errs.startDate = 'Contá cuándo empieza la changa: es lo primero que mira quien busca.';
     }
     if (s.step === 2) {
       s.description = $('#j-description').value.trim();
       const minDesc = hasFlyer() ? 20 : 60;
       if (s.description.length < minDesc) {
-        showAlert($('#publish-alert'), hasFlyer()
-          ? 'Sumá una descripción corta (mínimo 20 caracteres) para que te encuentren en las búsquedas.'
-          : 'Contá un poco más del puesto (mínimo 60 caracteres), subí un flyer o usá una plantilla.', 'error');
-        $('#j-description').focus();
-        return false;
+        errs.description = hasFlyer()
+          ? `Sumá una descripción corta (mínimo 20 caracteres; vas ${s.description.length}) para que te encuentren en las búsquedas.`
+          : `Contá un poco más del puesto (mínimo 60 caracteres; vas ${s.description.length}), subí un flyer o usá una plantilla.`;
       }
+    }
+    if (s.step === 3) {
+      const min = readMoney('#j-salary-min'); const max = readMoney('#j-salary-max');
+      if (max && min && max < min) errs.salaryMax = 'El sueldo "hasta" no puede ser menor que el "desde".';
     }
     if (s.step === 4) {
       s.contactEmail = $('#j-contact-email').value.trim();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s.contactEmail)) {
-        showAlert($('#publish-alert'), 'Revisá el email de contacto.', 'error');
-        $('#j-contact-email').focus();
-        return false;
-      }
+      /* sin cuenta puede quedar vacío: se usa el mail con el que la cree */
+      if ((s.contactEmail || !guest) && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s.contactEmail)) errs.contactEmail = 'Revisá el email de contacto.';
+    }
+    if (Object.keys(errs).length) { showErrors(errs); return false; }
+    /* sueldo: no es obligatorio, pero se avisa una vez antes de seguir sin él */
+    if (s.step === 3 && !hasSalary() && !s.salaryWarned) {
+      s.salaryWarned = true;
+      $('#salary-nudge').hidden = false;
+      $('#salary-nudge').classList.add('is-warn');
+      $('#salary-nudge').textContent = 'Los avisos sin sueldo reciben menos postulantes y no aparecen cuando la gente filtra por sueldo. Si igual preferís no ponerlo, tocá Continuar de nuevo.';
+      $('.salary-field').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return false;
     }
     return true;
   };
 
+  /* sueldo de referencia del rubro, sacado de avisos reales de WorkUco (sólo si hay suficientes) */
+  let hintKey = '';
+  async function loadSalaryHint() {
+    const box = $('#salary-hint');
+    const period = $('#j-salary-period').value;
+    const key = `${s.category}|${period}`;
+    if (guest || !s.category || key === hintKey) return;
+    hintKey = key;
+    box.hidden = true;
+    let hint = null;
+    try { ({ hint } = await api(`/api/company/salary-hint?category=${encodeURIComponent(s.category)}&period=${encodeURIComponent(period)}`)); } catch (_) { return; }
+    if (!hint || hintKey !== key) return;
+    const money = (n) => `$ ${Number(n).toLocaleString('es-AR')}`;
+    box.innerHTML = `${icon('chart', 15)}<span>En WorkUco, los avisos de <strong>${esc(s.category)}</strong> pagan en general <strong>${hint.max > hint.min ? `${money(hint.min)} a ${money(hint.max)}` : money(hint.min)}</strong> por ${esc(period)} <small>(${hint.count} avisos del último año)</small>.</span>${hasSalary() ? '' : `<button type="button" class="btn btn-outline btn-sm" id="salary-hint-use">${hint.max > hint.min ? 'Usar este rango' : 'Usar este sueldo'}</button>`}`;
+    box.hidden = false;
+    $('#salary-hint-use')?.addEventListener('click', () => {
+      $('#j-salary-min').value = hint.min; $('#j-salary-max').value = hint.max > hint.min ? hint.max : '';
+      nudge(); $('#salary-hint-use').remove();
+      toast('Listo: ajustalo si pagás distinto.', 'ok');
+    });
+  }
+  $('#j-salary-period').addEventListener('change', () => { if (s.step === 3) loadSalaryHint(); });
+
   $('#wizard-next').addEventListener('click', () => { if (validateStep()) showStep(s.step + 1); });
-  $('#wizard-back').addEventListener('click', () => showStep(s.step - 1));
+  $('#wizard-back').addEventListener('click', () => { hideAlert($('#publish-alert')); showStep(s.step - 1); });
   $$('.wizard-dot').forEach((d) => d.addEventListener('click', () => {
     const n = Number(d.dataset.step);
     if (n < s.step || validateStep()) showStep(n);
@@ -1292,8 +1336,8 @@ async function initPublish() {
     $('#job-preview').innerHTML = `<div class="preview-card">
       ${cover ? flyerFrame(cover, 'Flyer principal del aviso', 'preview-flyer') : '<div class="preview-cover"><span>Así se va a ver tu aviso</span></div>'}
       <div class="preview-body">
-        ${logoHtml(user.company.name, user.company.logo, 'logo')}
-        <div><div class="job-title">${esc(s.title)}</div><div class="job-company">${esc(user.company.name)} ${user.company.verified ? `<span class="verified">${checkIcon}</span>` : ''}</div></div>
+        ${logoHtml(me.company.name, me.company.logo, 'logo')}
+        <div><div class="job-title">${esc(s.title)}</div><div class="job-company">${esc(me.company.name)} ${me.company.verified ? `<span class="verified">${checkIcon}</span>` : ''}</div></div>
         <div class="job-meta"><span class="badge">${esc(s.locality)}</span><span class="badge">${esc(s.modality)}</span><span class="badge">${esc(s.category)}</span></div>
         <p class="preview-desc">${esc(s.description).slice(0, 240)}${s.description.length > 240 ? '…' : ''}</p>
         <div class="job-foot">${payHtml(wizardPay())}<span>${$('#j-gig').checked ? 'Changa · ' : ''}${s.positions > 1 ? `${s.positions} puestos` : '1 puesto'}</span></div>
@@ -1302,43 +1346,117 @@ async function initPublish() {
     </div>`;
   }
 
+  /* --- borrador: lo que se armó sin cuenta queda en este navegador hasta que se envía --- */
+  const DRAFT_KEY = 'wk-publish-draft';
+  const DRAFT_DAYS = 7;
+  const buildBody = () => ({
+    title: s.title, locality: s.locality, category: s.category, type: s.type, modality: s.modality,
+    description: s.description,
+    responsibilities: s.responsibilities.join('\n'), requirements: s.requirements.join('\n'),
+    experience: $('#j-experience').value.trim(), schedule: $('#j-schedule').value.trim(),
+    salary: $('#j-salary').value.trim(), contactEmail: s.contactEmail,
+    contactPhone: s.contactPhone, closesAt: $('#j-closes').value,
+    benefits: s.benefits, positions: s.positions,
+    salaryMin: readMoney('#j-salary-min'), salaryMax: readMoney('#j-salary-max'), salaryPeriod: $('#j-salary-period').value,
+    skills: s.skills, gig: $('#j-gig').checked,
+    startDate: $('#j-gig').checked ? $('#j-start').value : '', duration: $('#j-gig').checked ? $('#j-duration').value.trim() : '',
+    flyers: s.flyers.filter((f) => f.data).map((f) => f.data),
+  });
+  const saveDraft = () => {
+    const body = buildBody();
+    const put = (b) => localStorage.setItem(DRAFT_KEY, JSON.stringify({ v: 1, savedAt: Date.now(), body: b }));
+    try { put(body); return 'ok'; } catch (_) {}
+    try { put({ ...body, flyers: [] }); return 'sin-flyers'; } catch (_) { return 'no'; } // los flyers pueden no entrar en el navegador
+  };
+  const readDraft = () => {
+    try {
+      const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
+      if (!d || d.v !== 1 || !d.body || Date.now() - d.savedAt > DRAFT_DAYS * 86400000) return null;
+      return d.body;
+    } catch (_) { return null; }
+  };
+  const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY); } catch (_) {} };
+  const applyDraft = (b) => {
+    for (const k of ['title', 'category', 'locality', 'modality', 'type', 'description']) if (typeof b[k] === 'string') s[k] = b[k];
+    if (Number(b.positions) > 0) { s.positions = Math.min(99, Number(b.positions)); $('#j-positions').textContent = String(s.positions); }
+    s.responsibilities.splice(0, s.responsibilities.length, ...splitLines(b.responsibilities));
+    s.requirements.splice(0, s.requirements.length, ...splitLines(b.requirements));
+    s.skills = Array.isArray(b.skills) ? b.skills.slice(0, 8).map(String) : [];
+    s.benefits = Array.isArray(b.benefits) ? b.benefits.filter((x) => meta.benefits.includes(x)) : [];
+    s.flyers = Array.isArray(b.flyers) ? b.flyers.filter((x) => /^data:image\//.test(x)).slice(0, MAX_FLYERS).map((data) => ({ data })) : [];
+    $('#j-title').value = s.title; $('#j-description').value = s.description;
+    $('#j-experience').value = b.experience || ''; $('#j-schedule').value = b.schedule || '';
+    $('#j-salary').value = b.salary || ''; $('#j-closes').value = b.closesAt || '';
+    $('#j-salary-min').value = b.salaryMin || ''; $('#j-salary-max').value = b.salaryMax || '';
+    if (meta.salaryPeriods.includes(b.salaryPeriod)) $('#j-salary-period').value = b.salaryPeriod;
+    $('#j-gig').checked = !!b.gig; $('#gig-fields').hidden = !b.gig;
+    $('#j-start').value = b.startDate || ''; $('#j-duration').value = b.duration || '';
+    if (b.contactEmail) $('#j-contact-email').value = b.contactEmail;
+    if (b.contactPhone) $('#j-contact-phone').value = b.contactPhone;
+    renderResp(); renderReq(); renderJobSkills(); renderFlyer(); nudge(); rerender();
+  };
+
+  /* después de enviar: qué conviene hacer mientras se revisa (y dónde están las opciones pagas) */
+  const nextStepsHtml = () => {
+    const money = (n) => `$ ${Number(n).toLocaleString('es-AR')}`;
+    const opts = (meta.payments && meta.payments.enabled && meta.payments.options) || [];
+    const cheapest = opts.length ? opts.reduce((a, b) => (b.price < a.price ? b : a)) : null;
+    const items = [];
+    items.push({ ic: 'star', t: 'Destacalo cuando se apruebe', d: `Sale primero en Buscar y en Wik Works, con más vistas por día.${cheapest ? ` Desde ${money(cheapest.price)} por ${cheapest.days} días.` : ' Lo pedís con un toque desde tu panel.'}`, href: '/panel#ofertas', cta: 'Ver en mi panel' });
+    if (s.category === 'Agricultura' || $('#j-gig').checked) items.push({ ic: 'users', t: '¿Necesitás mucha gente para la temporada?', d: 'El Pack Cosecha destaca hasta 5 avisos y te deja invitar a más gente por día.', href: '/cosecha', cta: 'Ver Pack Cosecha' });
+    if (!me.company.logo) items.push({ ic: 'image', t: 'Sumá el logo y fotos de tu empresa', d: 'Los avisos con logo dan más confianza y reciben más clics.', href: '/panel#empresa', cta: 'Completar mi empresa' });
+    items.push({ ic: 'search', t: 'Mirá quién está disponible', d: 'Apenas se apruebe, podés invitar a gente del Valle que busca trabajo de lo tuyo.', href: '/panel#talento', cta: 'Ver talento' });
+    return `<div class="next-steps"><h2>Mientras lo revisamos</h2><div class="next-steps-grid">${items.map((x) =>
+      `<a class="next-step" href="${x.href}"><span class="next-step-ic">${icon(x.ic, 18)}</span><span><strong>${esc(x.t)}</strong><small>${esc(x.d)}</small><em>${esc(x.cta)} →</em></span></a>`).join('')}</div></div>`;
+  };
+
   $('#job-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!validateStep()) return;
     const btn = $('#job-submit');
-    const body = {
-      title: s.title, locality: s.locality, category: s.category, type: s.type, modality: s.modality,
-      description: s.description,
-      responsibilities: s.responsibilities.join('\n'), requirements: s.requirements.join('\n'),
-      experience: $('#j-experience').value.trim(), schedule: $('#j-schedule').value.trim(),
-      salary: $('#j-salary').value.trim(), contactEmail: s.contactEmail,
-      contactPhone: s.contactPhone, closesAt: $('#j-closes').value,
-      benefits: s.benefits, positions: s.positions,
-      salaryMin: readMoney('#j-salary-min'), salaryMax: readMoney('#j-salary-max'), salaryPeriod: $('#j-salary-period').value,
-      skills: s.skills, gig: $('#j-gig').checked,
-      startDate: $('#j-gig').checked ? $('#j-start').value : '', duration: $('#j-gig').checked ? $('#j-duration').value.trim() : '',
-      flyers: s.flyers.filter((f) => f.data).map((f) => f.data),
-      ...(editing ? { keepFlyers: s.flyers.filter((f) => f.url).map((f) => f.url) } : {}),
-    };
+    s.contactPhone = $('#j-contact-phone').value.trim();
+    if (guest) {
+      const r = saveDraft();
+      if (r === 'no') { showAlert($('#publish-alert'), 'No pudimos guardar el borrador en este navegador. Creá la cuenta primero y volvé a publicar.', 'error'); return; }
+      if (r === 'sin-flyers') toast('Guardamos el aviso sin los flyers (no entraban en el navegador): subilos de nuevo después.', 'err');
+      location.href = `/acceder?rol=empresa&modo=registro&next=${encodeURIComponent('/publicar?borrador=1')}`;
+      return;
+    }
+    const body = { ...buildBody(), ...(editing ? { keepFlyers: s.flyers.filter((f) => f.url).map((f) => f.url) } : {}) };
     btn.disabled = true; btn.textContent = 'Guardando…';
     try {
       if (editing) await api(`/api/company/jobs/${editing.id}`, { method: 'PUT', body });
       else await api('/api/company/jobs', { method: 'POST', body });
+      if (!editing) clearDraft();
       app.innerHTML = `<div class="card success-card">
         <div class="success-ring">${icon('check', 32)}</div>
         <h1>${editing ? 'Cambios enviados' : 'Publicación enviada'}</h1>
-        <p>Quedó pendiente de aprobación. Cuando la revisemos, aparece en las búsquedas y te avisamos en el panel.</p>
+        <p>Quedó pendiente de aprobación (menos de 24 h). Cuando la revisemos, aparece en las búsquedas y te avisamos en el panel.</p>
+        ${editing ? '' : nextStepsHtml()}
         <div class="gate-actions"><a class="btn btn-primary" href="/panel">Ir a mi panel</a><a class="btn btn-outline" href="/publicar">Publicar otra</a></div>
       </div>`;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
-      showAlert($('#publish-alert'), err.message, 'error');
-      setFieldErrors($('#job-form'), err.fields);
       btn.disabled = false; btn.textContent = editing ? 'Guardar y reenviar' : 'Enviar para revisión';
+      /* el servidor puede marcar un dato de otro paso: se vuelve a ese paso y se muestra ahí */
+      const fields = err.fields || {};
+      const errSteps = Object.keys(fields).map((k) => STEP_OF[k]).filter(Boolean);
+      if (errSteps.length) { showStep(Math.min(...errSteps), { scroll: false }); showErrors(fields); }
+      else showAlert($('#publish-alert'), err.message, 'error');
     }
   });
 
   renderFlyer();
-  showStep(1);
+  /* borrador guardado (sin cuenta, o de una vez que no se terminó): se recupera al volver */
+  const draft = !editing && readDraft();
+  if (draft) {
+    applyDraft(draft);
+    if (!guest && !$('#j-contact-email').value) $('#j-contact-email').value = me.company.email;
+    const back = new URLSearchParams(location.search).get('borrador') === '1';
+    showStep(back && !guest ? 4 : 1);
+    $('#publish-alert').insertAdjacentHTML('beforebegin', `<div class="draft-note" id="draft-note">${icon('file', 16)}<span>${back && !guest ? '<strong>Recuperamos tu aviso.</strong> Revisalo y envialo.' : '<strong>Recuperamos el aviso que estabas armando.</strong>'}</span><button type="button" class="btn btn-ghost btn-sm" id="draft-discard">Empezar de cero</button></div>`);
+    $('#draft-discard').addEventListener('click', () => { clearDraft(); location.href = '/publicar'; });
+  } else showStep(1);
 }
 
 /* ================================================================== */
@@ -1347,7 +1465,8 @@ async function initPublish() {
 async function initAuth() {
   const params = new URLSearchParams(location.search);
   const role = params.get('rol') === 'empresa' ? 'company' : (params.get('rol') === 'empleado' ? 'candidate' : '');
-  const next = params.get('next') || '';
+  /* sólo rutas de este sitio: "//otro.com" o "/\otro.com" sacarían a la persona a otra página después de entrar */
+  const next = /^\/(?![/\\])/.test(params.get('next') || '') ? params.get('next') : '';
   const isRegister = params.get('modo') === 'registro';
   const alertBox = $('#auth-alert');
   const loginForm = $('#login-form');
