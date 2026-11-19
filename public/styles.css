@@ -1142,3 +1142,26 @@ table.data .cell-sub { color: var(--muted); font-size: 12.3px; }
 @media (min-width: 640px) { .install-help { align-items: center; } .install-help .modal { border-radius: 20px; } }
 .app-install.is-busy, .install-banner-go.is-busy, .mobile-install.is-busy, .footer-install.is-busy { opacity: .65; cursor: progress; }
 .install-note { margin: -8px 0 16px; color: var(--muted); font-size: 13px; }
+
+/* ---------- rendimiento de un aviso (panel de empresa) ---------- */
+.perf { margin: 4px 0 2px; padding: 14px; border-radius: 14px; background: var(--surface-2); }
+.perf[hidden] { display: none; }
+.perf-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.perf-kpis div { background: var(--surface); border-radius: 10px; padding: 10px 12px; }
+.perf-kpis strong { display: block; font-family: var(--font-display); font-size: 22px; letter-spacing: -.02em; color: var(--ink); }
+.perf-kpis span { display: block; font-size: 11.5px; line-height: 1.3; color: var(--muted); }
+.perf-chart { display: grid; grid-template-columns: repeat(14, 1fr); gap: 4px; align-items: end; height: 110px; margin-top: 14px; }
+.perf-col { display: flex; flex-direction: column; justify-content: flex-end; height: 100%; min-width: 0; }
+.perf-bar { display: flex; flex-direction: column; justify-content: flex-end; flex: 0 0 auto; border-radius: 4px 4px 2px 2px; background: var(--green); overflow: hidden; }
+.perf-feat { display: block; width: 100%; background: var(--lime-2); }
+.perf-app { flex: 0 0 16px; margin-top: 3px; font-size: 10.5px; font-weight: 700; line-height: 16px; text-align: center; color: var(--malbec); }
+.perf-axis { display: flex; justify-content: space-between; margin-top: 2px; font-size: 11px; color: var(--muted); }
+.perf-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; font-size: 11.5px; color: var(--muted); }
+.perf-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.perf-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.perf-legend .lg-views { background: var(--green); }
+.perf-legend .lg-feat { background: var(--lime-2); }
+.perf-legend b { color: var(--malbec); }
+.perf-insight { display: flex; gap: 8px; align-items: flex-start; margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--surface); font-size: 13px; line-height: 1.4; color: var(--text); }
+.perf-insight .icon { flex: 0 0 auto; color: #b08a00; margin-top: 1px; }
+@media (max-width: 430px) { .perf-kpis strong { font-size: 19px; } .perf-chart { gap: 2px; } }

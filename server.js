@@ -1553,6 +1553,19 @@ async function handleApi(req, res, url) {
     return send(res, 201, { job: j, warnings: legal.discriminationHints(j.title, j.description, j.requirements, j.responsibilities) });
   }
 
+  /* rendimiento de un aviso propio: vistas y postulaciones por día, y cuánto rinde destacado */
+  const compStats = p.match(/^\/api\/company\/jobs\/([a-z0-9]+)\/stats$/);
+  if (compStats && method === 'GET') {
+    if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
+    const j = store.job(compStats[1]);
+    if (!j || j.companyId !== me.company.id) return send(res, 404, { error: 'Oferta no encontrada' });
+    const perf = store.jobPerformance(j.id, 14);
+    /* el promedio de toda la página sólo se muestra con datos suficientes, para no prometer de más */
+    const site = store.featuredStats();
+    perf.siteRatio = site.ratio && site.ratio > 1 && site.featured.jobs >= 3 && site.normal.jobs >= 3 ? site.ratio : null;
+    return send(res, 200, perf);
+  }
+
   const compJob = p.match(/^\/api\/company\/jobs\/([a-z0-9]+)$/);
   if (compJob && (method === 'PUT' || method === 'DELETE' || method === 'PATCH')) {
     if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });

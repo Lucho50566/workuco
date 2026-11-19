@@ -166,6 +166,41 @@
       $$('[data-open-app]').forEach((b) => b.addEventListener('click', () => openDrawer(b.dataset.openApp)));
     }
 
+    /* ---------- rendimiento de un aviso ---------- */
+    const fmtN = (n) => Number(n).toLocaleString('es-AR');
+    const fmtD = (n) => String(n).replace('.', ',');
+    const dayLabel = (d) => { const [, m, dd] = d.split('-'); return `${Number(dd)}/${Number(m)}`; };
+    function perfHtml(p, job) {
+      const max = Math.max(1, ...p.series.map((s) => s.views));
+      const anyFeat = p.series.some((s) => s.featuredViews > 0);
+      const bars = p.series.map((s) => {
+        const h = s.views ? Math.max(4, Math.round((s.views / max) * 100)) : 0;
+        const fPct = s.views ? Math.round((s.featuredViews / s.views) * 100) : 0;
+        const tip = `${dayLabel(s.day)}: ${fmtN(s.views)} vista${s.views === 1 ? '' : 's'}${s.featuredViews ? ' (destacado)' : ''} · ${s.applications} postulante${s.applications === 1 ? '' : 's'}`;
+        return `<div class="perf-col" title="${esc(tip)}"><div class="perf-bar" style="height:${Math.round(h * 0.86)}px">${fPct ? `<span class="perf-feat" style="height:${fPct}%"></span>` : ''}</div><span class="perf-app">${s.applications || ''}</span></div>`;
+      }).join('');
+      let insight = '';
+      if (p.compare && p.compare.ratio && p.compare.ratio > 1) {
+        insight = `${icon('star', 15)} <span>Destacado tuvo <strong>${fmtD(p.compare.featuredPerDay)} vistas por día</strong> contra ${fmtD(p.compare.normalPerDay)} sin destacar: <strong>${fmtD(p.compare.ratio)} veces más</strong>.</span>`;
+      } else if (p.compare) {
+        insight = `${icon('star', 15)} <span>Destacado: ${fmtD(p.compare.featuredPerDay)} vistas por día · sin destacar: ${fmtD(p.compare.normalPerDay)}.</span>`;
+      } else if (!(job && job.featured) && p.siteRatio) {
+        insight = `${icon('star', 15)} <span>En WorkUco, los avisos destacados reciben en promedio <strong>${fmtD(p.siteRatio)} veces más vistas por día</strong>.</span>`;
+      }
+      const conv = p.conversion == null ? '—' : `${fmtD(p.conversion)}%`;
+      const summary = `Últimos ${p.days} días: ${p.views} vistas y ${p.applications} postulantes`;
+      return `<div class="perf-kpis">
+          <div><strong>${fmtN(p.views)}</strong><span>vistas en ${p.days} días</span></div>
+          <div><strong>${fmtN(p.applications)}</strong><span>postulantes en ${p.days} días</span></div>
+          <div><strong>${conv}</strong><span>${p.conversion == null ? 'se postula (se calcula desde 20 vistas)' : 'de los que lo ven se postula'}</span></div>
+        </div>
+        ${p.views ? `<div class="perf-chart" role="img" aria-label="${esc(summary)}">${bars}</div>
+        <div class="perf-axis"><span>${dayLabel(p.series[0].day)}</span><span>Hoy</span></div>
+        <div class="perf-legend"><span><i class="lg-views"></i>Vistas</span>${anyFeat ? '<span><i class="lg-feat"></i>Vistas destacado</span>' : ''}<span><b>Nº</b> postulantes del día</span></div>`
+          : '<p class="muted">Todavía no tuvo vistas en estos días. Compartí el link del aviso en tus grupos y redes para que llegue a más gente.</p>'}
+        ${insight ? `<p class="perf-insight">${insight}</p>` : ''}`;
+    }
+
     /* ---------- ofertas ---------- */
     let jobStatus = '';
     function renderJobs() {
@@ -197,7 +232,9 @@
                 ? `<p class="feat-note">${icon('clock', 14)} Pediste destacarlo: te avisamos cuando esté. <button class="link-btn" type="button" data-feat-cancel="${j.id}">Cancelar pedido</button></p>`
                 : `<p class="feat-note"><button class="btn btn-outline btn-sm" type="button" data-feat-req="${j.id}">${icon('star', 14)} Pedir destacado</button> <span>Sale primero en Buscar y en Wik Works${meta.launchFree ? '. <strong>Gratis durante el lanzamiento.</strong>' : '.'}</span></p>`) : ''}
             ${j.status === 'rejected' && j.rejectReason ? `<p class="reject-note">${esc(j.rejectReason)}</p>` : ''}
+            <div class="perf" data-perf-box="${j.id}" hidden></div>
             <div class="offer-actions">
+              ${j.status === 'approved' || j.status === 'closed' ? `<button class="btn btn-outline btn-sm" type="button" data-perf="${j.id}" aria-expanded="false">${icon('chart', 14)} Rendimiento</button>` : ''}
               <a class="btn btn-outline btn-sm" href="/publicar?edit=${j.id}">${icon('edit', 14)} Editar</a>
               <button class="btn btn-ghost btn-sm" type="button" data-dup="${j.id}">${icon('copy', 14)} Duplicar</button>
               <button class="btn btn-ghost btn-sm" type="button" data-close="${j.id}">${icon('x', 14)} Cerrar</button>
@@ -207,6 +244,20 @@
           </div>
         </article>`;
       }).join('') : `<div class="empty"><h3>No hay publicaciones acá</h3><p>Probá con otro filtro o creá una búsqueda nueva.</p><a class="btn btn-primary" href="/publicar" style="margin-top:14px">Publicar empleo</a></div>`;
+
+      /* rendimiento de cada aviso: se carga al abrirlo */
+      $$('[data-perf]').forEach((b) => b.addEventListener('click', async () => {
+        const box = $(`[data-perf-box="${b.dataset.perf}"]`);
+        const open = box.hidden;
+        box.hidden = !open; b.setAttribute('aria-expanded', String(open));
+        if (!open || box.dataset.loaded) return;
+        box.innerHTML = '<p class="muted">Cargando…</p>';
+        try {
+          const job = data.jobs.find((x) => x.id === b.dataset.perf);
+          box.innerHTML = perfHtml(await api(`/api/company/jobs/${b.dataset.perf}/stats`), job);
+          box.dataset.loaded = '1';
+        } catch (err) { box.innerHTML = `<p class="muted">${esc(err.message)}</p>`; }
+      }));
 
       $$('[data-del]').forEach((b) => b.addEventListener('click', async () => {
         if (!confirm('¿Eliminar esta publicación? También se borran sus postulaciones.')) return;
