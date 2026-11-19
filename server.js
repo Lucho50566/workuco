@@ -326,6 +326,7 @@ function jobSummary(j) {
     skills: j.skills, gig: j.gig, startDate: j.startDate, duration: j.duration, positions: j.positions,
     sourceKind: j.sourceKind, sourceName: j.sourceName, flyer: j.flyer, flyers: j.flyers,
     featured: j.featured, featuredUntil: j.featured ? j.featuredUntil : null, createdAt: j.createdAt, publishedAt: j.publishedAt, closesAt: j.closesAt,
+    cosecha: !!j.cosecha,
   };
 }
 
@@ -439,6 +440,38 @@ const cvProAi = () => !!(IMPORT_FAKE || ai.importConfig());
 function cvSettings() {
   return { cvPrice: Number(store.adminMeta('price_cv')) || CV_PRICE_DEFAULT, sellCv: store.adminMeta('sell_cv') === '1' };
 }
+/* ---------- Pack Cosecha ---------- */
+const COSECHA_DAYS = 30;
+const COSECHA_INVITES = 100; // invitaciones por día con el pack
+function cosechaConfig() {
+  const price = Number(store.adminMeta('price_cosecha')) || 0;
+  const sell = store.adminMeta('sell_cosecha') === '1';
+  return { price, sell, enabled: sell && price > 0 && mp.connected() && mp.isPublicHttps(PUBLIC_URL) };
+}
+const inviteLimit = (companyId) => (store.cosechaActive(companyId) ? COSECHA_INVITES : INVITE_LIMIT);
+function cosechaState(companyId) {
+  const c = store.company(companyId);
+  const cfg = cosechaConfig();
+  const active = store.cosechaActive(companyId);
+  return {
+    active, until: active ? c.cosecha_until : null, requested: !!c.cosecha_req_at,
+    eligible: store.cosechaEligible(companyId).length, featured: store.cosechaFeaturedCount(companyId),
+    price: cfg.price, payEnabled: cfg.enabled, launchFree: LAUNCH_FREE, inviteLimit: inviteLimit(companyId),
+    days: COSECHA_DAYS, maxJobs: 5,
+  };
+}
+function activateCosechaFor(companyId, days, body) {
+  const r = store.activateCosecha(companyId, days);
+  if (r) {
+    tryNotify('company', companyId, {
+      kind: 'oferta', title: 'Tu Pack Cosecha está activo',
+      body: body || `Hasta el ${new Date(r.until - 3 * 3600e3).toISOString().slice(0, 10).split('-').reverse().join('/')}: tus avisos de cosecha salen arriba y podés invitar hasta ${COSECHA_INVITES} personas por día.`,
+      link: '/panel',
+    });
+  }
+  return r;
+}
+
 function cvProConfig() {
   const s = cvSettings();
   const enabled = cvProAi();
@@ -479,14 +512,16 @@ async function cvGenerate(order, cand, { inputs, request }) {
 async function settlePayment(mpPaymentId, { companyId = null, kind = null } = {}) {
   const p = await mp.getPayment(mpPaymentId);
   const row = store.payment(p.external_reference);
-  if (!row || (companyId && row.company_id !== companyId) || (kind && row.kind !== kind)) return null;
+  if (!row || (companyId && row.company_id !== companyId) || (kind && ![].concat(kind).includes(row.kind))) return null;
   if (p.status === 'approved') {
     if (p.currency_id !== 'ARS' || Number(p.transaction_amount) < row.amount) {
       store.setPaymentStatus(row.id, 'monto_incorrecto', p.id);
       console.warn(`Pago ${p.id}: monto o moneda distintos (${p.transaction_amount} ${p.currency_id}, esperado ${row.amount} ARS)`);
     } else if (store.approvePayment(row.id, p.id)) {
       /* approvePayment devuelve true sólo la primera vez: lo que sigue pasa una sola vez por pago */
-      if (row.kind === 'cv') {
+      if (row.kind === 'cosecha') {
+        activateCosechaFor(row.company_id, row.days || COSECHA_DAYS, `Pago aprobado por $ ${row.amount.toLocaleString('es-AR')}. Tus avisos de cosecha salen arriba y podés invitar hasta ${COSECHA_INVITES} personas por día.`);
+      } else if (row.kind === 'cv') {
         if (row.ref_id && store.payCvOrder(row.ref_id, p.id)) {
           tryNotify('candidate', row.company_id, {
             kind: 'cvpro', title: 'Tu CV Pro ya está listo para descargar',
@@ -1085,6 +1120,7 @@ async function handleApi(req, res, url) {
       launchFree: LAUNCH_FREE,
       payments: ((c) => ({ enabled: c.enabled, options: c.enabled ? FEATURED_DAYS.filter((d) => c.prices[d]).map((d) => ({ days: d, price: c.prices[d] })) : [] }))(payConfig()),
       cvPro: cvProConfig(),
+      cosecha: ((c) => ({ price: c.price, payEnabled: c.enabled, days: COSECHA_DAYS }))(cosechaConfig()),
       contactWaUrl: normPhone(CONTACT_WA) ? `https://wa.me/549${normPhone(CONTACT_WA)}` : '',
       legal: legal.legalInfo(), discriminationRules: legal.DISCRIMINATION_RULES,
     });
@@ -1250,6 +1286,7 @@ async function handleApi(req, res, url) {
       modality: MODALITIES.includes(q.get('modality')) ? q.get('modality') : '',
       withSalary: q.get('withSalary') === '1',
       gig: q.get('gig') || '',
+      cosecha: q.get('cosecha') === '1' ? '1' : '',
       sort: sort === 'match' ? 'recent' : sort,
       /* por compatibilidad se ordena sobre todo el resultado y se pagina después */
       page: byMatch ? 1 : Number(q.get('page') || 1),
@@ -1781,13 +1818,41 @@ async function handleApi(req, res, url) {
     const id = String(b.paymentId || '');
     if (!/^\d{1,20}$/.test(id)) return send(res, 400, { error: 'Número de pago inválido' });
     let row;
-    try { row = await settlePayment(id, { companyId: me.company.id, kind: 'destacado' }); } catch (e) {
+    try { row = await settlePayment(id, { companyId: me.company.id, kind: ['destacado', 'cosecha'] }); } catch (e) {
       if (e.status === 404) return send(res, 404, { error: 'No encontramos ese pago' });
       console.warn('Mercado Pago:', e.message);
       return send(res, 502, { error: 'No pudimos consultar el pago. Si se aprobó, el destacado se activa solo en unos minutos.' });
     }
     if (!row) return send(res, 404, { error: 'No encontramos ese pago' });
-    return send(res, 200, { status: row.status, days: row.days, jobId: row.job_id });
+    return send(res, 200, { status: row.status, days: row.days, jobId: row.job_id, kind: row.kind });
+  }
+
+  /* ---------- Pack Cosecha (lado empresa): siempre sobre la empresa de la sesión ---------- */
+  if (p === '/api/company/cosecha' && method === 'GET') {
+    if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
+    return send(res, 200, cosechaState(me.company.id));
+  }
+  if (p === '/api/company/cosecha/request' && (method === 'POST' || method === 'DELETE')) {
+    if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
+    if (method === 'POST' && cosechaConfig().enabled) return send(res, 400, { error: 'El Pack Cosecha se paga con Mercado Pago desde tu panel' });
+    if (method === 'POST' && store.cosechaActive(me.company.id)) return send(res, 400, { error: 'Ya tenés el Pack Cosecha activo' });
+    store.setCosechaRequest(me.company.id, method === 'POST');
+    return send(res, 200, cosechaState(me.company.id));
+  }
+  if (p === '/api/company/cosecha/checkout' && method === 'POST') {
+    if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
+    const cfg = cosechaConfig();
+    if (!cfg.enabled) return send(res, 400, { error: 'El pago en línea del Pack Cosecha no está activo. Pedilo y te contactamos.' });
+    const row = store.insertPayment({ companyId: me.company.id, jobTitle: 'Pack Cosecha', days: COSECHA_DAYS, amount: cfg.price, kind: 'cosecha' });
+    try {
+      const pref = await mp.createPreference({ reference: row.id, title: `Pack Cosecha WorkUco (${COSECHA_DAYS} días)`, amount: cfg.price, publicUrl: PUBLIC_URL, returnPath: '/panel' });
+      store.setPaymentPreference(row.id, pref.id);
+      return send(res, 200, { url: pref.url, reference: row.id });
+    } catch (e) {
+      console.warn('Mercado Pago:', e.message);
+      store.setPaymentStatus(row.id, 'error');
+      return send(res, 502, { error: 'No pudimos abrir Mercado Pago. Probá de nuevo en un rato.' });
+    }
   }
 
   const compJobFeat = p.match(/^\/api\/company\/jobs\/([a-z0-9]+)\/feature-request$/);
@@ -2197,7 +2262,7 @@ async function handleApi(req, res, url) {
       applied: marks ? marks.applied.has(c.id) : false,
     }));
     if (job) people.sort(byMatchDesc);
-    return send(res, 200, { people, invitesLeft: Math.max(0, INVITE_LIMIT - store.invitationsToday(me.company.id)) });
+    return send(res, 200, { people, invitesLeft: Math.max(0, inviteLimit(me.company.id) - store.invitationsToday(me.company.id)) });
   }
 
   if (p === '/api/company/invitations' && method === 'POST') {
@@ -2212,8 +2277,9 @@ async function handleApi(req, res, url) {
     if (!c || !c.open_to_work) return send(res, 404, { error: 'Esa persona no está disponible' });
     if (store.applicationByCandidate(c.id, job.id)) return send(res, 409, { error: 'Esa persona ya se postuló a esta oferta' });
     if (store.invitation(job.id, c.id)) return send(res, 409, { error: 'Ya la invitaste a esta oferta' });
-    if (store.invitationsToday(me.company.id) >= INVITE_LIMIT) {
-      return send(res, 429, { error: `Llegaste al límite de ${INVITE_LIMIT} invitaciones por día` });
+    const lim = inviteLimit(me.company.id);
+    if (store.invitationsToday(me.company.id) >= lim) {
+      return send(res, 429, { error: `Llegaste al límite de ${lim} invitaciones por día` });
     }
     const id = uid('i');
     store.insertInvitation({ id, companyId: me.company.id, jobId: job.id, candidateId: c.id, message: cleanMultiline(b.message, 400) });
@@ -2488,7 +2554,14 @@ async function handleApi(req, res, url) {
     }
     let updated = store.updateJob(j.id, patch);
     if ('featuredDays' in b) updated = store.setJobFeatured(j.id, b.featuredDays === null ? false : Date.now() + Number(b.featuredDays) * 86400000);
-    if (patch.status === 'approved' && j.status !== 'approved') announceJob(updated);
+    if (patch.status === 'approved' && j.status !== 'approved') {
+      announceJob(updated);
+      /* Pack Cosecha vigente: un aviso de cosecha nuevo también sale destacado, hasta 5 */
+      if (store.cosechaActive(j.companyId) && (updated.category === 'Agricultura' || updated.gig) && store.cosechaFeaturedCount(j.companyId) < 5) {
+        store.featureUntilAtLeast(j.id, store.company(j.companyId).cosecha_until);
+        updated = store.job(j.id);
+      }
+    }
     if (patch.status === 'rejected' && j.status !== 'rejected') {
       tryNotify('company', j.companyId, {
         kind: 'oferta', title: 'Tu aviso necesita cambios',
@@ -2577,7 +2650,7 @@ async function handleApi(req, res, url) {
     const cfg = payConfig();
     return send(res, 200, {
       mp: { connected: mp.connected(), publicUrl: mp.isPublicHttps(PUBLIC_URL), webhookSecret: mp.hasWebhookSecret() },
-      settings: { charge: cfg.charge, prices: cfg.prices, ...cvSettings() }, enabled: cfg.enabled, featuredDays: FEATURED_DAYS,
+      settings: { charge: cfg.charge, prices: cfg.prices, ...cvSettings(), cosechaPrice: cosechaConfig().price, sellCosecha: cosechaConfig().sell }, enabled: cfg.enabled, featuredDays: FEATURED_DAYS,
       cvPro: { ai: cvProAi(), canPay: cvProConfig().canPay },
       totals: store.paymentTotals(),
       payments: store.allPayments().map((x) => ({
@@ -2606,8 +2679,11 @@ async function handleApi(req, res, url) {
     if ('cvPrice' in b) store.setAdminMeta('price_cv', Number(b.cvPrice));
     if ('charge' in b) store.setAdminMeta('charge_featured', b.charge ? '1' : '0');
     if ('sellCv' in b) store.setAdminMeta('sell_cv', b.sellCv ? '1' : '0');
+    if ('cosechaPrice' in b && !(Number(b.cosechaPrice) === 0 || okPrice(Number(b.cosechaPrice)))) return send(res, 400, { error: 'El precio del Pack Cosecha tiene que ser un número entero de pesos (mínimo $ 100)' });
+    if ('cosechaPrice' in b) store.setAdminMeta('price_cosecha', Number(b.cosechaPrice));
+    if ('sellCosecha' in b) store.setAdminMeta('sell_cosecha', b.sellCosecha ? '1' : '0');
     const cfg = payConfig();
-    return send(res, 200, { settings: { charge: cfg.charge, prices: cfg.prices, ...cvSettings() }, enabled: cfg.enabled });
+    return send(res, 200, { settings: { charge: cfg.charge, prices: cfg.prices, ...cvSettings(), cosechaPrice: cosechaConfig().price, sellCosecha: cosechaConfig().sell }, enabled: cfg.enabled });
   }
 
   if (p === '/api/admin/search' && method === 'GET') {
@@ -2633,6 +2709,7 @@ async function handleApi(req, res, url) {
         plan: c.plan, jobs: c.jobs, published: c.published, applications: c.applications,
         logo: mediaUrl(c.logo_file), createdAt: c.created_at,
         ai: c.ai_provider ? { provider: c.ai_provider, enabled: !!c.ai_enabled, hasKey: !!c.ai_key } : null,
+        cosechaUntil: c.cosecha_until && c.cosecha_until > Date.now() ? c.cosecha_until : null, cosechaRequestedAt: c.cosecha_req_at || null,
       })),
     });
   }
@@ -2656,7 +2733,13 @@ async function handleApi(req, res, url) {
     const patch = {};
     if ('verified' in b) patch.verified = !!b.verified;
     if ('plan' in b) patch.plan = ['free', 'pro', 'premium'].includes(b.plan) ? b.plan : 'free';
-    const c = store.updateCompany(admCompany[1], patch);
+    if ('cosechaDays' in b && b.cosechaDays !== null && Number(b.cosechaDays) !== COSECHA_DAYS) return send(res, 400, { error: `El Pack Cosecha dura ${COSECHA_DAYS} días` });
+    if (!store.company(admCompany[1])) return send(res, 404, { error: 'Empresa no encontrada' });
+    if ('cosechaDays' in b) {
+      if (b.cosechaDays === null) store.endCosecha(admCompany[1]);
+      else activateCosechaFor(admCompany[1], COSECHA_DAYS);
+    }
+    const c = Object.keys(patch).length ? store.updateCompany(admCompany[1], patch) : store.company(admCompany[1]);
     if (!c) return send(res, 404, { error: 'Empresa no encontrada' });
     return send(res, 200, { company: publicCompany(c, { privateView: true }) });
   }
