@@ -1192,3 +1192,27 @@ select.input.input-sm, select.input-sm { padding-right: 32px; background-positio
 .mobile-wik-state { padding: 3px 10px; border-radius: 999px; background: var(--lime); color: var(--night); font-size: 12.5px; font-weight: 800; }
 .mobile-wik[aria-pressed="false"] .mobile-wik-state { background: rgba(255, 255, 255, .12); color: #dbe6df; }
 @media (prefers-reduced-motion: reduce) { .wik-fab, .wik-fab-label { transition: none; } }
+/* ---------- flyers en las tarjetas del inicio: la caja toma la forma de un flyer vertical (4:5) ----------
+   La imagen se ve siempre completa (contain): un flyer 4:5 llena la tarjeta; uno más angosto o apaisado deja
+   apenas una franja con su propia imagen desenfocada. */
+.job-cover.job-cover-flyer { height: auto; aspect-ratio: 4 / 5; max-height: 520px; }
+.job-cover-flyer .flyer-frame::before { filter: blur(26px) saturate(1.25) brightness(.8); }
+/* en una fila con un flyer alto, la tarjeta sin flyer no queda con un hueco: su portada crece hasta igualarla */
+.jobs-grid .job-card { display: flex; flex-direction: column; }
+.jobs-grid .job-card > .job-cover:not(.job-cover-flyer) { flex: 1 0 auto; }
+.jobs-grid .job-card > .job-card-body { flex: none; }
+
+/* ---------- Buscar empleo: la imagen del aviso, desenfocada, de fondo de toda la tarjeta ---------- */
+.job-row-cover {
+  inset: -30px; width: auto; opacity: .85; mask-image: none; -webkit-mask-image: none;
+  filter: blur(26px) saturate(1.5); transform: translateZ(0);
+}
+.job-row:has(.job-row-cover) .job-row-main {
+  background: linear-gradient(100deg, rgba(255, 253, 248, .86) 0%, rgba(255, 253, 248, .66) 50%, rgba(255, 253, 248, .38) 100%);
+}
+.job-row:has(.job-row-cover) .badge { background: rgba(255, 253, 248, .78); }
+.job-row:has(.job-row-cover) .badge.badge-featured { background: var(--malbec); }
+@media (max-width: 760px) {
+  .job-row-cover { display: block; }
+  .job-row:has(.job-row-cover) .job-row-main { background: linear-gradient(180deg, rgba(255, 253, 248, .84) 0%, rgba(255, 253, 248, .62) 100%); }
+}
