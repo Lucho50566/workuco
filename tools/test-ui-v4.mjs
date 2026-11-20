@@ -96,6 +96,7 @@ check('reclamo sin desbordes en el celular', await noOverflow());
 await shot('reclamar-movil');
 await size(1440); await go(`/reclamar/${tokFinca}`);
 await click('[data-claim-open="delete"]'); await sleep(300);
+await click('[data-reason="cubierto"]'); await sleep(150);
 await click('#claim-delete'); await sleep(1000);
 check('la empresa borró su ficha', /Listo, la borramos/.test(await ev('document.body.innerText')));
 

@@ -2127,7 +2127,7 @@ async function initClaim() {
       <a class="btn btn-primary" href="/acceder?rol=empresa&next=/panel">Ingresar</a></div></div></section>`;
     return;
   }
-  const { company, jobs, applicationsCount } = data;
+  const { company, jobs, applicationsCount, reasons = [] } = data;
   document.title = `${company.name} en WorkUco`;
   const n = applicationsCount;
   root.innerHTML = `<section class="band-night claim-hero">
@@ -2158,11 +2158,26 @@ async function initClaim() {
     if (mode === 'delete') {
       panel.innerHTML = `<h3>¿Borramos la ficha de ${esc(company.name)}?</h3>
         <p class="soft-text">Se eliminan la ficha, ${jobs.length === 1 ? 'el aviso' : 'los avisos'} y ${n === 1 ? 'la postulación recibida' : 'las postulaciones recibidas'}. A quienes se postularon les avisamos que la búsqueda se retiró. No la volvemos a importar.</p>
+        <fieldset class="reason-pick">
+          <legend>¿Por qué lo borramos?</legend>
+          <div class="reason-chips" role="radiogroup" aria-label="Motivo">${reasons.map((r) => `<button type="button" role="radio" aria-checked="false" class="reason-chip" data-reason="${esc(r.id)}">${esc(r.label)}</button>`).join('')}</div>
+          <span class="error-text" id="reason-error" hidden>Elegí un motivo</span>
+          <label class="sr-only" for="claim-comment">Comentario (opcional)</label>
+          <textarea class="input" id="claim-comment" rows="2" maxlength="300" placeholder="Si querés, contanos algo más (opcional)"></textarea>
+        </fieldset>
         <div class="gate-actions"><button class="btn btn-danger" type="button" id="claim-delete">Sí, borrar</button><button class="btn btn-ghost" type="button" data-claim-cancel>Cancelar</button></div>`;
+      let reason = '';
+      $$('[data-reason]', panel).forEach((b) => b.addEventListener('click', () => {
+        reason = b.dataset.reason;
+        $$('[data-reason]', panel).forEach((x) => { const on = x === b; x.classList.toggle('is-on', on); x.setAttribute('aria-checked', String(on)); });
+        $('#reason-error').hidden = true;
+        if (reason === 'otro') $('#claim-comment').focus();
+      }));
       $('#claim-delete').addEventListener('click', async (e) => {
+        if (!reason) { $('#reason-error').hidden = false; $('.reason-chip', panel)?.focus(); return; }
         e.currentTarget.disabled = true;
         try {
-          await api(`/api/claim/${encodeURIComponent(token)}/delete`, { method: 'POST' });
+          await api(`/api/claim/${encodeURIComponent(token)}/delete`, { method: 'POST', body: { reason, comment: $('#claim-comment').value.trim() } });
           root.innerHTML = '<section class="section"><div class="container"><div class="empty"><h3>Listo, la borramos</h3><p>Su empresa ya no aparece en WorkUco y no la vamos a volver a publicar. Gracias por avisarnos.</p><a class="btn btn-outline" href="/">Ir al inicio</a></div></div></section>';
         } catch (err) { toast(err.message, 'err'); e.currentTarget.disabled = false; }
       });

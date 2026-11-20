@@ -1222,9 +1222,12 @@
       if (tab.dataset.tab === 'home') adminInbox();
       if (tab.dataset.tab === 'people') adminPeople();
       if (tab.dataset.tab === 'payments') adminPayments();
+      if (tab.dataset.tab === 'import') { try { history.replaceState(null, '', '#importar'); } catch (_) {} }
     }));
     $('#jobs-filter').addEventListener('change', () => adminJobs($('#jobs-filter').value));
     if (!user || user.role !== 'admin') return;
+    /* /admin#importar (el link del mail) abre directo la pestaña Importar */
+    if (location.hash === '#importar') { const t = $('.tab[data-tab="import"]'); if (t) setTimeout(() => t.click(), 0); }
 
     /* Personas: filtros */
     W.loadMeta().then((m) => {
@@ -1253,6 +1256,7 @@
     });
     /* acciones rápidas de la bandeja y del buscador */
     $('[data-panel="home"]').addEventListener('click', async (e) => {
+      if (e.target.closest('[data-goto-import]')) { const t = $('.tab[data-tab="import"]'); if (t) t.click(); return; }
       const ap = e.target.closest('[data-quick-approve]');
       if (ap) {
         try { await api(`/api/admin/jobs/${encodeURIComponent(ap.dataset.quickApprove)}`, { method: 'PATCH', body: { status: 'approved' } }); toast('Aviso publicado', 'ok'); } catch (err) { toast(err.message, 'err'); }
@@ -1415,6 +1419,11 @@
       group('Fichas de la Guía', d.places, placeLine, 'Las pendientes no se ven en la página hasta que las apruebes. Las publicadas son nuevas de usuarios: revisalas y, si no corresponden, ocultalas o eliminalas.'),
       group('Pedidos de destacado', d.featureRequests, (j) => jobLine(j, `<button class="btn btn-primary btn-sm" type="button" data-quick-feature="${esc(j.id)}">Destacar 7 días</button>`)),
       group('Empresas nuevas', d.companies, companyLine),
+      group('Respuestas de empresas', d.importResponses || [], (r) => `<li class="adm-item">
+        <div class="adm-item-main"><span class="cell-title">${esc(r.name)} ${r.action === 'aceptada' ? 'aceptó su aviso' : 'borró su aviso'}</span>
+          <div class="cell-sub">${esc(r.jobs.join(', ') || 'sin avisos')} · ${timeAgo(r.createdAt)} ${r.action === 'aceptada' ? '<span class="badge badge-green">Aceptada</span>' : `<span class="badge badge-red">${esc(r.reasonLabel)}</span>`}</div>
+          ${r.comment ? `<div class="imp-comment">"${esc(r.comment)}"</div>` : ''}</div>
+        <div class="row-actions"><button class="btn btn-outline btn-sm" type="button" data-goto-import>Ver en Importar</button></div></li>`),
     ].join('') : `<div class="list-empty">${icon('check', 18)} Todo al día: no hay nada nuevo para revisar.</div>`;
   }
   let searchSeq = 0;
@@ -1574,24 +1583,57 @@
     });
     $('#imp-manual').addEventListener('click', () => { drafts.push(empty()); renderDrafts(); });
 
-    const STATUS = { sin_avisar: ['Sin avisar', 'badge-amber'], avisado: ['Avisada', 'badge'], reclamado: ['Reclamada', 'badge-green'] };
+    /* filtros: para avisar → avisadas → aceptadas / rechazadas (se recuerda el último elegido) */
+    const FILTERS = [['avisar', 'Para avisar'], ['avisadas', 'Avisadas'], ['aceptadas', 'Aceptadas'], ['rechazadas', 'Rechazadas']];
+    let impFilter = 'avisar';
+    try { impFilter = localStorage.getItem('wk_imp_filter') || 'avisar'; } catch (_) {}
+    const dm = (ts) => (ts ? new Date(ts).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }) : '');
     async function loadList() {
       try {
-        const { companies, removed } = await api('/api/admin/import');
-        $('#imp-list').innerHTML = (companies.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Empresa</th><th>Avisos</th><th>Postulantes</th><th>Estado</th><th></th></tr></thead><tbody>
-          ${companies.map((c) => {
-            const st = STATUS[c.claimed ? 'reclamado' : c.notifyStatus] || STATUS.sin_avisar;
-            return `<tr>
-              <td><strong>${esc(c.name)}</strong><div class="muted">${esc(c.locality || '—')} · ${esc(c.phone || 'sin teléfono')}</div></td>
-              <td>${c.jobs.map((j) => `<div>${esc(j.title)}</div>`).join('')}</td>
-              <td>${c.applications}</td>
-              <td><span class="badge ${st[1]}">${st[0]}</span></td>
-              <td class="imp-row-actions">${c.claimed ? '' : `${c.waUrl ? `<a class="btn btn-primary btn-sm" href="${esc(c.waUrl)}" target="_blank" rel="noopener" data-notify="${esc(c.id)}">${icon('whatsapp', 15)} Avisar por WhatsApp</a>` : '<span class="muted">Sin teléfono</span>'}
-                <button class="btn btn-ghost btn-sm" type="button" data-copy="${esc(c.claimUrl)}">${icon('copy', 15)} Copiar link</button>
-                <button class="btn btn-ghost btn-sm" type="button" data-del-co="${esc(c.id)}" data-name="${esc(c.name)}">${icon('trash', 15)} Borrar</button>`}</td>
-            </tr>`;
-          }).join('')}</tbody></table></div>` : '<p class="muted">Todavía no importaste avisos.</p>')
-          + (removed.length ? `<p class="muted imp-removed">Pidieron no aparecer: ${removed.map((r) => esc(r.name)).join(', ')}.</p>` : '');
+        const { companies, removed, responses } = await api('/api/admin/import');
+        const groups = {
+          avisar: companies.filter((c) => !c.claimed && c.notifyStatus !== 'avisado'),
+          avisadas: companies.filter((c) => !c.claimed && c.notifyStatus === 'avisado'),
+          aceptadas: companies.filter((c) => c.claimed),
+          rechazadas: (responses || []).filter((r) => r.action === 'rechazada'),
+        };
+        if (!groups[impFilter]) impFilter = 'avisar';
+        const chips = `<div class="imp-filters" role="tablist" aria-label="Filtrar fichas importadas">${FILTERS.map(([id, label]) =>
+          `<button type="button" role="tab" class="chip-filter${id === impFilter ? ' is-on' : ''}" aria-selected="${id === impFilter}" data-imp-filter="${id}">${label} <span class="tab-count">${groups[id].length}</span></button>`).join('')}</div>`;
+        const actions = (c) => (c.claimed ? '' : `${c.waUrl ? `<a class="btn btn-primary btn-sm" href="${esc(c.waUrl)}" target="_blank" rel="noopener" data-notify="${esc(c.id)}">${icon('whatsapp', 15)} WhatsApp</a>` : ''}
+                <button class="btn btn-outline btn-sm" type="button" data-copy="${esc(c.claimUrl)}">${icon('copy', 15)} Copiar link</button>
+                ${c.notifyStatus !== 'avisado' ? `<button class="btn btn-outline btn-sm" type="button" data-mark="${esc(c.id)}">${icon('check', 15)} Marcar avisado</button>` : ''}
+                <button class="btn btn-ghost btn-sm" type="button" data-del-co="${esc(c.id)}" data-name="${esc(c.name)}">${icon('trash', 15)} Borrar</button>`);
+        const state = (c) => (c.claimed ? `<span class="badge badge-green">Aceptó${c.claimedAt ? ` el ${dm(c.claimedAt)}` : ''}</span>`
+          : c.notifyStatus === 'avisado' ? `<span class="badge">Avisada${c.notifiedAt ? ` el ${dm(c.notifiedAt)}` : ''}</span><div class="cell-sub">Esperando respuesta</div>`
+            : '<span class="badge badge-amber">Sin avisar</span>');
+        const list = groups[impFilter];
+        const empty = { avisar: 'No hay empresas para avisar: todas están avisadas o ya respondieron.', avisadas: 'No hay empresas avisadas esperando respuesta.', aceptadas: 'Todavía ninguna empresa aceptó su aviso.', rechazadas: 'Ninguna empresa borró su aviso.' }[impFilter];
+        const table = !list.length ? `<p class="muted">${empty}</p>`
+          : impFilter === 'rechazadas'
+            ? `<div class="table-wrap"><table class="data"><thead><tr><th>Empresa</th><th>Avisos</th><th>Motivo</th><th>Cuándo</th></tr></thead><tbody>
+              ${list.map((r) => `<tr>
+                <td><strong>${esc(r.name)}</strong><div class="cell-sub">${r.notified ? `Avisada el ${dm(r.notifiedAt)}` : 'Borró sin que le avisemos'}</div></td>
+                <td>${r.jobs.map((t) => `<div>${esc(t)}</div>`).join('') || '—'}<div class="cell-sub">${r.applications} postulante${r.applications === 1 ? '' : 's'}</div></td>
+                <td><span class="badge badge-red">${esc(r.reasonLabel)}</span>${r.comment ? `<div class="imp-comment">"${esc(r.comment)}"</div>` : ''}</td>
+                <td class="cell-sub">${dm(r.createdAt)} · ${timeAgo(r.createdAt)}</td></tr>`).join('')}</tbody></table></div>`
+            : `<div class="table-wrap"><table class="data"><thead><tr><th>Empresa</th><th>Avisos</th><th>Postulantes</th><th>Estado</th><th></th></tr></thead><tbody>
+              ${list.map((c) => `<tr>
+                <td><strong>${esc(c.name)}</strong><div class="muted">${esc(c.locality || '—')} · ${esc(c.phone || 'sin teléfono')}</div></td>
+                <td>${c.jobs.map((j) => `<div>${esc(j.title)}</div>`).join('')}</td>
+                <td>${c.applications}</td>
+                <td>${state(c)}</td>
+                <td class="imp-row-actions">${actions(c)}</td></tr>`).join('')}</tbody></table></div>`;
+        $('#imp-list').innerHTML = chips + table
+          + (removed.length ? `<p class="muted imp-removed">Pidieron no aparecer más: ${removed.map((r) => esc(r.name)).join(', ')}.</p>` : '');
+        $$('[data-imp-filter]').forEach((b) => b.addEventListener('click', () => {
+          impFilter = b.dataset.impFilter;
+          try { localStorage.setItem('wk_imp_filter', impFilter); } catch (_) {}
+          loadList();
+        }));
+        $$('[data-mark]').forEach((b) => b.addEventListener('click', async () => {
+          try { await api(`/api/admin/import/companies/${b.dataset.mark}/notified`, { method: 'POST' }); toast('Marcada como avisada', 'ok'); loadList(); } catch (err) { toast(err.message, 'err'); }
+        }));
         $$('[data-notify]').forEach((a) => a.addEventListener('click', () => { api(`/api/admin/import/companies/${a.dataset.notify}/notified`, { method: 'POST' }).then(loadList).catch(() => {}); }));
         $$('[data-copy]').forEach((b) => b.addEventListener('click', async () => { try { await navigator.clipboard.writeText(b.dataset.copy); toast('Link copiado', 'ok'); } catch (_) { toast('No pudimos copiar', 'err'); } }));
         $$('[data-del-co]').forEach((b) => b.addEventListener('click', async () => {
