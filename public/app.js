@@ -2490,9 +2490,71 @@ function setupReveal() {
   document.documentElement.classList.add('reveal-ready');
 }
 
+/* ---------- botón flotante de Wik Works (sólo celular; se apaga con la ✕ o desde el menú) ---------- */
+const WIK_KEY = 'wk_wik_btn';
+const WIK_SEEN = 'wk_wik_seen';
+/* páginas donde estorbaría: el propio Wik Works, herramientas, formularios y fichas con barra abajo */
+const WIK_SKIP = new Set(['flyers', 'panel', 'admin', 'publish', 'auth', 'claim', 'claim-place', 'reset', 'place', 'cv', 'cvpro']);
+const lsGet = (k) => { try { return localStorage.getItem(k); } catch (_) { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (_) { /* modo privado: no se recuerda */ } };
+function setupWikFab(page) {
+  const toggle = $('[data-wik-toggle]');
+  const paintToggle = () => {
+    if (!toggle) return;
+    const on = lsGet(WIK_KEY) !== 'off';
+    toggle.setAttribute('aria-pressed', String(on));
+    const st = $('[data-wik-state]', toggle); if (st) st.textContent = on ? 'Activado' : 'Desactivado';
+  };
+  let fab = null;
+  let onScroll = null;
+  const remove = () => { if (fab) { fab.remove(); fab = null; } if (onScroll) { window.removeEventListener('scroll', onScroll); onScroll = null; } };
+  const mount = () => {
+    if (fab || WIK_SKIP.has(page) || lsGet(WIK_KEY) === 'off') return;
+    fab = document.createElement('div');
+    fab.className = 'wik-fab';
+    fab.setAttribute('data-wik-fab', '');
+    const first = !lsGet(WIK_SEEN);
+    if (first) { fab.classList.add('is-labeled'); lsSet(WIK_SEEN, '1'); setTimeout(() => fab && fab.classList.remove('is-labeled'), 4500); }
+    fab.innerHTML = `<a class="wik-fab-go" href="/flyers" aria-label="Abrir Wik Works: avisos en formato flyer">
+        <svg viewBox="4.7 9.5 30.6 21" width="26" height="18" fill="none" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.8 15.6 12.4 28.4 18 18" stroke="#f5f1e6"/><path d="M18 18 22.8 26.8 33.2 11.6" stroke="#c8f560"/></svg>
+        <span class="wik-fab-label">Wik Works</span></a>
+      <button class="wik-fab-x" type="button" data-wik-hide aria-label="Ocultar el botón de Wik Works">${icon('x', 12)}</button>`;
+    document.body.appendChild(fab);
+    $('[data-wik-hide]', fab).addEventListener('click', () => {
+      lsSet(WIK_KEY, 'off'); remove(); paintToggle();
+      toast('Listo, lo ocultamos. Lo podés volver a activar desde el menú.', 'ok');
+    });
+    /* se esconde al bajar y vuelve al subir; también mientras está el cartel de instalar la app */
+    let lastY = window.scrollY;
+    onScroll = () => {
+      if (!fab) return;
+      const y = window.scrollY;
+      if (y > lastY + 8 && y > 160) fab.classList.add('is-away');
+      else if (y < lastY - 8 || y < 160) fab.classList.remove('is-away');
+      lastY = y;
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    if (!setupWikFab.watching) setupWikFab.watching = new MutationObserver(() => {
+      const el = document.querySelector('[data-wik-fab]'); if (el) el.classList.toggle('is-covered', !!document.querySelector('.install-banner.is-in'));
+    }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'], childList: true });
+  };
+  if (toggle) {
+    toggle.addEventListener('click', () => {
+      const on = lsGet(WIK_KEY) === 'off';
+      lsSet(WIK_KEY, on ? 'on' : 'off');
+      if (on) mount(); else remove();
+      paintToggle();
+      toast(on ? 'Botón de Wik Works activado' : 'Botón de Wik Works desactivado', 'ok');
+    });
+  }
+  paintToggle();
+  mount();
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   initNav();
   const page = document.body.dataset.page;
+  setupWikFab(page);
   if (page === 'home') setupReveal();
   let resolveReady;
   window.WK.ready = new Promise((r) => { resolveReady = r; });

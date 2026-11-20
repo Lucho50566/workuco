@@ -667,6 +667,9 @@ function navHtml(active) {
     ${NAV_ITEMS.map(([href, label]) => `<a href="${href}">${label}</a>`).join('')}
     <a href="/acceder" data-auth-mobile>Ingresar</a>
     <button class="mobile-install" type="button" data-app-install hidden>${APP_ICON} Instalar la app de WorkUco</button>
+    <button class="mobile-wik" type="button" data-wik-toggle aria-pressed="true">
+      <span>Botón de Wik Works</span><span class="mobile-wik-state" data-wik-state>Activado</span>
+    </button>
   </div>
 </header>${process.env.WORKUCO_DEMO === '1' ? '\n<div class="demo-strip" role="note"><span class="ds-long">Modo demostración: las empresas, personas y ofertas que ves son ficticias.</span><span class="ds-short">Demo: empresas y personas ficticias</span></div>' : ''}`;
 }
