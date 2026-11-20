@@ -1153,3 +1153,9 @@ select.input.input-sm, select.input-sm { padding-right: 32px; background-positio
 .imp-comment { margin-top: 6px; font-size: 13px; color: var(--muted); font-style: italic; overflow-wrap: anywhere; }
 .imp-row-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 @media (prefers-reduced-motion: reduce) { .reason-chip { transition: none; } }
+/* ---------- importados: editor del mensaje a la empresa ---------- */
+.imp-msg-row > td { background: var(--surface-2, #f0eadc); }
+.imp-msg { display: grid; gap: 10px; padding: 6px 2px; max-width: 760px; }
+.imp-msg label { font-weight: 800; font-size: 14px; }
+.imp-msg textarea { min-height: 150px; resize: vertical; line-height: 1.5; font-size: 15px; }
+.imp-msg-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }

@@ -2434,7 +2434,7 @@ async function handleApi(req, res, url) {
           id: c.id, name: c.name, phone: c.phone || '', locality: c.locality || '',
           claimed: c.claimed !== 0, notifyStatus: c.notify_status || 'sin_avisar', notifiedAt: c.notified_at || null,
           claimUrl, waUrl: msg && c.phone_norm ? `https://wa.me/549${c.phone_norm}?text=${encodeURIComponent(msg)}` : '',
-          message: c.claim_msg || '',
+          message: c.claim_msg || '', messageText: msg,
           applications,
           jobs: jobs.map((j) => ({ id: j.id, title: j.title, status: j.status, closesAt: j.closes_at, sourceName: j.source_name || '', sourceText: j.source_text || '', applications: j.applications })),
           createdAt: c.created_at,

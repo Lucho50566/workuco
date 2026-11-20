@@ -798,7 +798,7 @@
     /* ---------- IA ---------- */
     const AI_MODELS = {
       openai: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini', 'o4-mini'],
-      gemini: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'],
+      gemini: ['gemini-3.5-flash-lite', 'gemini-3.8-flash'],
       anthropic: ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-5-5'],
       custom: ['llama-3.3-70b-versatile', 'mistral-large-latest', 'deepseek-chat'],
     };
@@ -833,7 +833,7 @@
         const p = providers.find((x) => x.id === b.dataset.provider);
         $('#ai-base-wrap').hidden = aiState.provider !== 'custom';
         if (!aiState.model || ['openai', 'gemini', 'anthropic', 'custom'].includes(aiState.provider)) {
-          $('#ai-model').value = ({ openai: 'gpt-4o-mini', gemini: 'gemini-2.5-flash', anthropic: 'claude-sonnet-5-5', custom: '' })[aiState.provider] || '';
+          $('#ai-model').value = ({ openai: 'gpt-4o-mini', gemini: 'gemini-3.5-flash-lite', anthropic: 'claude-sonnet-5-5', custom: '' })[aiState.provider] || '';
         }
         if (aiState.provider === 'custom' && !$('#ai-base').value) $('#ai-base').value = '';
         fillModels(aiState.provider);
@@ -1600,7 +1600,8 @@
         if (!groups[impFilter]) impFilter = 'avisar';
         const chips = `<div class="imp-filters" role="tablist" aria-label="Filtrar fichas importadas">${FILTERS.map(([id, label]) =>
           `<button type="button" role="tab" class="chip-filter${id === impFilter ? ' is-on' : ''}" aria-selected="${id === impFilter}" data-imp-filter="${id}">${label} <span class="tab-count">${groups[id].length}</span></button>`).join('')}</div>`;
-        const actions = (c) => (c.claimed ? '' : `${c.waUrl ? `<a class="btn btn-primary btn-sm" href="${esc(c.waUrl)}" target="_blank" rel="noopener" data-notify="${esc(c.id)}">${icon('whatsapp', 15)} WhatsApp</a>` : ''}
+        const actions = (c) => (c.claimed ? '' : `<button class="btn btn-lime btn-sm" type="button" data-msg-open="${esc(c.id)}" aria-expanded="false">${icon('sparkles', 15)} Mensaje</button>
+                ${c.waUrl ? `<a class="btn btn-primary btn-sm" href="${esc(c.waUrl)}" target="_blank" rel="noopener" data-notify="${esc(c.id)}">${icon('whatsapp', 15)} WhatsApp</a>` : ''}
                 <button class="btn btn-outline btn-sm" type="button" data-copy="${esc(c.claimUrl)}">${icon('copy', 15)} Copiar link</button>
                 ${c.notifyStatus !== 'avisado' ? `<button class="btn btn-outline btn-sm" type="button" data-mark="${esc(c.id)}">${icon('check', 15)} Marcar avisado</button>` : ''}
                 <button class="btn btn-ghost btn-sm" type="button" data-del-co="${esc(c.id)}" data-name="${esc(c.name)}">${icon('trash', 15)} Borrar</button>`);
@@ -1623,13 +1624,62 @@
                 <td>${c.jobs.map((j) => `<div>${esc(j.title)}</div>`).join('')}</td>
                 <td>${c.applications}</td>
                 <td>${state(c)}</td>
-                <td class="imp-row-actions">${actions(c)}</td></tr>`).join('')}</tbody></table></div>`;
+                <td class="imp-row-actions">${actions(c)}</td></tr>
+                ${c.claimed ? '' : `<tr class="imp-msg-row" data-msg-row="${esc(c.id)}" hidden><td colspan="5"><div class="imp-msg">
+                  <label for="msg-${esc(c.id)}">Mensaje para ${esc(c.name)}</label>
+                  <textarea class="input" id="msg-${esc(c.id)}" rows="6" maxlength="1500" data-msg-text="${esc(c.id)}" data-wa-base="${esc((c.waUrl || '').split('?')[0])}">${esc(c.messageText || '')}</textarea>
+                  <div class="imp-msg-actions">
+                    <button class="btn btn-lime btn-sm" type="button" data-msg-ai="${esc(c.id)}">${icon('sparkles', 15)} ${c.message ? 'Escribir otro con IA' : 'Escribir con IA'}</button>
+                    <button class="btn btn-outline btn-sm" type="button" data-msg-save="${esc(c.id)}">Guardar</button>
+                    <button class="btn btn-outline btn-sm" type="button" data-msg-copy="${esc(c.id)}">${icon('copy', 15)} Copiar</button>
+                    ${c.waUrl ? `<a class="btn btn-primary btn-sm" href="${esc(c.waUrl)}" target="_blank" rel="noopener" data-msg-wa="${esc(c.id)}" data-notify="${esc(c.id)}">${icon('whatsapp', 15)} Mandar por WhatsApp</a>` : '<span class="muted">Sin teléfono: copiá el mensaje y mandalo por otro lado.</span>'}
+                  </div>
+                  <p class="cell-sub" data-msg-note="${esc(c.id)}">${c.message ? 'Mensaje guardado. Podés corregirlo antes de mandarlo.' : 'Este es el mensaje de siempre. Tocá "Escribir con IA" para uno personalizado.'}</p>
+                </div></td></tr>`}`).join('')}</tbody></table></div>`;
         $('#imp-list').innerHTML = chips + table
           + (removed.length ? `<p class="muted imp-removed">Pidieron no aparecer más: ${removed.map((r) => esc(r.name)).join(', ')}.</p>` : '');
         $$('[data-imp-filter]').forEach((b) => b.addEventListener('click', () => {
           impFilter = b.dataset.impFilter;
           try { localStorage.setItem('wk_imp_filter', impFilter); } catch (_) {}
           loadList();
+        }));
+        /* editor del mensaje: la IA lo escribe, el admin lo corrige; WhatsApp siempre lleva lo que está escrito */
+        const msgEl = (id, attr) => $(`[${attr}="${CSS.escape(id)}"]`);
+        const syncWa = (id) => {
+          const ta = msgEl(id, 'data-msg-text'); const wa = msgEl(id, 'data-msg-wa');
+          if (ta && wa && ta.dataset.waBase) wa.href = `${ta.dataset.waBase}?text=${encodeURIComponent(ta.value)}`;
+        };
+        $$('[data-msg-open]').forEach((b) => b.addEventListener('click', () => {
+          const row = msgEl(b.dataset.msgOpen, 'data-msg-row');
+          row.hidden = !row.hidden; b.setAttribute('aria-expanded', String(!row.hidden));
+          if (!row.hidden) msgEl(b.dataset.msgOpen, 'data-msg-text').focus();
+        }));
+        $$('[data-msg-text]').forEach((ta) => ta.addEventListener('input', () => syncWa(ta.dataset.msgText)));
+        $$('[data-msg-ai]').forEach((b) => b.addEventListener('click', async () => {
+          const id = b.dataset.msgAi; const note = msgEl(id, 'data-msg-note');
+          const old = b.innerHTML; b.disabled = true; b.innerHTML = `${icon('sparkles', 15)} Escribiendo…`;
+          note.textContent = 'La IA está escribiendo el mensaje (puede tardar unos segundos)…';
+          try {
+            const r = await api(`/api/admin/import/companies/${encodeURIComponent(id)}/message`, { method: 'POST' });
+            msgEl(id, 'data-msg-text').value = r.message; syncWa(id);
+            note.textContent = r.ai ? 'Lo escribió la IA y quedó guardado. Leelo y corregí lo que quieras antes de mandarlo.' : r.warning;
+            b.innerHTML = `${icon('sparkles', 15)} Escribir otro con IA`;
+          } catch (err) { note.textContent = err.message; b.innerHTML = old; } finally { b.disabled = false; }
+        }));
+        $$('[data-msg-save]').forEach((b) => b.addEventListener('click', async () => {
+          const id = b.dataset.msgSave; const ta = msgEl(id, 'data-msg-text');
+          try {
+            const r = await api(`/api/admin/import/companies/${encodeURIComponent(id)}/message`, { method: 'PUT', body: { message: ta.value } });
+            ta.value = r.message; syncWa(id); msgEl(id, 'data-msg-note').textContent = 'Mensaje guardado.'; toast('Mensaje guardado', 'ok');
+          } catch (err) { toast(err.message, 'err'); }
+        }));
+        $$('[data-msg-copy]').forEach((b) => b.addEventListener('click', async () => {
+          const ta = msgEl(b.dataset.msgCopy, 'data-msg-text');
+          try { await navigator.clipboard.writeText(ta.value); toast('Mensaje copiado', 'ok'); } catch (_) { ta.select(); toast('Seleccionado: copialo con Ctrl+C', 'ok'); }
+        }));
+        $$('[data-msg-wa]').forEach((a) => a.addEventListener('click', () => {
+          const ta = msgEl(a.dataset.msgWa, 'data-msg-text');
+          api(`/api/admin/import/companies/${encodeURIComponent(a.dataset.msgWa)}/message`, { method: 'PUT', body: { message: ta.value } }).catch(() => {});
         }));
         $$('[data-mark]').forEach((b) => b.addEventListener('click', async () => {
           try { await api(`/api/admin/import/companies/${b.dataset.mark}/notified`, { method: 'POST' }); toast('Marcada como avisada', 'ok'); loadList(); } catch (err) { toast(err.message, 'err'); }
