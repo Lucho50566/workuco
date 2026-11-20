@@ -364,6 +364,16 @@ const mailOrigin = () => PUBLIC_URL || `http://localhost:${PORT}`;
 /* direcciones de ejemplo o de fichas importadas: no se les escribe */
 const mailable = (email) => !!email && isEmail(email) && !/@(demo\.workuco|import\.workuco)$/i.test(email);
 
+/* avisar por Gmail a una empresa importada: se abre la cuenta de Gmail del admin con todo cargado */
+const IMPORT_MAIL_SUBJECT = 'Publicamos su búsqueda en WorkUco';
+const gmailCompose = (email, message) => (email && message
+  ? `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}&su=${encodeURIComponent(IMPORT_MAIL_SUBJECT)}&body=${encodeURIComponent(message)}` : '');
+function importEmailOf(companyId) {
+  const r = store.one("SELECT contact_email FROM jobs WHERE company_id=? AND contact_email IS NOT NULL AND contact_email<>'' ORDER BY created_at DESC LIMIT 1", companyId);
+  const e = r ? String(r.contact_email).trim().toLowerCase() : '';
+  return isEmail(e) ? e : '';
+}
+
 function sendMail(to, { subject, title, body, cta, why }) {
   if (!mailable(to)) return Promise.resolve({ ok: false, error: 'dirección no habilitada' });
   const footer = `${why ? `${why} ` : ''}WorkUco · Empleos en el Valle de Uco · <a href="${mailOrigin()}/privacidad" style="color:#56615a">Privacidad</a>`;
@@ -2438,6 +2448,7 @@ async function handleApi(req, res, url) {
           claimed: c.claimed !== 0, notifyStatus: c.notify_status || 'sin_avisar', notifiedAt: c.notified_at || null,
           claimUrl, waUrl: msg && c.phone_norm ? `https://wa.me/549${c.phone_norm}?text=${encodeURIComponent(msg)}` : '',
           message: c.claim_msg || '', messageText: msg,
+          email: importEmailOf(c.id), gmailUrl: gmailCompose(importEmailOf(c.id), msg),
           applications,
           jobs: jobs.map((j) => ({ id: j.id, title: j.title, status: j.status, closesAt: j.closes_at, sourceName: j.source_name || '', sourceText: j.source_text || '', applications: j.applications })),
           createdAt: c.created_at,
@@ -2458,7 +2469,7 @@ async function handleApi(req, res, url) {
       const claimUrl = `${origin}/reclamar/${c.claim_token}`;
       const out = (message, extra = {}) => {
         store.setClaimMessage(c.id, message);
-        return send(res, 200, { message, waUrl: c.phone_norm ? `https://wa.me/549${c.phone_norm}?text=${encodeURIComponent(message)}` : '', ...extra });
+        return send(res, 200, { message, waUrl: c.phone_norm ? `https://wa.me/549${c.phone_norm}?text=${encodeURIComponent(message)}` : '', gmailUrl: gmailCompose(importEmailOf(c.id), message), ...extra });
       };
       if (method === 'PUT') {
         const b = await readBody(req);

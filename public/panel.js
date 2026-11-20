@@ -1602,6 +1602,8 @@
           `<button type="button" role="tab" class="chip-filter${id === impFilter ? ' is-on' : ''}" aria-selected="${id === impFilter}" data-imp-filter="${id}">${label} <span class="tab-count">${groups[id].length}</span></button>`).join('')}</div>`;
         const actions = (c) => (c.claimed ? '' : `<button class="btn btn-lime btn-sm" type="button" data-msg-open="${esc(c.id)}" aria-expanded="false">${icon('sparkles', 15)} Mensaje</button>
                 ${c.waUrl ? `<a class="btn btn-primary btn-sm" href="${esc(c.waUrl)}" target="_blank" rel="noopener" data-notify="${esc(c.id)}">${icon('whatsapp', 15)} WhatsApp</a>` : ''}
+                ${c.gmailUrl ? `<a class="btn btn-gmail btn-sm" href="${esc(c.gmailUrl)}" target="_blank" rel="noopener" data-notify="${esc(c.id)}">${icon('mail', 15)} Avisar por Gmail</a>
+                <button class="btn btn-ghost btn-sm" type="button" data-copy-mail="${esc(c.email)}">${icon('copy', 15)} Copiar mail</button>` : ''}
                 <button class="btn btn-outline btn-sm" type="button" data-copy="${esc(c.claimUrl)}">${icon('copy', 15)} Copiar link</button>
                 ${c.notifyStatus !== 'avisado' ? `<button class="btn btn-outline btn-sm" type="button" data-mark="${esc(c.id)}">${icon('check', 15)} Marcar avisado</button>` : ''}
                 <button class="btn btn-ghost btn-sm" type="button" data-del-co="${esc(c.id)}" data-name="${esc(c.name)}">${icon('trash', 15)} Borrar</button>`);
@@ -1620,19 +1622,21 @@
                 <td class="cell-sub">${dm(r.createdAt)} · ${timeAgo(r.createdAt)}</td></tr>`).join('')}</tbody></table></div>`
             : `<div class="table-wrap"><table class="data"><thead><tr><th>Empresa</th><th>Avisos</th><th>Postulantes</th><th>Estado</th><th></th></tr></thead><tbody>
               ${list.map((c) => `<tr>
-                <td><strong>${esc(c.name)}</strong><div class="muted">${esc(c.locality || '—')} · ${esc(c.phone || 'sin teléfono')}</div></td>
+                <td><strong>${esc(c.name)}</strong><div class="muted">${esc(c.locality || '—')} · ${esc(c.phone || 'sin teléfono')}</div>${c.email ? `<div class="imp-email">${icon('mail', 13)} ${esc(c.email)}</div>` : ''}</td>
                 <td>${c.jobs.map((j) => `<div>${esc(j.title)}</div>`).join('')}</td>
                 <td>${c.applications}</td>
                 <td>${state(c)}</td>
                 <td class="imp-row-actions">${actions(c)}</td></tr>
                 ${c.claimed ? '' : `<tr class="imp-msg-row" data-msg-row="${esc(c.id)}" hidden><td colspan="5"><div class="imp-msg">
                   <label for="msg-${esc(c.id)}">Mensaje para ${esc(c.name)}</label>
-                  <textarea class="input" id="msg-${esc(c.id)}" rows="6" maxlength="1500" data-msg-text="${esc(c.id)}" data-wa-base="${esc((c.waUrl || '').split('?')[0])}">${esc(c.messageText || '')}</textarea>
+                  <textarea class="input" id="msg-${esc(c.id)}" rows="6" maxlength="1500" data-msg-text="${esc(c.id)}" data-wa-base="${esc((c.waUrl || '').split('?')[0])}" data-gmail-base="${esc((c.gmailUrl || '').split('&body=')[0])}">${esc(c.messageText || '')}</textarea>
                   <div class="imp-msg-actions">
                     <button class="btn btn-lime btn-sm" type="button" data-msg-ai="${esc(c.id)}">${icon('sparkles', 15)} ${c.message ? 'Escribir otro con IA' : 'Escribir con IA'}</button>
                     <button class="btn btn-outline btn-sm" type="button" data-msg-save="${esc(c.id)}">Guardar</button>
                     <button class="btn btn-outline btn-sm" type="button" data-msg-copy="${esc(c.id)}">${icon('copy', 15)} Copiar</button>
-                    ${c.waUrl ? `<a class="btn btn-primary btn-sm" href="${esc(c.waUrl)}" target="_blank" rel="noopener" data-msg-wa="${esc(c.id)}" data-notify="${esc(c.id)}">${icon('whatsapp', 15)} Mandar por WhatsApp</a>` : '<span class="muted">Sin teléfono: copiá el mensaje y mandalo por otro lado.</span>'}
+                    ${c.waUrl ? `<a class="btn btn-primary btn-sm" href="${esc(c.waUrl)}" target="_blank" rel="noopener" data-msg-wa="${esc(c.id)}" data-notify="${esc(c.id)}">${icon('whatsapp', 15)} Mandar por WhatsApp</a>` : ''}
+                    ${c.gmailUrl ? `<a class="btn btn-gmail btn-sm" href="${esc(c.gmailUrl)}" target="_blank" rel="noopener" data-msg-gmail="${esc(c.id)}" data-notify="${esc(c.id)}">${icon('mail', 15)} Mandar por Gmail</a>` : ''}
+                    ${!c.waUrl && !c.gmailUrl ? '<span class="muted">Sin teléfono ni mail: copiá el mensaje y mandalo por otro lado.</span>' : ''}
                   </div>
                   <p class="cell-sub" data-msg-note="${esc(c.id)}">${c.message ? 'Mensaje guardado. Podés corregirlo antes de mandarlo.' : 'Este es el mensaje de siempre. Tocá "Escribir con IA" para uno personalizado.'}</p>
                 </div></td></tr>`}`).join('')}</tbody></table></div>`;
@@ -1646,9 +1650,17 @@
         /* editor del mensaje: la IA lo escribe, el admin lo corrige; WhatsApp siempre lleva lo que está escrito */
         const msgEl = (id, attr) => $(`[${attr}="${CSS.escape(id)}"]`);
         const syncWa = (id) => {
-          const ta = msgEl(id, 'data-msg-text'); const wa = msgEl(id, 'data-msg-wa');
+          const ta = msgEl(id, 'data-msg-text'); const wa = msgEl(id, 'data-msg-wa'); const gm = msgEl(id, 'data-msg-gmail');
           if (ta && wa && ta.dataset.waBase) wa.href = `${ta.dataset.waBase}?text=${encodeURIComponent(ta.value)}`;
+          if (ta && gm && ta.dataset.gmailBase) gm.href = `${ta.dataset.gmailBase}&body=${encodeURIComponent(ta.value)}`;
         };
+        $$('[data-msg-gmail]').forEach((a) => a.addEventListener('click', () => {
+          const ta = msgEl(a.dataset.msgGmail, 'data-msg-text');
+          api(`/api/admin/import/companies/${encodeURIComponent(a.dataset.msgGmail)}/message`, { method: 'PUT', body: { message: ta.value } }).catch(() => {});
+        }));
+        $$('[data-copy-mail]').forEach((b) => b.addEventListener('click', async () => {
+          try { await navigator.clipboard.writeText(b.dataset.copyMail); toast('Mail copiado', 'ok'); } catch (_) { toast(b.dataset.copyMail, 'ok'); }
+        }));
         $$('[data-msg-open]').forEach((b) => b.addEventListener('click', () => {
           const row = msgEl(b.dataset.msgOpen, 'data-msg-row');
           row.hidden = !row.hidden; b.setAttribute('aria-expanded', String(!row.hidden));

@@ -1210,3 +1210,7 @@ select.input.input-sm, select.input-sm { padding-right: 32px; background-positio
   .job-row-cover { display: block; }
   .job-row:has(.job-row-cover) .job-row-main { background: linear-gradient(180deg, rgba(255, 253, 248, .84) 0%, rgba(255, 253, 248, .62) 100%); }
 }
+/* ---------- importados: avisar por Gmail ---------- */
+.btn-gmail { background: #fff; color: #c5221f; border: 1.5px solid #f3c6c4; }
+.btn-gmail:hover { background: #fdf0ef; border-color: #ea4335; }
+.imp-email { display: flex; align-items: center; gap: 5px; margin-top: 3px; font-size: 13px; color: var(--green); white-space: nowrap; }
