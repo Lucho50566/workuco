@@ -2517,13 +2517,8 @@ function setupWikFab(page) {
     if (first) { fab.classList.add('is-labeled'); lsSet(WIK_SEEN, '1'); setTimeout(() => fab && fab.classList.remove('is-labeled'), 4500); }
     fab.innerHTML = `<a class="wik-fab-go" href="/flyers" aria-label="Abrir Wik Works: avisos en formato flyer">
         <svg viewBox="4.7 9.5 30.6 21" width="26" height="18" fill="none" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.8 15.6 12.4 28.4 18 18" stroke="#f5f1e6"/><path d="M18 18 22.8 26.8 33.2 11.6" stroke="#c8f560"/></svg>
-        <span class="wik-fab-label">Wik Works</span></a>
-      <button class="wik-fab-x" type="button" data-wik-hide aria-label="Ocultar el botón de Wik Works">${icon('x', 12)}</button>`;
+        <span class="wik-fab-label">Wik Works</span></a>`;
     document.body.appendChild(fab);
-    $('[data-wik-hide]', fab).addEventListener('click', () => {
-      lsSet(WIK_KEY, 'off'); remove(); paintToggle();
-      toast('Listo, lo ocultamos. Lo podés volver a activar desde el menú.', 'ok');
-    });
     /* se esconde al bajar y vuelve al subir; también mientras está el cartel de instalar la app */
     let lastY = window.scrollY;
     onScroll = () => {

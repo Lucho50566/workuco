@@ -66,9 +66,10 @@ try {
   await size(1440); await go('/');
   check('en la compu no se ve', !(await visible('[data-wik-fab]')));
   await size(390); await go('/');
-  await ev(`document.querySelector('[data-wik-hide]').click()`); await sleep(400);
-  check('la ✕ lo oculta', !(await ev(`!!document.querySelector('[data-wik-fab]')`)));
-  check('…y avisa cómo volver a activarlo', /volver a activar desde el menú/.test(await ev('document.body.innerText')));
+  check('el botón no tiene ✕ (no se puede cerrar sin querer)', !(await ev(`!!document.querySelector('[data-wik-fab] button')`)));
+  check('el menú tiene el interruptor prendido', await ev(`document.querySelector('[data-wik-toggle]')?.getAttribute('aria-pressed')`) === 'true');
+  await ev(`document.querySelector('[data-wik-toggle]').click()`); await sleep(400);
+  check('desde el menú se apaga', !(await ev(`!!document.querySelector('[data-wik-fab]')`)));
   await go('/buscar');
   check('queda oculto al cambiar de página', !(await ev(`!!document.querySelector('[data-wik-fab]')`)));
   check('el menú tiene el interruptor apagado', await ev(`document.querySelector('[data-wik-toggle]')?.getAttribute('aria-pressed')`) === 'false');
