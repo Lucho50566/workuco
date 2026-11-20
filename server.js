@@ -17,7 +17,7 @@ const {
 } = require('./lib/store');
 const { matchScore, norm } = require('./lib/match');
 const { TEMPLATES } = require('./lib/templates');
-const { normPhone, normName, buildImportPrompt, normalizeDrafts, crossCheck, groundDrafts } = require('./lib/importer');
+const { normPhone, normName, buildImportPrompt, normalizeDrafts, crossCheck, groundDrafts, defaultClaimMessage, buildClaimMessagePrompt, normalizeClaimMessage } = require('./lib/importer');
 const demo = require('./lib/demo');
 const ai = require('./lib/ai');
 const { extractCv } = require('./lib/cvtext');
@@ -2371,7 +2371,7 @@ async function handleApi(req, res, url) {
       /* la IA principal y, si está configurada, una segunda que lee lo mismo por separado para comparar */
       const ver = ai.importVerifierConfig();
       const { system, user } = buildImportPrompt(importMeta);
-      const ask = (c) => ai.callProvider(c, { system, user: text.trim() ? `${user}\n\n${text}` : user, images: imgs, maxTokens: 6000 })
+      const ask = (c) => ai.callProvider(c, { system, user: text.trim() ? `${user}\n\n${text}` : user, images: imgs, maxTokens: 6000, timeoutMs: 120000 })
         .then((raw) => normalizeDrafts(raw, importMeta, text, imgs.length));
       const [main, second] = await Promise.allSettled([ask(cfg), ver ? ask(ver) : Promise.resolve(null)]);
       if (main.status === 'rejected' && !(second.value && second.value.drafts.length)) {
@@ -2429,11 +2429,12 @@ async function handleApi(req, res, url) {
         const claimUrl = c.claim_token ? `${origin}/reclamar/${c.claim_token}` : '';
         const applications = jobs.reduce((n, j) => n + j.applications, 0);
         const open = jobs.find((j) => j.status === 'approved') || jobs[0];
-        const msg = open && claimUrl ? `Hola, ¿cómo están? Les escribo de WorkUco, el portal de empleo del Valle de Uco. Vimos su búsqueda "${open.title}" en ${open.source_name || 'un canal de empleo'} y la publicamos para que llegue a más gente de la zona. Si quieren, pueden reclamarla gratis para manejar sus postulantes (ya tienen ${applications}), o pedir que la borremos con un toque: ${claimUrl}. ¡Gracias!` : '';
+        const msg = !claimUrl ? '' : (c.claim_msg || (open ? defaultClaimMessage({ jobTitle: open.title, sourceName: open.source_name, applications, claimUrl }) : ''));
         return {
           id: c.id, name: c.name, phone: c.phone || '', locality: c.locality || '',
           claimed: c.claimed !== 0, notifyStatus: c.notify_status || 'sin_avisar', notifiedAt: c.notified_at || null,
           claimUrl, waUrl: msg && c.phone_norm ? `https://wa.me/549${c.phone_norm}?text=${encodeURIComponent(msg)}` : '',
+          message: c.claim_msg || '',
           applications,
           jobs: jobs.map((j) => ({ id: j.id, title: j.title, status: j.status, closesAt: j.closes_at, sourceName: j.source_name || '', sourceText: j.source_text || '', applications: j.applications })),
           createdAt: c.created_at,
@@ -2443,6 +2444,44 @@ async function handleApi(req, res, url) {
       const acceptedAt = new Map(responses.filter((r) => r.action === 'aceptada').map((r) => [r.companyId, r.createdAt]));
       for (const c of companies) c.claimedAt = acceptedAt.get(c.id) || null;
       return send(res, 200, { companies, removed: store.blockedCompanies(), responses });
+    }
+
+    /* mensaje para avisarle a la empresa: lo escribe la IA (o el texto fijo si no hay IA) y el admin lo puede editar */
+    const impMsg = p.match(/^\/api\/admin\/import\/companies\/([a-z0-9]+)\/message$/);
+    if (impMsg && (method === 'POST' || method === 'PUT')) {
+      const c = store.company(impMsg[1]);
+      if (!c || !c.imported || c.claimed !== 0 || !c.claim_token) return send(res, 404, { error: 'Ficha sin reclamar no encontrada' });
+      const origin = PUBLIC_URL || `http://${req.headers.host}`;
+      const claimUrl = `${origin}/reclamar/${c.claim_token}`;
+      const out = (message, extra = {}) => {
+        store.setClaimMessage(c.id, message);
+        return send(res, 200, { message, waUrl: c.phone_norm ? `https://wa.me/549${c.phone_norm}?text=${encodeURIComponent(message)}` : '', ...extra });
+      };
+      if (method === 'PUT') {
+        const b = await readBody(req);
+        const text = cleanMultiline(b.message, 1500);
+        if (!text) return send(res, 400, { error: 'El mensaje está vacío' });
+        return out(normalizeClaimMessage(text, claimUrl));
+      }
+      const jobs = store.all(`SELECT j.title, j.locality, j.source_name,
+        (SELECT COUNT(*) FROM applications a WHERE a.job_id=j.id) AS apps FROM jobs j WHERE j.company_id=? ORDER BY j.created_at DESC`, c.id);
+      const info = {
+        name: c.name, jobs: jobs.map((j) => j.title), jobTitle: (jobs[0] || {}).title || '', locality: (jobs[0] || {}).locality || c.locality || '',
+        sourceName: (jobs[0] || {}).source_name || '', applications: jobs.reduce((n, j) => n + j.apps, 0), claimUrl,
+      };
+      const fallback = (why) => out(defaultClaimMessage(info), { ai: false, warning: why });
+      if (IMPORT_FAKE) {
+        return out(normalizeClaimMessage({ mensaje: `Hola, ¿cómo están? Les escribimos de WorkUco, el portal de empleo del Valle de Uco 😊 Vimos que ${info.name} busca "${info.jobTitle}" y la publicamos gratis para que llegue a más gente de la zona. Si quieren, pueden reclamarla para ver a sus postulantes, o pedirnos que la borremos con un toque. ¡Muchas gracias! {LINK}` }, claimUrl), { ai: true });
+      }
+      const cfg = ai.importConfig();
+      if (!cfg) return fallback('La IA del importador no está configurada: usamos el mensaje de siempre.');
+      try {
+        const { system, user } = buildClaimMessagePrompt(info);
+        const raw = await ai.callProvider(cfg, { system, user, maxTokens: 700, timeoutMs: 120000 });
+        return out(normalizeClaimMessage(raw, claimUrl), { ai: true });
+      } catch (e) {
+        return fallback(`La IA no respondió (${e.message}): usamos el mensaje de siempre.`);
+      }
     }
 
     const impCo = p.match(/^\/api\/admin\/import\/companies\/([a-z0-9]+)(\/notified)?$/);
