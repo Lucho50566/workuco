@@ -197,7 +197,7 @@ test('el control contra el texto no se aplica a lo que sale de una imagen', () =
     test('Claude: si se niega, da un error claro', () => assert.ok(err && /rechaz|neg/i.test(err.message), err && err.message));
     test('la verificación se configura con WORKUCO_IMPORT_AI2_*', () => {
       const c = ai.importVerifierConfig({ WORKUCO_IMPORT_AI2_PROVIDER: 'gemini', WORKUCO_IMPORT_AI2_KEY: 'x' });
-      assert.equal(c.provider, 'gemini'); assert.equal(c.model, 'gemini-2.5-flash');
+      assert.equal(c.provider, 'gemini'); assert.equal(c.model, 'gemini-3.5-flash-lite');
       assert.equal(ai.importVerifierConfig({}), null);
     });
   } catch (e) { fail++; console.log('FAIL  llamado a Claude', e.message); }

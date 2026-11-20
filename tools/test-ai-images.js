@@ -61,7 +61,7 @@ const img = { mime: 'image/png', base64: 'iVBORw0KGgo=' };
     assert.equal(ai.importConfig({ WORKUCO_IMPORT_AI_PROVIDER: 'gemini' }), null);
     const cfg = ai.importConfig({ WORKUCO_IMPORT_AI_PROVIDER: 'gemini', WORKUCO_IMPORT_AI_KEY: 'k' });
     assert.equal(cfg.provider, 'gemini');
-    assert.equal(cfg.model, 'gemini-2.5-flash');
+    assert.equal(cfg.model, 'gemini-3.5-flash-lite');
     assert.equal(ai.importConfig({ WORKUCO_IMPORT_AI_PROVIDER: 'raro', WORKUCO_IMPORT_AI_KEY: 'k' }), null);
   });
 
