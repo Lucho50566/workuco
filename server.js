@@ -12,7 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const {
-  Store, uid, now, jparse,
+  Store, uid, now, jparse, IMPORT_REASONS,
   LOCALITIES, CATEGORIES, TYPES, MODALITIES, BENEFITS, STAGES, STAGE_LABEL, SALARY_PERIODS, MONTH_FACTOR,
 } = require('./lib/store');
 const { matchScore, norm } = require('./lib/match');
@@ -2439,7 +2439,10 @@ async function handleApi(req, res, url) {
           createdAt: c.created_at,
         };
       });
-      return send(res, 200, { companies, removed: store.blockedCompanies() });
+      const responses = store.importResponses();
+      const acceptedAt = new Map(responses.filter((r) => r.action === 'aceptada').map((r) => [r.companyId, r.createdAt]));
+      for (const c of companies) c.claimedAt = acceptedAt.get(c.id) || null;
+      return send(res, 200, { companies, removed: store.blockedCompanies(), responses });
     }
 
     const impCo = p.match(/^\/api\/admin\/import\/companies\/([a-z0-9]+)(\/notified)?$/);
@@ -2457,6 +2460,19 @@ async function handleApi(req, res, url) {
   }
 
   /* ---------- reclamo de fichas importadas (público, con código) ---------- */
+  /* cada respuesta queda registrada y le llega un mail al dueño de WorkUco */
+  const importResponseMail = (r) => {
+    const fecha = new Date(r.created_at - 3 * 3600e3).toISOString().slice(0, 16).replace('T', ' ');
+    const avisos = jparse(r.jobs, []).join(', ') || 'sin avisos';
+    const motivo = r.action === 'rechazada'
+      ? `\nMotivo: ${IMPORT_REASONS[r.reason] || r.reason}${r.comment ? `\nComentario: ${r.comment}` : ''}` : '';
+    sendMail(ADMIN_EMAIL, {
+      subject: `${r.name} ${r.action === 'aceptada' ? 'aceptó su aviso en WorkUco' : 'borró su aviso de WorkUco'}`,
+      title: r.action === 'aceptada' ? `${r.name} aceptó su aviso` : `${r.name} borró su aviso`,
+      body: `Avisos: ${avisos}\nFecha: ${fecha} (hora argentina)${motivo}\n\nLo ves en Admin → Importar.`,
+      cta: { label: 'Ver en el admin', url: `${mailOrigin()}/admin#importar` },
+    }).catch(() => {});
+  };
   const claimM = p.match(/^\/api\/claim\/([^/]+)(\/accept|\/delete)?$/);
   if (claimM) {
     const wait = throttled(req);
@@ -2470,6 +2486,7 @@ async function handleApi(req, res, url) {
         company: publicCompany(c),
         jobs: store.companyJobs(c.id).map(jobSummary),
         applicationsCount: store.countApplicantsOf(c.id),
+        reasons: Object.entries(IMPORT_REASONS).map(([id, label]) => ({ id, label })),
       });
     }
 
@@ -2488,6 +2505,7 @@ async function handleApi(req, res, url) {
       const claimed = store.claimCompany(c.id, { email, password: hashPassword(password) });
       if (!claimed) return send(res, 404, { error: 'Este link ya se usó o no existe' });
       store.acceptTerms('companies', c.id, legal.TERMS_VERSION);
+      importResponseMail(store.recordImportResponse({ company: c, action: 'aceptada' }));
       setSession(res, 'company', req, { companyId: c.id });
       const seen = new Set();
       for (const a of store.applicantsOf(c.id)) {
@@ -2499,6 +2517,12 @@ async function handleApi(req, res, url) {
     }
 
     if (action === '/delete' && method === 'POST') {
+      const b = await readBody(req);
+      const reason = String(b.reason || '');
+      if (!Object.prototype.hasOwnProperty.call(IMPORT_REASONS, reason)) {
+        return send(res, 400, { error: 'Contanos por qué lo borramos', fields: { reason: 'Elegí un motivo' } });
+      }
+      importResponseMail(store.recordImportResponse({ company: c, action: 'rechazada', reason, comment: cleanMultiline(b.comment, 300) }));
       const applicants = store.applicantsOf(c.id);
       store.addBlock('phone', c.phone_norm || normPhone(c.phone), c.name);
       store.addBlock('name', c.name_norm || normName(c.name), c.name);
@@ -2629,9 +2653,9 @@ async function handleApi(req, res, url) {
     const ib = store.adminInbox();
     const places = ib.places.map(adminPlace);
     const companies = ib.companies.map((c) => ({ id: c.id, name: c.name, email: c.email, phone: c.phone || '', verified: !!c.verified, createdAt: c.created_at }));
-    const counts = { jobs: ib.jobs.length, places: places.length, companies: companies.length, featureRequests: ib.featureRequests.length };
-    counts.total = counts.jobs + counts.places + counts.companies + counts.featureRequests;
-    return send(res, 200, { jobs: ib.jobs, places, companies, featureRequests: ib.featureRequests, counts, seenAt: ib.seenAt });
+    const counts = { jobs: ib.jobs.length, places: places.length, companies: companies.length, featureRequests: ib.featureRequests.length, importResponses: ib.importResponses.length };
+    counts.total = counts.jobs + counts.places + counts.companies + counts.featureRequests + counts.importResponses;
+    return send(res, 200, { jobs: ib.jobs, places, companies, featureRequests: ib.featureRequests, importResponses: ib.importResponses, counts, seenAt: ib.seenAt });
   }
   if (p === '/api/admin/inbox/seen' && method === 'POST') {
     if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });

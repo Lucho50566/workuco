@@ -151,7 +151,7 @@ async function main() {
     check('el admin la ve como reclamada', ((await admin.get('/api/admin/import')).data.companies.find((c) => c.id === co1.id) || {}).claimed === true);
 
     console.log('\n— Borrado y lista de "no importar" —');
-    const delr = await pub.post(`/api/claim/${token2}/delete`);
+    const delr = await pub.post(`/api/claim/${token2}/delete`, { reason: 'cubierto' });
     check('borrar: 200', delr.status === 200);
     check('sus avisos ya no están', !(await pub.get('/api/jobs?limit=30')).data.jobs.some((j) => j.id === job2.id) && (await pub.get(`/api/jobs/${job2.id}`)).status === 404);
     check('la ficha ya no existe', (await pub.get(`/api/companies/${co2.id}`)).status === 404);
