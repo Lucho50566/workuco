@@ -60,6 +60,7 @@
       <button class="tab" data-tab="apps" type="button">Postulaciones</button>
       <button class="tab" data-tab="companies" type="button">Empresas</button>
       <button class="tab" data-tab="import" type="button">Importar</button>
+      <button class="tab" data-tab="prospects" type="button">Contactos</button>
       <button class="tab" data-tab="guide" type="button">Guía <span class="tab-count" data-count="places" hidden></span></button>
       <button class="tab" data-tab="services" type="button">Servicios</button>
       <button class="tab" data-tab="payments" type="button">Pagos</button>
@@ -150,6 +151,40 @@
         <div id="admin-services"></div>
       </div>
     </section>
+    <section data-panel="prospects" hidden>
+      <div class="card">
+        <h2>Empresas para contactar</h2>
+        <p class="sub">Empresas del Valle para presentarles WorkUco. Vos mandás cada mensaje desde tu WhatsApp o tu Gmail: de a 20 o 30 por día, sin repetir, y si alguien pide no recibir más, marcalo como "No contactar".</p>
+        <details class="pros-add">
+          <summary>Agregar empresas</summary>
+          <div class="pros-add-grid">
+            <form id="pros-form" class="pros-form" novalidate>
+              <h3>Una por una</h3>
+              <div class="pros-fields">
+                <input class="input" id="pros-name" placeholder="Nombre de la empresa *" maxlength="120">
+                <input class="input" id="pros-cat" placeholder="Rubro (ej.: Bodega, Restaurante)" maxlength="60">
+                <input class="input" id="pros-loc" placeholder="Localidad" value="Tunuyán" maxlength="60">
+                <input class="input" id="pros-phone" placeholder="WhatsApp o teléfono comercial" maxlength="60">
+                <input class="input" id="pros-email" type="email" placeholder="Mail comercial" maxlength="160">
+                <input class="input" id="pros-ig" placeholder="Instagram (sin @)" maxlength="80">
+                <input class="input" id="pros-web" placeholder="Sitio web" maxlength="200">
+                <input class="input" id="pros-src" placeholder="De dónde sacaste el dato (link)" maxlength="300">
+              </div>
+              <button class="btn btn-primary btn-sm" type="submit">Agregar</button>
+            </form>
+            <div class="pros-form">
+              <h3>Desde una planilla</h3>
+              <p class="cell-sub">Columnas: <code>nombre, rubro, localidad, web, instagram, email, telefono, fuente_url</code>. Las repetidas se saltean.</p>
+              <input class="input" id="pros-file" type="file" accept=".csv,text/csv">
+              <textarea class="input" id="pros-csv" rows="4" placeholder="…o pegá acá el contenido de la planilla (CSV)"></textarea>
+              <button class="btn btn-outline btn-sm" type="button" id="pros-import">Importar planilla</button>
+            </div>
+          </div>
+        </details>
+        <div id="pros-list"></div>
+      </div>
+    </section>
+
     <section data-panel="guide" hidden>
       <div id="admin-places"></div>
     </section>

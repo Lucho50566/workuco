@@ -1222,6 +1222,7 @@
       if (tab.dataset.tab === 'home') adminInbox();
       if (tab.dataset.tab === 'people') adminPeople();
       if (tab.dataset.tab === 'payments') adminPayments();
+      if (tab.dataset.tab === 'prospects') adminProspects();
       if (tab.dataset.tab === 'import') { try { history.replaceState(null, '', '#importar'); } catch (_) {} }
     }));
     $('#jobs-filter').addEventListener('change', () => adminJobs($('#jobs-filter').value));
@@ -1893,6 +1894,94 @@
         catch (err) { toast(err.message, 'err'); }
       }));
     } catch (err) { wrap.innerHTML = `<div class="list-empty">${esc(err.message)}</div>`; }
+  }
+
+  /* ---------- Empresas para contactar ---------- */
+  const PROS_FILTERS = [['pendiente', 'Para contactar'], ['contactada', 'Contactadas'], ['recordatorio', 'Recordatorio enviado'], ['registrada', 'Se registraron'], ['no_contactar', 'No contactar']];
+  const PROS_LABEL = { pendiente: ['Para contactar', 'badge-amber'], contactada: ['Contactada', ''], recordatorio: ['Recordatorio enviado', ''], registrada: ['Se registró', 'badge-green'], no_contactar: ['No contactar', 'badge-red'] };
+  let prosFilter = 'pendiente';
+  let prosReady = false;
+  async function adminProspects() {
+    const box = $('#pros-list');
+    if (!box) return;
+    if (!prosReady) {
+      prosReady = true;
+      $('#pros-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const body = { name: $('#pros-name').value, category: $('#pros-cat').value, locality: $('#pros-loc').value, phone: $('#pros-phone').value,
+          email: $('#pros-email').value, instagram: $('#pros-ig').value, web: $('#pros-web').value, sourceUrl: $('#pros-src').value };
+        try { await api('/api/admin/prospects', { method: 'POST', body }); toast('Empresa agregada', 'ok'); ['#pros-name', '#pros-cat', '#pros-phone', '#pros-email', '#pros-ig', '#pros-web', '#pros-src'].forEach((s) => { $(s).value = ''; }); adminProspects(); }
+        catch (err) { toast(err.message, 'err'); }
+      });
+      $('#pros-file').addEventListener('change', async (e) => { const f = e.target.files[0]; if (f) $('#pros-csv').value = await f.text(); });
+      $('#pros-import').addEventListener('click', async () => {
+        const csv = $('#pros-csv').value;
+        if (!csv.trim()) { toast('Elegí o pegá una planilla', 'err'); return; }
+        try { const r = await api('/api/admin/prospects/import', { method: 'POST', body: { csv } }); toast(`Listo: ${r.added} nuevas${r.skipped ? `, ${r.skipped} salteadas` : ''}`, 'ok'); $('#pros-csv').value = ''; $('#pros-file').value = ''; adminProspects(); }
+        catch (err) { toast(err.message, 'err'); }
+      });
+    }
+    let d;
+    try { d = await api('/api/admin/prospects'); } catch (err) { box.innerHTML = `<div class="list-empty">${esc(err.message)}</div>`; return; }
+    const list = d.prospects.filter((p) => p.status === prosFilter);
+    const contacts = (p) => [p.phone && `${icon('phone', 12)} ${esc(p.phone)}`, p.email && `${icon('mail', 12)} ${esc(p.email)}`, p.instagram && `@${esc(p.instagram)}`,
+      p.web && `<a href="${esc(p.web)}" target="_blank" rel="noopener">sitio web</a>`].filter(Boolean).join(' · ') || '<span class="muted">Sin contactos</span>';
+    const when = (p) => (p.remindedAt ? `Recordatorio el ${fmtDate(p.remindedAt)}` : p.contactedAt ? `Contactada el ${fmtDate(p.contactedAt)}` : '');
+    const canRemind = (p) => p.status === 'contactada' && p.contactedAt && Date.now() - p.contactedAt >= 3 * 86400000;
+    box.innerHTML = `<p class="pros-today ${d.today >= d.dailyMax ? 'is-max' : ''}">Hoy contactaste <strong>${d.today}</strong> ${d.today === 1 ? 'empresa' : 'empresas'}. Recomendado: hasta ${d.dailyMax} por día, así tu WhatsApp y tu Gmail no quedan marcados como spam.</p>
+      <div class="imp-filters" role="tablist" aria-label="Filtrar empresas">${PROS_FILTERS.map(([id, label]) =>
+        `<button type="button" role="tab" class="chip-filter${id === prosFilter ? ' is-on' : ''}" aria-selected="${id === prosFilter}" data-pros-filter="${id}">${label} <span class="tab-count">${d.counts[id] || 0}</span></button>`).join('')}</div>
+      ${!list.length ? '<p class="muted">No hay empresas en este grupo.</p>' : `<div class="table-wrap"><table class="data"><thead><tr><th>Empresa</th><th>Contacto</th><th>Estado</th><th></th></tr></thead><tbody>
+      ${list.map((p) => {
+        const st = PROS_LABEL[p.status] || ['', ''];
+        const open = p.status === 'pendiente' || p.status === 'contactada' || p.status === 'recordatorio';
+        const kind = p.status === 'pendiente' ? 'contacto' : 'recordatorio';
+        return `<tr>
+          <td><strong>${esc(p.name)}</strong><div class="cell-sub">${esc(p.category || 'Sin rubro')} · ${esc(p.locality || '—')}</div>${p.sourceUrl ? `<div class="cell-sub"><a href="${esc(p.sourceUrl)}" target="_blank" rel="noopener">Fuente</a></div>` : ''}</td>
+          <td class="cell-sub">${contacts(p)}</td>
+          <td><span class="badge ${st[1]}">${st[0]}</span><div class="cell-sub">${when(p)}</div></td>
+          <td class="imp-row-actions">${open ? `<button class="btn btn-lime btn-sm" type="button" data-pros-open="${esc(p.id)}" aria-expanded="false">${icon('sparkles', 15)} Mensaje</button>
+            ${p.status !== 'contactada' || canRemind(p) ? `${p.waUrl ? `<a class="btn btn-primary btn-sm" href="${esc(p.waUrl)}" target="_blank" rel="noopener" data-pros-sent="${esc(p.id)}" data-kind="${kind}">${icon('whatsapp', 15)} ${kind === 'recordatorio' ? 'Recordatorio' : 'WhatsApp'}</a>` : ''}
+            ${p.gmailUrl ? `<a class="btn btn-gmail btn-sm" href="${esc(p.gmailUrl)}" target="_blank" rel="noopener" data-pros-sent="${esc(p.id)}" data-kind="${kind}">${icon('mail', 15)} Gmail</a>` : ''}
+            <button class="btn btn-outline btn-sm" type="button" data-pros-mark="${esc(p.id)}" data-kind="${kind}">${icon('check', 15)} Marcar ${kind === 'recordatorio' ? 'recordatorio' : 'contactada'}</button>` : '<span class="cell-sub">Recordatorio a partir de los 3 días</span>'}
+            <button class="btn btn-ghost btn-sm" type="button" data-pros-status="${esc(p.id)}" data-to="no_contactar">No contactar</button>` : ''}
+            ${p.status === 'no_contactar' ? `<button class="btn btn-ghost btn-sm" type="button" data-pros-status="${esc(p.id)}" data-to="pendiente">Volver a la lista</button>` : ''}
+            <button class="btn btn-ghost btn-sm" type="button" data-pros-del="${esc(p.id)}" data-name="${esc(p.name)}">${icon('trash', 15)}</button></td></tr>
+          ${open ? `<tr class="imp-msg-row" data-pros-row="${esc(p.id)}" hidden><td colspan="4"><div class="imp-msg">
+            <label for="pmsg-${esc(p.id)}">Mensaje para ${esc(p.name)}</label>
+            <textarea class="input" id="pmsg-${esc(p.id)}" rows="6" maxlength="1500" data-pros-text="${esc(p.id)}">${esc(p.messageText)}</textarea>
+            <div class="imp-msg-actions">
+              <button class="btn btn-lime btn-sm" type="button" data-pros-ai="${esc(p.id)}">${icon('sparkles', 15)} ${p.message ? 'Escribir otro con IA' : 'Escribir con IA'}</button>
+              <button class="btn btn-outline btn-sm" type="button" data-pros-save="${esc(p.id)}">Guardar</button>
+              <button class="btn btn-outline btn-sm" type="button" data-pros-copy="${esc(p.id)}">${icon('copy', 15)} Copiar</button>
+            </div>
+            <p class="cell-sub" data-pros-note="${esc(p.id)}">Después de guardar, los botones de WhatsApp y Gmail de la fila llevan este texto.</p>
+          </div></td></tr>` : ''}`;
+      }).join('')}</tbody></table></div>`}`;
+    const call = async (url, opts, msgOk) => { try { await api(url, opts); if (msgOk) toast(msgOk, 'ok'); adminProspects(); } catch (err) { toast(err.message, 'err'); } };
+    $$('[data-pros-filter]', box).forEach((b) => b.addEventListener('click', () => { prosFilter = b.dataset.prosFilter; adminProspects(); }));
+    $$('[data-pros-sent]', box).forEach((a) => a.addEventListener('click', () => { call(`/api/admin/prospects/${a.dataset.prosSent}/contacted`, { method: 'POST', body: { kind: a.dataset.kind } }); }));
+    $$('[data-pros-mark]', box).forEach((b) => b.addEventListener('click', () => call(`/api/admin/prospects/${b.dataset.prosMark}/contacted`, { method: 'POST', body: { kind: b.dataset.kind } }, 'Listo')));
+    $$('[data-pros-status]', box).forEach((b) => b.addEventListener('click', () => call(`/api/admin/prospects/${b.dataset.prosStatus}`, { method: 'PATCH', body: { status: b.dataset.to } }, b.dataset.to === 'no_contactar' ? 'No se le vuelve a escribir' : 'Vuelve a la lista')));
+    $$('[data-pros-del]', box).forEach((b) => b.addEventListener('click', () => { if (confirm(`¿Borrar ${b.dataset.name} de la lista?`)) call(`/api/admin/prospects/${b.dataset.prosDel}`, { method: 'DELETE' }, 'Borrada'); }));
+    $$('[data-pros-open]', box).forEach((b) => b.addEventListener('click', () => {
+      const row = $(`[data-pros-row="${CSS.escape(b.dataset.prosOpen)}"]`, box); row.hidden = !row.hidden; b.setAttribute('aria-expanded', String(!row.hidden));
+    }));
+    $$('[data-pros-ai]', box).forEach((b) => b.addEventListener('click', async () => {
+      const id = b.dataset.prosAi; const note = $(`[data-pros-note="${CSS.escape(id)}"]`, box);
+      b.disabled = true; note.textContent = 'La IA está escribiendo el mensaje…';
+      try { const r = await api(`/api/admin/prospects/${encodeURIComponent(id)}/message`, { method: 'POST' }); $(`[data-pros-text="${CSS.escape(id)}"]`, box).value = r.message; note.textContent = r.ai ? 'Lo escribió la IA y quedó guardado. Revisalo antes de mandarlo.' : r.warning; }
+      catch (err) { note.textContent = err.message; } finally { b.disabled = false; }
+    }));
+    $$('[data-pros-save]', box).forEach((b) => b.addEventListener('click', async () => {
+      const id = b.dataset.prosSave; const ta = $(`[data-pros-text="${CSS.escape(id)}"]`, box);
+      try { const r = await api(`/api/admin/prospects/${encodeURIComponent(id)}/message`, { method: 'PUT', body: { message: ta.value } }); ta.value = r.message; toast('Mensaje guardado', 'ok'); adminProspects(); }
+      catch (err) { toast(err.message, 'err'); }
+    }));
+    $$('[data-pros-copy]', box).forEach((b) => b.addEventListener('click', async () => {
+      const ta = $(`[data-pros-text="${CSS.escape(b.dataset.prosCopy)}"]`, box);
+      try { await navigator.clipboard.writeText(ta.value); toast('Mensaje copiado', 'ok'); } catch (_) { ta.select(); }
+    }));
   }
 
   /* ================================================================== */

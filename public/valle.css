@@ -1218,3 +1218,13 @@ select.input.input-sm, select.input-sm { padding-right: 32px; background-positio
 .imp-ttl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 14px; font-size: 14px; color: var(--muted); }
 .imp-ttl .input { width: 76px; min-height: 36px; padding: 4px 10px; }
 .badge.badge-opp { background: var(--lime); color: var(--night); font-weight: 800; }
+/* ---------- admin: empresas para contactar ---------- */
+.pros-add { margin: 10px 0 16px; border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; background: var(--surface); }
+.pros-add > summary { cursor: pointer; font-weight: 800; }
+.pros-add-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; margin-top: 12px; }
+.pros-form { display: grid; gap: 10px; align-content: start; }
+.pros-form h3 { font-size: 15px; margin: 0; }
+.pros-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+.pros-form .btn { justify-self: start; }
+.pros-today { margin: 4px 0 12px; padding: 10px 14px; border-radius: 12px; background: var(--surface-2, #f0eadc); font-size: 14px; }
+.pros-today.is-max { background: #fde8e6; color: #8a1f19; }
