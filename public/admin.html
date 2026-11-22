@@ -12,7 +12,7 @@
 </head>
 <body data-page="admin">
 {{NAV}}
-<main class="container app-shell">
+<main class="container app-shell adm-shell">
   <div id="admin-gate" hidden>
     <div class="auth-card" style="margin:20px auto">
       <p class="auth-logo">{{BRAND_MARK}}<span>Work<b>Uco</b></span></p>
@@ -33,37 +33,45 @@
     </div>
   </div>
 
-  <div id="admin-app" hidden>
-    <div class="app-head">
+  <div id="admin-app" class="adm" hidden>
+    <aside class="adm-side" aria-label="Secciones del panel">
+      <p class="adm-side-title">Administración</p>
+      <nav class="adm-nav" role="tablist" aria-orientation="vertical">
+        <p class="adm-nav-group">Revisar</p>
+        <button class="tab is-active" data-tab="home" data-title="Para revisar" data-sub="Lo nuevo de la página y lo que espera una decisión tuya." type="button" role="tab">{{ICON_INBOX}}<span>Inicio</span><span class="tab-count" data-count="total" hidden></span></button>
+        <button class="tab" data-tab="jobs" data-title="Ofertas" data-sub="Aprobá, rechazá o destacá publicaciones." type="button" role="tab">{{ICON_BAG}}<span>Ofertas</span><span class="tab-count" data-count="jobs" hidden></span></button>
+        <button class="tab" data-tab="guide" data-title="Guía del Valle" data-sub="Fichas de oficios, comercios, salidas y comida." type="button" role="tab">{{ICON_PIN}}<span>Guía</span><span class="tab-count" data-count="places" hidden></span></button>
+        <p class="adm-nav-group">Gente</p>
+        <button class="tab" data-tab="people" data-title="Personas" data-sub="Quiénes buscan trabajo en el Valle." type="button" role="tab">{{ICON_USER}}<span>Personas</span></button>
+        <button class="tab" data-tab="apps" data-title="Postulaciones" data-sub="Todas las postulaciones de la página." type="button" role="tab">{{ICON_FILE}}<span>Postulaciones</span></button>
+        <button class="tab" data-tab="companies" data-title="Empresas" data-sub="Verificá empresas y manejá sus planes y packs." type="button" role="tab">{{ICON_BUILDING}}<span>Empresas</span></button>
+        <p class="adm-nav-group">Crecer</p>
+        <button class="tab" data-tab="import" data-title="Importar avisos" data-sub="Subí flyers de canales y avisale a cada empresa." type="button" role="tab">{{ICON_UPLOAD}}<span>Importar</span></button>
+        <button class="tab" data-tab="prospects" data-title="Empresas para contactar" data-sub="Presentales WorkUco a empresas del Valle." type="button" role="tab">{{ICON_MAIL}}<span>Contactos</span></button>
+        <p class="adm-nav-group">Negocio</p>
+        <button class="tab" data-tab="services" data-title="Servicios" data-sub="Empresas interesadas en servicios de WorkUco." type="button" role="tab">{{ICON_SETTINGS}}<span>Servicios</span></button>
+        <button class="tab" data-tab="payments" data-title="Pagos" data-sub="Cobros con Mercado Pago, precios y ventas." type="button" role="tab">{{ICON_MONEY}}<span>Pagos</span></button>
+      </nav>
+      <div class="adm-side-foot">
+        <a class="adm-side-link" href="/">{{ICON_EYE}}<span>Ver la página</span></a>
+        <button class="adm-side-link" type="button" id="admin-logout">{{ICON_X}}<span>Cerrar sesión</span></button>
+      </div>
+    </aside>
+
+    <div class="adm-main">
+    <header class="adm-head">
       <div>
-        <h1>Panel de administración</h1>
-        <p>Todo WorkUco en un lugar. Tip: entrá a la <a class="link-inline" href="/">portada</a> con esta sesión y cada oferta y ficha tiene un botón <strong>Gestionar</strong>.</p>
+        <h1 id="adm-title">Para revisar</h1>
+        <p id="adm-sub">Lo nuevo de la página y lo que espera una decisión tuya.</p>
       </div>
-      <div class="row-actions">
-        <a class="btn btn-ghost btn-sm" href="/">Ver la página</a>
-        <button class="btn btn-outline btn-sm" type="button" id="admin-logout">Cerrar sesión</button>
-      </div>
-    </div>
+    </header>
 
-    <div class="kpis">
-      <div class="kpi"><div class="n" id="s-published">0</div><div class="l">Ofertas publicadas</div></div>
-      <div class="kpi"><div class="n" id="s-pending">0</div><div class="l">Pendientes</div></div>
-      <div class="kpi"><div class="n" id="s-apps">0</div><div class="l">Postulaciones</div></div>
-      <div class="kpi"><div class="n" id="s-companies">0</div><div class="l">Empresas registradas</div></div>
-      <div class="kpi"><div class="n" id="s-candidates">0</div><div class="l">Personas registradas</div></div>
-    </div>
-
-    <div class="tabs" role="tablist">
-      <button class="tab is-active" data-tab="home" type="button">Inicio <span class="tab-count" data-count="total" hidden></span></button>
-      <button class="tab" data-tab="jobs" type="button">Ofertas <span class="tab-count" data-count="jobs" hidden></span></button>
-      <button class="tab" data-tab="people" type="button">Personas</button>
-      <button class="tab" data-tab="apps" type="button">Postulaciones</button>
-      <button class="tab" data-tab="companies" type="button">Empresas</button>
-      <button class="tab" data-tab="import" type="button">Importar</button>
-      <button class="tab" data-tab="prospects" type="button">Contactos</button>
-      <button class="tab" data-tab="guide" type="button">Guía <span class="tab-count" data-count="places" hidden></span></button>
-      <button class="tab" data-tab="services" type="button">Servicios</button>
-      <button class="tab" data-tab="payments" type="button">Pagos</button>
+    <div class="adm-stats" aria-label="Resumen de la página">
+      <button class="adm-stat is-action" type="button" data-goto-tab="jobs" data-jobs-filter="pending"><span class="n" id="s-pending">0</span><span class="l">Avisos para aprobar</span></button>
+      <div class="adm-stat"><span class="n" id="s-published">0</span><span class="l">Ofertas publicadas</span></div>
+      <div class="adm-stat"><span class="n" id="s-apps">0</span><span class="l">Postulaciones</span></div>
+      <div class="adm-stat"><span class="n" id="s-companies">0</span><span class="l">Empresas</span></div>
+      <div class="adm-stat"><span class="n" id="s-candidates">0</span><span class="l">Personas</span></div>
     </div>
 
     <section data-panel="home">
@@ -223,6 +231,7 @@
       </div>
     </section>
 
+    </div>
   </div>
 </main>
 

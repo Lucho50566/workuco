@@ -1217,6 +1217,9 @@
     $$('.tab').forEach((tab) => tab.addEventListener('click', () => {
       $$('.tab').forEach((t) => t.classList.toggle('is-active', t === tab));
       $$('[data-panel]').forEach((p) => { p.hidden = p.dataset.panel !== tab.dataset.tab; });
+      $$('.tab').forEach((t) => t.setAttribute('aria-selected', t === tab ? 'true' : 'false'));
+      if ($('#adm-title') && tab.dataset.title) { $('#adm-title').textContent = tab.dataset.title; $('#adm-sub').textContent = tab.dataset.sub || ''; }
+      if (matchMedia('(max-width: 960px)').matches) tab.scrollIntoView({ block: 'nearest', inline: 'center' });
       if (tab.dataset.tab === 'guide' && !adminPlacesReady && window.WKGuia) { adminPlacesReady = true; window.WKGuia.initAdminPlaces($('#admin-places')); }
       if (tab.dataset.tab === 'services') adminServices();
       if (tab.dataset.tab === 'home') adminInbox();
@@ -1226,6 +1229,12 @@
       if (tab.dataset.tab === 'import') { try { history.replaceState(null, '', '#importar'); } catch (_) {} }
     }));
     $('#jobs-filter').addEventListener('change', () => adminJobs($('#jobs-filter').value));
+    $$('[data-goto-tab]').forEach((b) => b.addEventListener('click', () => {
+      const t = $(`.tab[data-tab="${b.dataset.gotoTab}"]`); if (!t) return;
+      if (b.dataset.jobsFilter && $('#jobs-filter')) $('#jobs-filter').value = b.dataset.jobsFilter;
+      t.click(); adminJobs($('#jobs-filter').value);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }));
     if (!user || user.role !== 'admin') return;
     /* /admin#importar (el link del mail) abre directo la pestaña Importar */
     if (location.hash === '#importar') { const t = $('.tab[data-tab="import"]'); if (t) setTimeout(() => t.click(), 0); }
@@ -1403,7 +1412,7 @@
     try {
       const { stats } = await api('/api/admin/stats');
       $('#s-published').textContent = stats.published;
-      $('#s-pending').textContent = stats.pending;
+      $('#s-pending').textContent = stats.pending; $('#s-pending').closest('.adm-stat')?.classList.toggle('is-zero', !Number(stats.pending));
       $('#s-apps').textContent = stats.applications;
       $('#s-companies').textContent = stats.companies;
       if ($('#s-candidates')) $('#s-candidates').textContent = stats.candidates;
@@ -1732,7 +1741,7 @@
     try {
       const { stats } = await api('/api/admin/stats');
       $('#s-published').textContent = stats.published;
-      $('#s-pending').textContent = stats.pending;
+      $('#s-pending').textContent = stats.pending; $('#s-pending').closest('.adm-stat')?.classList.toggle('is-zero', !Number(stats.pending));
       $('#s-apps').textContent = stats.applications;
       $('#s-companies').textContent = stats.companies;
       if ($('#s-candidates')) $('#s-candidates').textContent = stats.candidates;
@@ -1802,7 +1811,7 @@
       toast('Oferta actualizada', 'ok');
       const { stats } = await api('/api/admin/stats');
       $('#s-published').textContent = stats.published;
-      $('#s-pending').textContent = stats.pending;
+      $('#s-pending').textContent = stats.pending; $('#s-pending').closest('.adm-stat')?.classList.toggle('is-zero', !Number(stats.pending));
       await adminJobs($('#jobs-filter').value);
     } catch (err) { toast(err.message, 'err'); }
   }
