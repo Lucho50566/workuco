@@ -1214,3 +1214,7 @@ select.input.input-sm, select.input-sm { padding-right: 32px; background-positio
 .btn-gmail { background: #fff; color: #c5221f; border: 1.5px solid #f3c6c4; }
 .btn-gmail:hover { background: #fdf0ef; border-color: #ea4335; }
 .imp-email { display: flex; align-items: center; gap: 5px; margin-top: 3px; font-size: 13px; color: var(--green); white-space: nowrap; }
+/* ---------- importados: plazo de borrado y gran oportunidad ---------- */
+.imp-ttl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 14px; font-size: 14px; color: var(--muted); }
+.imp-ttl .input { width: 76px; min-height: 36px; padding: 4px 10px; }
+.badge.badge-opp { background: var(--lime); color: var(--night); font-weight: 800; }
