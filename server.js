@@ -17,7 +17,7 @@ const {
 } = require('./lib/store');
 const { matchScore, norm } = require('./lib/match');
 const { TEMPLATES } = require('./lib/templates');
-const { normPhone, normName, buildImportPrompt, normalizeDrafts, crossCheck, groundDrafts, defaultClaimMessage, buildClaimMessagePrompt, normalizeClaimMessage } = require('./lib/importer');
+const { normPhone, normName, buildImportPrompt, normalizeDrafts, crossCheck, groundDrafts, defaultClaimMessage, buildClaimMessagePrompt, normalizeClaimMessage, OPPORTUNITY_MIN } = require('./lib/importer');
 const demo = require('./lib/demo');
 const ai = require('./lib/ai');
 const { extractCv } = require('./lib/cvtext');
@@ -368,6 +368,61 @@ const mailable = (email) => !!email && isEmail(email) && !/@(demo\.workuco|impor
 const IMPORT_MAIL_SUBJECT = 'Publicamos su búsqueda en WorkUco';
 const gmailCompose = (email, message) => (email && message
   ? `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}&su=${encodeURIComponent(IMPORT_MAIL_SUBJECT)}&body=${encodeURIComponent(message)}` : '');
+/* ---------- avisos importados: plazo, vencimiento y filas del admin ---------- */
+const IMPORT_TTL_DEFAULT = 14;
+const importTtlDays = () => {
+  const n = Math.round(Number(store.adminMeta('import_ttl_days')));
+  return n >= 7 && n <= 30 ? n : IMPORT_TTL_DEFAULT;
+};
+const importStartOf = (j) => j.imported_at || j.published_at || j.created_at || 0;
+function importRows(origin) {
+  const ttl = importTtlDays() * 86400000;
+  return store.importedOverview().map(({ company: c, jobs }) => {
+    const claimUrl = c.claim_token ? `${origin}/reclamar/${c.claim_token}` : '';
+    const applications = jobs.reduce((n, j) => n + j.applications, 0);
+    const claimed = c.claimed !== 0;
+    const opportunity = !claimed && applications >= OPPORTUNITY_MIN;
+    const open = jobs.find((j) => j.status === 'approved') || jobs[0];
+    /* el mensaje guardado sólo vale si se escribió para la misma situación (normal / gran oportunidad) */
+    const saved = c.claim_msg && !!c.claim_msg_opp === opportunity ? c.claim_msg : '';
+    const msg = !claimUrl ? '' : (saved || (open ? defaultClaimMessage({ jobTitle: open.title, sourceName: open.source_name, applications, claimUrl }) : ''));
+    const email = importEmailOf(c.id);
+    return {
+      id: c.id, name: c.name, phone: c.phone || '', locality: c.locality || '',
+      claimed, notifyStatus: c.notify_status || 'sin_avisar', notifiedAt: c.notified_at || null,
+      claimUrl, waUrl: msg && c.phone_norm ? `https://wa.me/549${c.phone_norm}?text=${encodeURIComponent(msg)}` : '',
+      message: saved, messageText: msg, email, gmailUrl: gmailCompose(email, msg),
+      applications, opportunity, opportunityNotifiedAt: c.opp_notified_at || null,
+      expiresAt: claimed || !jobs.length ? null : Math.min(...jobs.map(importStartOf)) + ttl,
+      jobs: jobs.map((j) => ({ id: j.id, title: j.title, status: j.status, closesAt: j.closes_at, sourceName: j.source_name || '', sourceText: j.source_text || '', applications: j.applications })),
+      createdAt: c.created_at,
+    };
+  });
+}
+/* Borra los avisos importados que nadie reclamó en el plazo; avisa a quienes se postularon y lo deja registrado. */
+function sweepImported() {
+  const expired = store.importJobsExpired(Date.now() - importTtlDays() * 86400000);
+  const byCompany = new Map();
+  for (const j of expired) { if (!byCompany.has(j.company_id)) byCompany.set(j.company_id, []); byCompany.get(j.company_id).push(j); }
+  let deleted = 0;
+  for (const [companyId, jobs] of byCompany) {
+    const c = store.company(companyId);
+    if (!c || c.claimed !== 0) continue;
+    const ids = new Set(jobs.map((j) => j.id));
+    const applicants = store.applicantsOf(companyId).filter((a) => ids.has(a.jobId));
+    store.recordImportResponse({ company: c, action: 'vencida', jobTitles: jobs.map((j) => j.title) });
+    const total = store.one('SELECT COUNT(*) AS n FROM jobs WHERE company_id=?', companyId).n;
+    if (total <= jobs.length) store.deleteCompanyCascade(companyId);
+    else for (const j of jobs) store.removeJob(j.id);
+    deleted += jobs.length;
+    for (const a of applicants) {
+      tryNotify('candidate', a.candidateId, { kind: 'etapa', title: `La búsqueda "${a.jobTitle}" cerró`, body: 'Hay más búsquedas en WorkUco para vos.', link: '/buscar' });
+    }
+  }
+  if (deleted) console.log(`Avisos importados vencidos borrados: ${deleted}`);
+  return { deleted };
+}
+
 function importEmailOf(companyId) {
   const r = store.one("SELECT contact_email FROM jobs WHERE company_id=? AND contact_email IS NOT NULL AND contact_email<>'' ORDER BY created_at DESC LIMIT 1", companyId);
   const e = r ? String(r.contact_email).trim().toLowerCase() : '';
@@ -2436,28 +2491,22 @@ async function handleApi(req, res, url) {
       return send(res, 201, { job: saved, company: publicCompany(store.company(co.id)) });
     }
 
+    if (p === '/api/admin/import/settings' && method === 'PUT') {
+      const b = await readBody(req);
+      const n = Number(b.ttlDays);
+      if (!Number.isInteger(n) || n < 7 || n > 30) return send(res, 400, { error: 'El plazo tiene que ser de 7 a 30 días', fields: { ttlDays: 'Entre 7 y 30 días' } });
+      store.setAdminMeta('import_ttl_days', String(n));
+      return send(res, 200, { settings: { ttlDays: importTtlDays() } });
+    }
+    if (p === '/api/admin/import/sweep' && method === 'POST') return send(res, 200, sweepImported());
+
     if (p === '/api/admin/import' && method === 'GET') {
       const origin = PUBLIC_URL || `http://${req.headers.host}`;
-      const companies = store.importedOverview().map(({ company: c, jobs }) => {
-        const claimUrl = c.claim_token ? `${origin}/reclamar/${c.claim_token}` : '';
-        const applications = jobs.reduce((n, j) => n + j.applications, 0);
-        const open = jobs.find((j) => j.status === 'approved') || jobs[0];
-        const msg = !claimUrl ? '' : (c.claim_msg || (open ? defaultClaimMessage({ jobTitle: open.title, sourceName: open.source_name, applications, claimUrl }) : ''));
-        return {
-          id: c.id, name: c.name, phone: c.phone || '', locality: c.locality || '',
-          claimed: c.claimed !== 0, notifyStatus: c.notify_status || 'sin_avisar', notifiedAt: c.notified_at || null,
-          claimUrl, waUrl: msg && c.phone_norm ? `https://wa.me/549${c.phone_norm}?text=${encodeURIComponent(msg)}` : '',
-          message: c.claim_msg || '', messageText: msg,
-          email: importEmailOf(c.id), gmailUrl: gmailCompose(importEmailOf(c.id), msg),
-          applications,
-          jobs: jobs.map((j) => ({ id: j.id, title: j.title, status: j.status, closesAt: j.closes_at, sourceName: j.source_name || '', sourceText: j.source_text || '', applications: j.applications })),
-          createdAt: c.created_at,
-        };
-      });
+      const companies = importRows(origin);
       const responses = store.importResponses();
       const acceptedAt = new Map(responses.filter((r) => r.action === 'aceptada').map((r) => [r.companyId, r.createdAt]));
       for (const c of companies) c.claimedAt = acceptedAt.get(c.id) || null;
-      return send(res, 200, { companies, removed: store.blockedCompanies(), responses });
+      return send(res, 200, { companies, removed: store.blockedCompanies(), responses, settings: { ttlDays: importTtlDays() } });
     }
 
     /* mensaje para avisarle a la empresa: lo escribe la IA (o el texto fijo si no hay IA) y el admin lo puede editar */
@@ -2468,7 +2517,8 @@ async function handleApi(req, res, url) {
       const origin = PUBLIC_URL || `http://${req.headers.host}`;
       const claimUrl = `${origin}/reclamar/${c.claim_token}`;
       const out = (message, extra = {}) => {
-        store.setClaimMessage(c.id, message);
+        const apps = store.countApplicantsOf(c.id);
+        store.setClaimMessage(c.id, message, apps >= OPPORTUNITY_MIN);
         return send(res, 200, { message, waUrl: c.phone_norm ? `https://wa.me/549${c.phone_norm}?text=${encodeURIComponent(message)}` : '', gmailUrl: gmailCompose(importEmailOf(c.id), message), ...extra });
       };
       if (method === 'PUT') {
@@ -2500,7 +2550,8 @@ async function handleApi(req, res, url) {
 
     const impCo = p.match(/^\/api\/admin\/import\/companies\/([a-z0-9]+)(\/notified)?$/);
     if (impCo && method === 'POST' && impCo[2]) {
-      if (!store.markNotified(impCo[1])) return send(res, 404, { error: 'Ficha no encontrada' });
+      const b = await readBody(req);
+      if (!store.markNotified(impCo[1], b.kind === 'oportunidad' ? 'oportunidad' : '')) return send(res, 404, { error: 'Ficha no encontrada' });
       return send(res, 200, { ok: true });
     }
     if (impCo && method === 'DELETE' && !impCo[2]) {
@@ -2706,9 +2757,15 @@ async function handleApi(req, res, url) {
     const ib = store.adminInbox();
     const places = ib.places.map(adminPlace);
     const companies = ib.companies.map((c) => ({ id: c.id, name: c.name, email: c.email, phone: c.phone || '', verified: !!c.verified, createdAt: c.created_at }));
-    const counts = { jobs: ib.jobs.length, places: places.length, companies: companies.length, featureRequests: ib.featureRequests.length, importResponses: ib.importResponses.length };
-    counts.total = counts.jobs + counts.places + counts.companies + counts.featureRequests + counts.importResponses;
-    return send(res, 200, { jobs: ib.jobs, places, companies, featureRequests: ib.featureRequests, importResponses: ib.importResponses, counts, seenAt: ib.seenAt });
+    const rows = importRows(PUBLIC_URL || `http://${req.headers.host}`).filter((c) => !c.claimed);
+    const t = Date.now();
+    const pick = (c) => ({ id: c.id, name: c.name, applications: c.applications, expiresAt: c.expiresAt, jobs: c.jobs.map((j) => j.title) });
+    const expiringSoon = rows.filter((c) => c.expiresAt && c.expiresAt > t && c.expiresAt - t <= 2 * 86400000).map(pick);
+    const opportunities = rows.filter((c) => c.opportunity && !c.opportunityNotifiedAt).map(pick);
+    const counts = { jobs: ib.jobs.length, places: places.length, companies: companies.length, featureRequests: ib.featureRequests.length, importResponses: ib.importResponses.length,
+      expiringSoon: expiringSoon.length, opportunities: opportunities.length };
+    counts.total = counts.jobs + counts.places + counts.companies + counts.featureRequests + counts.importResponses + counts.expiringSoon + counts.opportunities;
+    return send(res, 200, { jobs: ib.jobs, places, companies, featureRequests: ib.featureRequests, importResponses: ib.importResponses, expiringSoon, opportunities, counts, seenAt: ib.seenAt });
   }
   if (p === '/api/admin/inbox/seen' && method === 'POST') {
     if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
@@ -3044,6 +3101,10 @@ if (process.env.WORKUCO_DEMO === '1') {
     }
   } catch (e) { console.error('Demo seed:', e.message); }
 }
+
+/* avisos importados vencidos: se revisan al arrancar y cada hora */
+setTimeout(() => { try { sweepImported(); } catch (e) { console.warn('Barrido de importados:', e.message); } }, 15000).unref();
+setInterval(() => { try { sweepImported(); } catch (e) { console.warn('Barrido de importados:', e.message); } }, 3600000).unref();
 
 server.listen(PORT, HOST, () => {
   console.log(`WorkUco en http://localhost:${PORT}`);
