@@ -20,6 +20,7 @@ const { TEMPLATES } = require('./lib/templates');
 const { normPhone, normName, buildImportPrompt, normalizeDrafts, crossCheck, groundDrafts, defaultClaimMessage, buildClaimMessagePrompt, normalizeClaimMessage, OPPORTUNITY_MIN } = require('./lib/importer');
 const demo = require('./lib/demo');
 const ai = require('./lib/ai');
+const prospectsLib = require('./lib/prospects');
 const { extractCv } = require('./lib/cvtext');
 const legal = require('./lib/legal');
 const seo = require('./lib/seo');
@@ -2750,6 +2751,96 @@ async function handleApi(req, res, url) {
       stats: store.jobAdminStats(j.id),
       warnings: legal.discriminationHints(j.title, j.description, j.requirements, j.responsibilities),
     });
+  }
+
+  /* ---------- empresas para contactar (sólo admin; el envío lo hace el dueño desde su WhatsApp o Gmail) ---------- */
+  if (p.startsWith('/api/admin/prospects')) {
+    if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
+    const keys = () => store.registeredCompanyKeys();
+    const view = (r, k = keys()) => {
+      const registered = (r.email && k.emails.has(r.email)) || (r.phone_norm && k.phones.has(r.phone_norm));
+      const status = registered && r.status !== 'no_contactar' ? 'registrada' : r.status;
+      const message = r.message || prospectsLib.defaultProspectMessage({ name: r.name, category: r.category, locality: r.locality });
+      const blocked = status === 'no_contactar' || status === 'registrada';
+      return {
+        id: r.id, name: r.name, category: r.category || '', segment: prospectsLib.segmentOf(r.category), locality: r.locality || '',
+        web: r.web || '', instagram: r.instagram || '', email: r.email || '', phone: r.phone || '', sourceUrl: r.source_url || '', notes: r.notes || '',
+        status, contactedAt: r.contacted_at || null, remindedAt: r.reminded_at || null, createdAt: r.created_at,
+        message: r.message || '', messageText: message,
+        waUrl: !blocked && r.phone_norm ? `https://wa.me/549${r.phone_norm}?text=${encodeURIComponent(message)}` : '',
+        gmailUrl: !blocked && r.email ? `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(r.email)}&su=${encodeURIComponent(prospectsLib.MAIL_SUBJECT)}&body=${encodeURIComponent(message)}` : '',
+      };
+    };
+    if (p === '/api/admin/prospects' && method === 'GET') {
+      const k = keys();
+      const list = store.prospects().map((r) => view(r, k));
+      const counts = Object.fromEntries(prospectsLib.STATUSES.map((s) => [s, list.filter((x) => x.status === s).length]));
+      const today = Date.parse(`${todayAR()}T03:00:00Z`);
+      return send(res, 200, { prospects: list, counts, today: store.prospectsContactedSince(today), dailyMax: 30 });
+    }
+    if (p === '/api/admin/prospects' && method === 'POST') {
+      const b = await readBody(req);
+      const pr = prospectsLib.normalizeProspect({ nombre: b.name, rubro: b.category, localidad: b.locality, web: b.web, instagram: b.instagram, email: b.email, telefono: b.phone, fuente_url: b.sourceUrl, notas: b.notes });
+      if (!pr) return send(res, 400, { error: 'Falta el nombre de la empresa', fields: { name: 'Escribí el nombre' } });
+      const row = store.insertProspect(pr);
+      if (!row) return send(res, 409, { error: 'Esa empresa ya está en la lista' });
+      return send(res, 201, { prospect: view(row) });
+    }
+    if (p === '/api/admin/prospects/import' && method === 'POST') {
+      const b = await readBody(req, 2 * 1024 * 1024);
+      const rows = prospectsLib.parseCsv(b.csv);
+      let added = 0; let skipped = 0;
+      for (const r of rows.slice(0, 2000)) {
+        const pr = prospectsLib.normalizeProspect(r);
+        if (pr && store.insertProspect(pr)) added++; else skipped++;
+      }
+      return send(res, 200, { added, skipped });
+    }
+    const pm = p.match(/^\/api\/admin\/prospects\/([a-z0-9]+)(\/message|\/contacted)?$/);
+    const row = pm ? store.prospect(pm[1]) : null;
+    if (pm && !row) return send(res, 404, { error: 'Empresa no encontrada' });
+    if (pm && !pm[2] && method === 'PATCH') {
+      const b = await readBody(req);
+      const patch = {};
+      if ('status' in b) {
+        if (!prospectsLib.STATUSES.includes(b.status) || b.status === 'registrada') return send(res, 400, { error: 'Estado inválido' });
+        patch.status = b.status;
+      }
+      if ('notes' in b) patch.notes = cleanMultiline(b.notes, 500);
+      return send(res, 200, { prospect: view(store.updateProspect(row.id, patch)) });
+    }
+    if (pm && !pm[2] && method === 'DELETE') { store.deleteProspect(row.id); return send(res, 200, { ok: true }); }
+    if (pm && pm[2] === '/contacted' && method === 'POST') {
+      if (row.status === 'no_contactar') return send(res, 409, { error: 'Esta empresa pidió que no le escribamos más' });
+      const b = await readBody(req);
+      return send(res, 200, { prospect: view(store.markProspectContacted(row.id, b.kind === 'recordatorio' ? 'recordatorio' : 'contacto')) });
+    }
+    if (pm && pm[2] === '/message' && method === 'PUT') {
+      const b = await readBody(req);
+      const text = cleanMultiline(b.message, 1500);
+      if (!text) return send(res, 400, { error: 'El mensaje está vacío' });
+      const updated = view(store.updateProspect(row.id, { message: prospectsLib.normalizeProspectMessage(text) }));
+      return send(res, 200, { message: updated.messageText, waUrl: updated.waUrl, gmailUrl: updated.gmailUrl });
+    }
+    if (pm && pm[2] === '/message' && method === 'POST') {
+      const info = { name: row.name, category: row.category, locality: row.locality };
+      let message; let aiUsed = true; let warning = '';
+      if (IMPORT_FAKE) message = prospectsLib.normalizeProspectMessage({ mensaje: `Hola, ¿cómo están? Les escribimos de WorkUco, el portal de empleo gratuito del Valle de Uco. En WorkUco ${row.name} puede publicar sus búsquedas de personal gratis y recibir los postulantes ordenados. Si les interesa, pueden registrarse acá: {LINK}. ¡Muchas gracias!` });
+      else {
+        const cfg = ai.importConfig();
+        try {
+          if (!cfg) throw new Error('la IA del importador no está configurada');
+          const { system, user } = prospectsLib.buildProspectPrompt(info);
+          message = prospectsLib.normalizeProspectMessage(await ai.callProvider(cfg, { system, user, maxTokens: 700, timeoutMs: 120000 }));
+        } catch (e) {
+          aiUsed = false; warning = `No se pudo usar la IA (${e.message}): usamos el mensaje de siempre.`;
+          message = prospectsLib.normalizeProspectMessage(prospectsLib.defaultProspectMessage(info));
+        }
+      }
+      const updated = view(store.updateProspect(row.id, { message }));
+      return send(res, 200, { message: updated.messageText, waUrl: updated.waUrl, gmailUrl: updated.gmailUrl, ai: aiUsed, warning });
+    }
+    return send(res, 404, { error: 'API no encontrada' });
   }
 
   if (p === '/api/admin/inbox' && method === 'GET') {
