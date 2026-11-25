@@ -420,6 +420,11 @@ html { scrollbar-color: #b9ad94 var(--cream); }
 .footer-brand p, .footer-col a, .footer-bottom { color: var(--night-muted); }
 .footer-col a:hover { color: var(--lime); }
 .footer-bottom { border-top-color: rgba(255, 255, 255, .08); }
+.footer-social { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.footer-social-link { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid rgba(200, 245, 96, .35); color: #fff; font-weight: 600; font-size: 14px; transition: background .2s, color .2s, border-color .2s; }
+.footer-social-link svg { color: var(--lime); }
+.footer-social-link:hover, .footer-social-link:focus-visible { background: var(--lime); border-color: var(--lime); color: var(--night); }
+.footer-social-link:hover svg, .footer-social-link:focus-visible svg { color: var(--night); }
 
 /* ---------- responsive ---------- */
 /* con 7 links: que ninguno se parta en dos renglones */

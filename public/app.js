@@ -1663,6 +1663,7 @@ const INFO = {
     <p class="lead">¿Tenés una consulta sobre una oferta, tu cuenta o una publicación?</p>
     <div class="info-card"><h2 style="margin-top:0">Escribinos</h2>
       <p>Email: {{EMAIL}}</p>
+      {{WHATSAPP}}{{INSTAGRAM}}
       <p>Horario de atención: lunes a viernes de 9 a 18 h.</p>
       <p>También podés escribirnos desde la cuenta de empresa que creaste; respondemos dentro de las 24 horas hábiles.</p>
     </div>
@@ -1929,6 +1930,8 @@ async function initInfo() {
   root.innerHTML = INFO[key]
     .replace(/\{\{RESPONSABLE\}\}/g, resp)
     .replace(/\{\{EMAIL\}\}/g, `<a class="link-inline" href="mailto:${mail}">${mail}</a>`)
+    .replace(/\{\{WHATSAPP\}\}/g, meta.contactWaUrl ? `<p>WhatsApp: <a class="link-inline" href="${esc(meta.contactWaUrl)}" target="_blank" rel="noopener">${esc(meta.contactWa || '')}</a></p>` : '')
+    .replace(/\{\{INSTAGRAM\}\}/g, meta.instagramUrl ? `<p>Instagram: <a class="link-inline" href="${esc(meta.instagramUrl)}" target="_blank" rel="noopener">@${esc(meta.instagram)}</a></p>` : '')
     .replace(/\{\{TERMS_VERSION\}\}/g, esc(l.termsVersion || ''))
     .replace(/\{\{CV_PRICE\}\}/g, `$ ${Number((meta.cvPro && meta.cvPro.price) || 5000).toLocaleString('es-AR')}`)
     .replace(/\{\{REGISTRO\}\}/g, l.dbRegistry ? `<p style="margin:6px 0 0">Base de datos inscripta en el Registro Nacional de Bases de Datos Personales: ${esc(l.dbRegistry)}.</p>` : '');

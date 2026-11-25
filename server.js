@@ -47,7 +47,8 @@ const INVITE_LIMIT = Number(process.env.WORKUCO_INVITE_LIMIT) || 20; // invitaci
 const MAX_ALERTS = 10;
 const MAX_FLYERS = 5;
 const IMPORT_FAKE = process.env.WORKUCO_IMPORT_AI_FAKE === '1'; // sólo para pruebas: IA simulada
-const CONTACT_WA = process.env.WORKUCO_CONTACT_WA || '';
+const CONTACT_WA = process.env.WORKUCO_CONTACT_WA || '2622 560059';
+const CONTACT_IG = (process.env.WORKUCO_INSTAGRAM || 'workuco').replace(/^@/, '').replace(/[^\w.]/g, '');
 /* lanzamiento: mientras valga 1 (por defecto), destacar avisos es gratis y el panel lo dice */
 const LAUNCH_FREE = process.env.WORKUCO_LAUNCH_FREE !== '0';
 const FEATURED_DAYS = [7, 15, 30];
@@ -742,6 +743,15 @@ function navHtml(active) {
 </header>${process.env.WORKUCO_DEMO === '1' ? '\n<div class="demo-strip" role="note"><span class="ds-long">Modo demostración: las empresas, personas y ofertas que ves son ficticias.</span><span class="ds-short">Demo: empresas y personas ficticias</span></div>' : ''}`;
 }
 
+function footerSocial() {
+  const n = normPhone(CONTACT_WA);
+  const links = [
+    n ? `<a class="footer-social-link" href="https://wa.me/549${n}" target="_blank" rel="noopener" aria-label="WhatsApp de WorkUco">${pageIcon('WHATSAPP', 18)}<span>WhatsApp</span></a>` : '',
+    CONTACT_IG ? `<a class="footer-social-link" href="https://www.instagram.com/${CONTACT_IG}/" target="_blank" rel="noopener" aria-label="Instagram de WorkUco">${pageIcon('INSTAGRAM', 18)}<span>@${CONTACT_IG}</span></a>` : '',
+  ].filter(Boolean);
+  return links.length ? `      <div class="footer-social">${links.join('')}</div>` : '';
+}
+
 function footerHtml() {
   return `<footer class="site-footer">
   <div class="container footer-grid">
@@ -751,6 +761,7 @@ function footerHtml() {
         <span class="brand-name">Work<b>Uco</b></span>
       </a>
       <p>El portal de empleo del Valle de Uco. Conectamos talento local con empresas de San Carlos, Tunuyán y Tupungato.</p>
+${footerSocial()}
     </div>
     <div class="footer-col">
       <h4>Para personas</h4>
@@ -883,6 +894,7 @@ const PAGE_ICONS = {
   EDIT: '<path d="M4 20h4L20 8l-4-4L4 16v4Z"/><path d="m14 6 4 4"/>',
   COPY: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
   PHONE: '<path d="M5 4h4l2 5-2.5 1.5a12 12 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1C10.6 20 4 13.4 4 5a1 1 0 0 1 1-1Z"/>',
+  INSTAGRAM: '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".6" fill="currentColor"/>',
   WHATSAPP: '<path d="M20 11.6a8 8 0 0 1-11.8 7L4 20l1.4-4.1A8 8 0 1 1 20 11.6Z"/><path d="M9 8.5c0 3 2.5 5.5 5.5 5.5.6 0 1.2-.5 1.2-1.1l-1.7-.9-1 .8a5 5 0 0 1-2-2l.8-1L11 8c-.7 0-1.2.5-1.2 1"/>',
   MONEY: '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9v6M18 9v6"/>',
   CHART: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
@@ -1357,6 +1369,7 @@ async function handleApi(req, res, url) {
       payments: ((c) => ({ enabled: c.enabled, options: c.enabled ? FEATURED_DAYS.filter((d) => c.prices[d]).map((d) => ({ days: d, price: c.prices[d] })) : [] }))(payConfig()),
       cvPro: cvProConfig(),
       cosecha: ((c) => ({ price: c.price, payEnabled: c.enabled, days: COSECHA_DAYS }))(cosechaConfig()),
+      instagram: CONTACT_IG, instagramUrl: CONTACT_IG ? `https://www.instagram.com/${CONTACT_IG}/` : '',
       contactWaUrl: normPhone(CONTACT_WA) ? `https://wa.me/549${normPhone(CONTACT_WA)}` : '',
       legal: legal.legalInfo(), discriminationRules: legal.DISCRIMINATION_RULES,
     });
