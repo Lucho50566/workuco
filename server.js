@@ -21,6 +21,7 @@ const { normPhone, normName, buildImportPrompt, normalizeDrafts, crossCheck, gro
 const demo = require('./lib/demo');
 const ai = require('./lib/ai');
 const prospectsLib = require('./lib/prospects');
+const vecinosLib = require('./lib/vecinos');
 const { extractCv } = require('./lib/cvtext');
 const legal = require('./lib/legal');
 const seo = require('./lib/seo');
@@ -676,6 +677,7 @@ const NAV_ITEMS = [
   ['/', 'Inicio'],
   ['/buscar', 'Buscar empleo'],
   ['/changas', 'Changas'],
+  ['/vecinos', 'Vecinos'],
   ['/flyers', 'Wik Works'],
   ['/guia', 'Guía'],
   ['/publicar', 'Para empresas'],
@@ -853,6 +855,7 @@ const INFO_PAGES = {
 
 /* Iconos de línea que se usan en las plantillas HTML */
 const PAGE_ICONS = {
+  HOME: '<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 9.5V20h13V9.5"/><path d="M10 20v-5h4v5"/>',
   BAG: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M3 12h18"/>',
   BUILDING: '<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2M10 21v-3h4v3"/>',
   SEARCH: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
@@ -1177,6 +1180,165 @@ async function handlePlacesApi(req, res, p, method, q, me) {
 /* ------------------------------------------------------------------ */
 /* API                                                                 */
 /* ------------------------------------------------------------------ */
+/* ------------------------------------------------------------------ */
+/* Changas de vecinos: pedidos de particulares                         */
+/* El teléfono del vecino nunca se muestra; el de quien se ofrece lo ve */
+/* sólo el vecino de ese pedido (como una postulación).                 */
+/* ------------------------------------------------------------------ */
+const vecinosTtlMs = () => {
+  const d = Number(process.env.WORKUCO_VECINOS_DAYS || vecinosLib.DEFAULT_TTL_DAYS);
+  return (Number.isFinite(d) && d > 0 ? d : vecinosLib.DEFAULT_TTL_DAYS) * 86400000;
+};
+function publicRequest(r) {
+  return {
+    id: r.id, title: r.title, description: r.description, category: r.category, categoryLabel: vecinosLib.CATEGORY_LABEL[r.category] || 'Otro',
+    locality: r.locality, area: r.area, whenDate: r.whenDate, whenNote: r.whenNote, pay: r.pay, payUnit: r.payUnit,
+    payLabel: vecinosLib.payLabel(r), status: r.status, interestCount: r.interestCount || 0,
+    ownerFirstName: vecinosLib.firstName(r.ownerName), approvedAt: r.approvedAt, expiresAt: r.expiresAt,
+  };
+}
+const ownRequest = (r) => ({ ...publicRequest(r), rejectReason: r.rejectReason, createdAt: r.createdAt, resolvedAt: r.resolvedAt });
+const waNumber = (phone) => {
+  let d = String(phone || '').replace(/\D/g, '').replace(/^0+/, '');
+  if (d.startsWith('549')) return d;
+  if (d.startsWith('54')) d = d.slice(2);
+  d = d.replace(/^(\d{2,4})15(\d{6,8})$/, '$1$2');
+  return d.length >= 8 ? `549${d}` : '';
+};
+
+/* Devuelve false si la ruta no es de vecinos. */
+async function handleVecinosApi(req, res, p, method, q, me) {
+  const isCand = me && me.role === 'candidate';
+  const myId = isCand ? me.candidate.id : null;
+
+  /* ---- públicas ---- */
+  if (p === '/api/vecinos' && method === 'GET') {
+    const locality = LOCALITIES.includes(q.get('locality')) ? q.get('locality') : '';
+    const category = vecinosLib.CATEGORY_LABEL[q.get('category')] ? q.get('category') : '';
+    const list = store.openRequests({ locality, category }).map(publicRequest);
+    return send(res, 200, { requests: list, total: list.length, categories: vecinosLib.CATEGORIES.map(([id, label]) => ({ id, label })) });
+  }
+  const one = p.match(/^\/api\/vecinos\/(r[0-9a-f]{12})$/);
+  if (one && method === 'GET') {
+    const r = store.request(one[1]);
+    const isOwner = !!r && myId === r.candidateId;
+    const isAdmin = me && me.role === 'admin';
+    if (!r || (r.status !== 'approved' && !isOwner && !isAdmin)) return send(res, 404, { error: 'Ese pedido no existe o ya no está publicado' });
+    const out = { request: isOwner ? ownRequest(r) : publicRequest(r), isOwner };
+    if (isOwner) {
+      const owner = vecinosLib.firstName(me.candidate.name);
+      out.interested = store.interestedIn(r.id).map((i) => {
+        const n = waNumber(i.phone);
+        return {
+          candidateId: i.candidate_id, name: i.name, locality: i.locality || '', headline: i.headline || '', message: i.message || '',
+          chosen: !!i.chosen, createdAt: i.created_at, phone: i.phone || '',
+          waUrl: n ? `https://wa.me/${n}?text=${encodeURIComponent(vecinosLib.waMessage({ ownerFirstName: owner, personFirstName: vecinosLib.firstName(i.name), title: r.title }))}` : '',
+        };
+      });
+    } else if (isCand) out.myInterest = store.interestOf(r.id, myId);
+    return send(res, 200, out);
+  }
+
+  /* ---- de la persona (cuenta de "busco trabajo", que también sirve para pedir) ---- */
+  if (p === '/api/vecinos' && method === 'POST') {
+    if (!isCand) return send(res, 401, { error: 'Ingresá con tu cuenta para publicar un pedido' });
+    if (store.openRequestCount(myId) >= vecinosLib.MAX_OPEN_PER_PERSON) {
+      return send(res, 429, { error: `Podés tener hasta ${vecinosLib.MAX_OPEN_PER_PERSON} pedidos abiertos a la vez. Marcá como resuelto alguno para publicar otro.` });
+    }
+    const b = await readBody(req, 64 * 1024);
+    const v = vecinosLib.validateRequest(b);
+    if (v.errors) return send(res, 400, { error: 'Revisá los datos del pedido', fields: v.errors });
+    const r = store.insertRequest(myId, v.value);
+    return send(res, 201, { request: ownRequest(r) });
+  }
+  if (p === '/api/vecinos/mios' && method === 'GET') {
+    if (!isCand) return send(res, 401, { error: 'Ingresá con tu cuenta' });
+    return send(res, 200, {
+      requests: store.requestsOf(myId).map(ownRequest),
+      interests: store.interestsOf(myId).map((r) => ({ ...publicRequest(r), chosen: r.chosen, interestedAt: r.interestedAt })),
+    });
+  }
+  const act = p.match(/^\/api\/vecinos\/(r[0-9a-f]{12})\/(interes|elegir|resuelto)$/);
+  if (act && method !== 'GET') {
+    if (!isCand) return send(res, 401, { error: 'Ingresá con tu cuenta' });
+    /* el cuerpo se lee antes de mirar el estado: así no queda una espera entre la comprobación y la escritura */
+    const b = method === 'POST' ? await readBody(req, 16 * 1024) : {};
+    const r = store.request(act[1]);
+    if (!r) return send(res, 404, { error: 'Ese pedido no existe' });
+    const isOwner = r.candidateId === myId;
+    const link = `/vecinos/${r.id}`;
+
+    if (act[2] === 'interes' && method === 'POST') {
+      if (isOwner) return send(res, 400, { error: 'Es tu propio pedido' });
+      if (r.status !== 'approved') return send(res, 409, { error: 'Este pedido ya no recibe interesados' });
+      const message = cleanMultiline(b.message, 300);
+      if (vecinosLib.hasContactData(message)) return send(res, 400, { error: 'Sin teléfonos, mails ni links en el mensaje: el vecino ya ve tu WhatsApp', fields: { message: 'Sacá el teléfono o el link' } });
+      const added = store.addInterest(r.id, myId, message);
+      if (added) tryNotify('candidate', r.candidateId, { kind: 'vecinos', title: `Alguien quiere hacer tu pedido "${r.title}"`, body: 'Entrá para ver quién es y escribirle por WhatsApp.', link });
+      return send(res, added ? 201 : 200, { ok: true, myInterest: store.interestOf(r.id, myId) });
+    }
+    if (act[2] === 'interes' && method === 'DELETE') {
+      const mine = store.interestOf(r.id, myId);
+      if (mine && mine.chosen) return send(res, 409, { error: 'Ya te eligieron para este pedido: avisale al vecino por WhatsApp si no podés' });
+      store.removeInterest(r.id, myId);
+      return send(res, 200, { ok: true });
+    }
+    if (act[2] === 'elegir' && method === 'POST') {
+      if (!isOwner) return send(res, 403, { error: 'Sólo quien publicó el pedido puede elegir' });
+      if (r.status !== 'approved') return send(res, 409, { error: 'Este pedido ya no está abierto' });
+      const who = clean(b.candidateId, 40);
+      if (!store.interestOf(r.id, who)) return send(res, 404, { error: 'Esa persona no se ofreció para este pedido' });
+      if (store.chooseInterest(r.id, who)) {
+        tryNotify('candidate', who, { kind: 'vecinos', title: `¡Te eligieron para "${r.title}"!`, body: `${vecinosLib.firstName(me.candidate.name)} te va a escribir por WhatsApp para coordinar.`, link });
+      }
+      return send(res, 200, { ok: true });
+    }
+    if (act[2] === 'resuelto' && method === 'POST') {
+      if (!isOwner) return send(res, 403, { error: 'Sólo quien publicó el pedido puede cerrarlo' });
+      if (!['approved', 'pending', 'expired'].includes(r.status)) return send(res, 409, { error: 'Este pedido ya está cerrado' });
+      return send(res, 200, { request: ownRequest(store.setRequestStatus(r.id, 'resolved')) });
+    }
+    return send(res, 405, { error: 'Método no permitido' });
+  }
+  const del = p.match(/^\/api\/vecinos\/(r[0-9a-f]{12})$/);
+  if (del && method === 'DELETE') {
+    const r = store.request(del[1]);
+    const isAdmin = me && me.role === 'admin';
+    if (!r || (!isAdmin && r.candidateId !== myId)) return send(res, 404, { error: 'Ese pedido no existe' });
+    store.deleteRequest(r.id);
+    return send(res, 200, { ok: true });
+  }
+
+  /* ---- admin: revisión antes de publicar ---- */
+  if (p === '/api/admin/vecinos' && method === 'GET') {
+    if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
+    const status = ['pending', 'approved', 'rejected', 'resolved', 'expired'].includes(q.get('status')) ? q.get('status') : '';
+    const list = store.adminRequests(status).map((r) => ({ ...ownRequest(r), ownerName: r.ownerName, ownerEmail: r.ownerEmail, warnings: legal.discriminationHints(r.title, r.description) }));
+    return send(res, 200, { requests: list, pending: store.pendingRequestCount() });
+  }
+  const adm = p.match(/^\/api\/admin\/vecinos\/(r[0-9a-f]{12})\/(aprobar|rechazar)$/);
+  if (adm && method === 'POST') {
+    if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
+    const b = adm[2] === 'rechazar' ? await readBody(req, 8 * 1024) : {};
+    const r = store.request(adm[1]);
+    if (!r) return send(res, 404, { error: 'Ese pedido no existe' });
+    const link = `/vecinos/${r.id}`;
+    /* sólo se aprueba lo que está para revisar (o rechazado por error); sólo se rechaza lo que está para revisar */
+    if (adm[2] === 'aprobar' && !['pending', 'rejected'].includes(r.status)) return send(res, 409, { error: 'Ese pedido ya está publicado o cerrado' });
+    if (adm[2] === 'rechazar' && r.status !== 'pending') return send(res, 409, { error: 'Sólo se rechazan pedidos que están para revisar' });
+    if (adm[2] === 'aprobar') {
+      const out = store.setRequestStatus(r.id, 'approved', { ttlMs: vecinosTtlMs() });
+      tryNotify('candidate', r.candidateId, { kind: 'vecinos', title: `Tu pedido "${r.title}" ya está publicado`, body: 'Te avisamos cuando alguien se ofrezca a hacerlo.', link });
+      return send(res, 200, { request: ownRequest(out) });
+    }
+    const reason = clean(b.reason, 200);
+    const out = store.setRequestStatus(r.id, 'rejected', { reason });
+    tryNotify('candidate', r.candidateId, { kind: 'vecinos', title: `Tu pedido "${r.title}" no se publicó`, body: reason || 'No cumple las reglas de la sección. Podés publicar otro.', link: '/vecinos#mis-pedidos' });
+    return send(res, 200, { request: ownRequest(out) });
+  }
+  return false;
+}
+
 async function handleApi(req, res, url) {
   const p = url.pathname;
   const method = req.method;
@@ -1493,6 +1655,8 @@ async function handleApi(req, res, url) {
   /* ---------- guía del valle ---------- */
   const placeHandled = await handlePlacesApi(req, res, p, method, q, me);
   if (placeHandled !== false) return placeHandled;
+  const vecinosHandled = await handleVecinosApi(req, res, p, method, q, me);
+  if (vecinosHandled !== false) return vecinosHandled;
 
   /* ---------- tus datos: descarga (derecho de acceso) y baja (supresión, "botón de baja") ---------- */
   if (p === '/api/account/export' && method === 'GET') {
@@ -2855,8 +3019,10 @@ async function handleApi(req, res, url) {
     const opportunities = rows.filter((c) => c.opportunity && !c.opportunityNotifiedAt).map(pick);
     const counts = { jobs: ib.jobs.length, places: places.length, companies: companies.length, featureRequests: ib.featureRequests.length, importResponses: ib.importResponses.length,
       expiringSoon: expiringSoon.length, opportunities: opportunities.length };
-    counts.total = counts.jobs + counts.places + counts.companies + counts.featureRequests + counts.importResponses + counts.expiringSoon + counts.opportunities;
-    return send(res, 200, { jobs: ib.jobs, places, companies, featureRequests: ib.featureRequests, importResponses: ib.importResponses, expiringSoon, opportunities, counts, seenAt: ib.seenAt });
+    const requests = store.adminRequests('pending').map((r) => ({ id: r.id, title: r.title, locality: r.locality, ownerName: r.ownerName, createdAt: r.createdAt }));
+    counts.requests = requests.length;
+    counts.total = counts.jobs + counts.places + counts.companies + counts.featureRequests + counts.importResponses + counts.expiringSoon + counts.opportunities + counts.requests;
+    return send(res, 200, { jobs: ib.jobs, places, companies, featureRequests: ib.featureRequests, importResponses: ib.importResponses, expiringSoon, opportunities, requests, counts, seenAt: ib.seenAt });
   }
   if (p === '/api/admin/inbox/seen' && method === 'POST') {
     if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
@@ -3072,6 +3238,12 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/cosecha' && req.method === 'GET') {
       return renderPage(res, 'cosecha.html', { req, active: '/changas', title: 'Cosecha en el Valle de Uco · WorkUco' });
     }
+    if (url.pathname === '/vecinos' && req.method === 'GET') {
+      return renderPage(res, 'vecinos.html', { req, active: '/vecinos', title: 'Changas de vecinos: pedí una mano en el Valle · WorkUco' });
+    }
+    if (/^\/vecinos\/r[0-9a-f]{12}$/.test(url.pathname) && req.method === 'GET') {
+      return renderPage(res, 'pedido.html', { req, active: '/vecinos', title: 'Pedido de un vecino · WorkUco', noindex: true });
+    }
     if (/^\/cv\/[a-z0-9]+$/.test(url.pathname) && req.method === 'GET') {
       return renderPage(res, 'cv.html', { req, title: 'CV · WorkUco' });
     }
@@ -3144,7 +3316,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/sitemap.xml' && req.method === 'GET') {
       const today = todayAR();
-      const pages = ['/', '/buscar', '/changas', '/cosecha', '/flyers', '/guia', '/empresas', '/publicar', ...Object.keys(INFO_PAGES)]
+      const pages = ['/', '/buscar', '/changas', '/vecinos', '/cosecha', '/flyers', '/guia', '/empresas', '/publicar', ...Object.keys(INFO_PAGES)]
         .map((p) => ({ path: p, priority: p === '/' ? '1.0' : '0.6' }));
       /* una consulta para avisos y otra para empresas (las reclamadas con avisos vigentes); 45.000 URL entran en un solo sitemap */
       const live = "status='approved' AND (closes_at IS NULL OR closes_at='' OR closes_at>=?)";

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{TITLE}}</title>
+  <meta name="description" content="Changas de vecinos en el Valle de Uco: pedí que te corten el pasto, te ordenen el patio o te den una mano con una mudanza chica.">
+  <meta name="theme-color" content="#0b1612">
+  <link rel="icon" href="/favicon.png" type="image/png" sizes="64x64">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/vecinos.css">
+</head>
+<body data-page="vecinos">
+{{NAV}}
+<main>
+  <section class="band-night vec-hero">
+    <div class="container vec-hero-grid">
+      <div>
+        <p class="vec-eyebrow">Changas de vecinos</p>
+        <h1 class="display">¿Necesitás una mano?<br><span class="lime">Pedila acá.</span></h1>
+        <p class="hero-sub">Cortar el pasto, ordenar el patio, una mudanza chica, pintar una reja. Publicá tu pedido y te escriben vecinos del Valle que quieren hacerlo.</p>
+        <div class="vec-hero-actions">
+          <a class="btn btn-lime" href="#publicar">Publicar un pedido</a>
+          <a class="btn btn-ghost-light" href="#pedidos">Quiero hacer changas</a>
+        </div>
+      </div>
+      <ol class="vec-steps" aria-label="Cómo funciona">
+        <li><b>1</b><span><strong>Publicás tu pedido</strong>Qué necesitás, dónde y cuánto pagás. Lo revisamos antes de publicarlo.</span></li>
+        <li><b>2</b><span><strong>Se ofrecen vecinos</strong>Tocan "Me interesa" y te llega un aviso.</span></li>
+        <li><b>3</b><span><strong>Elegís y coordinás</strong>Ves su perfil y le escribís por WhatsApp. Tu número no se publica.</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="section" id="pedidos">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <h2 data-vec-count>Pedidos abiertos</h2>
+          <p class="soft-text">Los más nuevos primero. Cada pedido dura 14 días o hasta que se resuelve.</p>
+        </div>
+      </div>
+      <div class="vec-filters">
+        <div class="gig-filters" role="group" aria-label="Filtrar por localidad">
+          <button class="chip-filter is-on" type="button" data-vec-loc="">Toda la zona</button>
+          <button class="chip-filter" type="button" data-vec-loc="San Carlos">San Carlos</button>
+          <button class="chip-filter" type="button" data-vec-loc="Tunuyán">Tunuyán</button>
+          <button class="chip-filter" type="button" data-vec-loc="Tupungato">Tupungato</button>
+        </div>
+        <div class="gig-filters" role="group" aria-label="Filtrar por rubro" data-vec-cats></div>
+      </div>
+      <div class="vec-grid" id="vec-list">
+        <div class="skeleton" style="height:210px"></div>
+        <div class="skeleton" style="height:210px"></div>
+        <div class="skeleton" style="height:210px"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-soft" id="publicar">
+    <div class="container vec-publish">
+      <div class="vec-publish-intro">
+        <h2>Publicá tu pedido</h2>
+        <p class="soft-text">Es gratis. Escribí qué necesitás como se lo contarías a un vecino. No pongas tu teléfono ni tu dirección: los interesados te contactan por WorkUco y vos elegís a quién escribirle.</p>
+        <ul class="vec-rules">
+          <li>Lo revisamos antes de publicarlo (suele ser en el día).</li>
+          <li>Podés tener hasta 3 pedidos abiertos.</li>
+          <li>Cuando lo resolvés, lo marcás y deja de aparecer.</li>
+        </ul>
+      </div>
+      <div class="card vec-form-card" id="vec-form-slot">
+        <div class="skeleton" style="height:320px"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="mis-pedidos" hidden>
+    <div class="container">
+      <div class="section-head"><div><h2>Tus pedidos y changas</h2><p class="soft-text">Lo que publicaste y los pedidos en los que te ofreciste.</p></div></div>
+      <div class="vec-mine" id="vec-mine"></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="vec-safety">
+        <h2>Para que todo salga bien</h2>
+        <div class="vec-safety-grid">
+          <div><strong>No pagues por adelantado</strong><p>Se paga cuando el trabajo está hecho, como acuerden.</p></div>
+          <div><strong>La dirección, al final</strong><p>Pasala recién cuando ya coordinaron por WhatsApp.</p></div>
+          <div><strong>De día y con alguien</strong><p>Si podés, que haya alguien más en tu casa ese día.</p></div>
+          <div><strong>¿Algo raro?</strong><p>Escribinos desde <a href="/contacto">Contacto</a> y lo revisamos.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+{{FOOTER}}
+<script src="/app.js"></script>
+<script src="/vecinos.js"></script>
+</body>
+</html>

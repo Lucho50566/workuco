@@ -1222,6 +1222,7 @@
       if (matchMedia('(max-width: 960px)').matches) tab.scrollIntoView({ block: 'nearest', inline: 'center' });
       if (tab.dataset.tab === 'guide' && !adminPlacesReady && window.WKGuia) { adminPlacesReady = true; window.WKGuia.initAdminPlaces($('#admin-places')); }
       if (tab.dataset.tab === 'services') adminServices();
+      if (tab.dataset.tab === 'vecinos') adminVecinos();
       if (tab.dataset.tab === 'home') adminInbox();
       if (tab.dataset.tab === 'people') adminPeople();
       if (tab.dataset.tab === 'payments') adminPayments();
@@ -1267,6 +1268,7 @@
     /* acciones rápidas de la bandeja y del buscador */
     $('[data-panel="home"]').addEventListener('click', async (e) => {
       if (e.target.closest('[data-goto-import]')) { const t = $('.tab[data-tab="import"]'); if (t) t.click(); return; }
+      if (e.target.closest('[data-goto-vecinos]')) { const t = $('.tab[data-tab="vecinos"]'); if (t) t.click(); return; }
       const ap = e.target.closest('[data-quick-approve]');
       if (ap) {
         try { await api(`/api/admin/jobs/${encodeURIComponent(ap.dataset.quickApprove)}`, { method: 'PATCH', body: { status: 'approved' } }); toast('Aviso publicado', 'ok'); } catch (err) { toast(err.message, 'err'); }
@@ -1426,6 +1428,10 @@
     paintCounts(d.counts);
     box.innerHTML = d.counts.total ? [
       group('Avisos esperando aprobación', d.jobs, (j) => jobLine(j, `<button class="btn btn-primary btn-sm" type="button" data-quick-approve="${esc(j.id)}">Aprobar</button>`)),
+      group('Pedidos de vecinos', d.requests || [], (r) => `<li class="adm-item">
+        <div class="adm-item-main"><span class="cell-title">${esc(r.title)}</span>
+          <div class="cell-sub">${esc(r.ownerName)} · ${esc(r.locality)} · ${timeAgo(r.createdAt)}</div></div>
+        <div class="row-actions"><button class="btn btn-primary btn-sm" type="button" data-goto-vecinos>Revisar</button></div></li>`, 'Pedidos de particulares (cortar el pasto, ordenar el patio...). No se ven hasta que los apruebes.'),
       group('Fichas de la Guía', d.places, placeLine, 'Las pendientes no se ven en la página hasta que las apruebes. Las publicadas son nuevas de usuarios: revisalas y, si no corresponden, ocultalas o eliminalas.'),
       group('Pedidos de destacado', d.featureRequests, (j) => jobLine(j, `<button class="btn btn-primary btn-sm" type="button" data-quick-feature="${esc(j.id)}">Destacar 7 días</button>`)),
       group('Empresas nuevas', d.companies, companyLine),
@@ -1459,6 +1465,54 @@
       group('Fichas de la Guía', d.places, placeLine),
       group('Empresas', d.companies, companyLine),
     ].join('') : `<p class="cell-sub" style="margin-top:12px">No encontramos nada con "${esc(t)}".</p>`;
+  }
+
+  /* Changas de vecinos: revisión de pedidos de particulares */
+  let vecFilter = 'pending';
+  let vecReady = false;
+  async function adminVecinos() {
+    const box = $('#admin-vecinos');
+    if (!box) return;
+    if (!vecReady) {
+      vecReady = true;
+      $$('[data-vec-admin]').forEach((b) => b.addEventListener('click', () => {
+        $$('[data-vec-admin]').forEach((x) => x.classList.toggle('is-on', x === b)); vecFilter = b.dataset.vecAdmin; adminVecinos();
+      }));
+      box.addEventListener('click', async (e) => {
+        const ap = e.target.closest('[data-vec-approve]'); const rj = e.target.closest('[data-vec-reject]'); const dl = e.target.closest('[data-vec-del]');
+        try {
+          if (ap) { await api(`/api/admin/vecinos/${ap.dataset.vecApprove}/aprobar`, { method: 'POST' }); toast('Pedido publicado', 'ok'); }
+          else if (rj) {
+            const why = $(`[data-vec-why="${rj.dataset.vecReject}"]`);
+            await api(`/api/admin/vecinos/${rj.dataset.vecReject}/rechazar`, { method: 'POST', body: { reason: why ? why.value : '' } });
+            toast('Pedido rechazado: le avisamos a la persona', 'ok');
+          } else if (dl) {
+            if (dl.dataset.armed !== '1') { dl.dataset.armed = '1'; dl.textContent = 'Tocá de nuevo'; return; }
+            await api(`/api/vecinos/${dl.dataset.vecDel}`, { method: 'DELETE' }); toast('Pedido borrado', 'ok');
+          } else return;
+        } catch (err) { toast(err.message, 'err'); }
+        document.dispatchEvent(new CustomEvent('wk-admin-changed'));
+        adminVecinos();
+      });
+    }
+    box.innerHTML = '<div class="skeleton" style="height:120px"></div>';
+    const LABEL = { pending: 'Para revisar', approved: 'Publicado', rejected: 'Rechazado', resolved: 'Resuelto', expired: 'Vencido' };
+    try {
+      const { requests } = await api(`/api/admin/vecinos${vecFilter ? `?status=${vecFilter}` : ''}`);
+      box.innerHTML = requests.length ? `<ul class="adm-list">${requests.map((r) => `<li class="adm-item">
+        <div class="adm-item-main"><span class="cell-title"><a href="/vecinos/${esc(r.id)}" target="_blank" rel="noopener">${esc(r.title)}</a></span>
+          <div class="cell-sub">${esc(r.categoryLabel)} · ${esc(r.area ? `${r.area}, ${r.locality}` : r.locality)} · ${esc(r.payLabel)} · ${esc(r.whenNote || r.whenDate || 'A coordinar')}</div>
+          <div class="cell-sub">${esc(r.ownerName)} (${esc(r.ownerEmail)}) · ${timeAgo(r.createdAt)} · <span class="badge">${esc(LABEL[r.status] || r.status)}</span> · ${r.interestCount} interesado${r.interestCount === 1 ? '' : 's'}</div>
+          ${r.description ? `<div class="imp-comment">${esc(r.description)}</div>` : ''}
+          ${(r.warnings || []).length ? `<div class="cell-sub" style="color:var(--red)">Ojo: ${esc(r.warnings.join(' · '))}</div>` : ''}
+          ${r.status === 'pending' ? `<input class="input input-sm" data-vec-why="${esc(r.id)}" maxlength="200" placeholder="Motivo si lo rechazás (le llega a la persona)" style="margin-top:8px">` : ''}</div>
+        <div class="row-actions">
+          ${r.status === 'pending' || r.status === 'rejected' ? `<button class="btn btn-primary btn-sm" type="button" data-vec-approve="${esc(r.id)}">Aprobar</button>` : ''}
+          ${r.status === 'pending' ? `<button class="btn btn-outline btn-sm" type="button" data-vec-reject="${esc(r.id)}">Rechazar</button>` : ''}
+          <button class="btn btn-ghost btn-sm" type="button" data-vec-del="${esc(r.id)}">Borrar</button>
+        </div></li>`).join('')}</ul>`
+        : `<div class="list-empty">${vecFilter === 'pending' ? 'No hay pedidos para revisar.' : 'No hay pedidos.'}</div>`;
+    } catch (err) { box.innerHTML = `<p class="muted">${esc(err.message)}</p>`; }
   }
 
   /* empresas que pidieron servicios (Soluciones) y aceptaron que las contacten */

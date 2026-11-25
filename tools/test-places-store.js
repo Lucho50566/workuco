@@ -70,6 +70,8 @@ try {
   const upd = s.updatePlace(p.id, { description: 'Pizzas a la piedra y empanadas.' });
   check('actualizar cambia el texto y la fecha', upd.description.includes('empanadas') && upd.updatedAt >= before);
   s.setPlaceStatus(p.id, 'approved');
+  /* que el cambio caiga al menos 1 ms después de la aprobación (si no, a veces coinciden y la prueba falla sola) */
+  for (const t0 = Date.now(); Date.now() === t0;);
   s.updatePlace(p.id, { address: 'San Martín 100' });
   check('cambios recientes', s.recentPlaceChanges().some((r) => r.id === p.id));
   s.setPlaceStatus(p.id, 'rejected', 'Faltan fotos');

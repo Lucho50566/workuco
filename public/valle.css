@@ -422,8 +422,13 @@ html { scrollbar-color: #b9ad94 var(--cream); }
 .footer-bottom { border-top-color: rgba(255, 255, 255, .08); }
 
 /* ---------- responsive ---------- */
-/* el menú completo no entra con 5 links + campanita: hamburguesa antes */
-@media (max-width: 1080px) {
+/* con 7 links: que ninguno se parta en dos renglones */
+.site-header .nav-link { white-space: nowrap; padding: 8px 9px; }
+.site-header .header-inner { max-width: 1400px; }
+/* en pantallas medianas "Instalar app" queda sólo con el ícono (el título lo explica) */
+@media (max-width: 1500px) { .site-header .app-install span { display: none; } }
+/* el menú completo no entra con 7 links + campanita: hamburguesa antes */
+@media (max-width: 1300px) {
   .site-header .main-nav { display: none; }
   .site-header .menu-toggle { display: grid; place-items: center; margin-left: 0; }
   .site-header .header-actions { margin-left: auto; }
@@ -1310,3 +1315,21 @@ select.input.input-sm, select.input-sm { padding-right: 32px; background-positio
   .adm-stat { padding: 12px 14px; }
   .adm-stat .n { font-size: 26px; }
 }
+
+/* filtros sobre fondo claro (Changas de vecinos y su pestaña del admin) */
+.vec-filters .chip-filter { color: var(--text); border-color: var(--line-strong); background: var(--surface); }
+.vec-filters .chip-filter:hover { border-color: var(--green); }
+.vec-filters .chip-filter.is-on { background: var(--green); color: #fff; border-color: var(--green); }
+.vec-filters .chip-filter:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+
+/* franja "Changas de vecinos" (portada y Guía) */
+.vec-strip { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; align-items: center; padding: clamp(20px, 3vw, 30px);
+  border-radius: 22px; background: var(--green); color: #fff; }
+.vec-strip h2 { font: 800 clamp(24px, 3vw, 34px)/1.05 var(--font-display); letter-spacing: -.03em; margin: 0 0 6px; color: #fff; }
+.vec-strip p { margin: 0; color: rgba(255, 255, 255, .86); max-width: 60ch; }
+.vec-strip-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.vec-strip .btn-ghost-light { color: #fff; border: 1px solid rgba(255, 255, 255, .45); background: transparent; }
+.vec-strip .btn-ghost-light:hover { border-color: var(--lime); }
+.vec-strip :focus-visible { outline-color: var(--lime); }
+.guia-body .vec-strip { margin: 0 0 22px; }
+@media (max-width: 720px) { .vec-strip { grid-template-columns: minmax(0, 1fr); } }

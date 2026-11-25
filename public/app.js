@@ -2587,6 +2587,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       case 'company': await initCompanyPage(); break;
       case 'info': await initInfo(); break;
       case 'gigs': await initGigs(); break;
+      case 'vecinos': await window.WKVecinos.initList(); break;
+      case 'pedido': await window.WKVecinos.initDetail(); break;
       case 'cosecha': await initCosecha(); break;
       case 'cv': await initCv(); break;
       case 'public-profile': await initPublicProfile(); break;
