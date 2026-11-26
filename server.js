@@ -368,10 +368,13 @@ const mailOrigin = () => PUBLIC_URL || `http://localhost:${PORT}`;
 /* direcciones de ejemplo o de fichas importadas: no se les escribe */
 const mailable = (email) => !!email && isEmail(email) && !/@(demo\.workuco|import\.workuco)$/i.test(email);
 
-/* avisar por Gmail a una empresa importada: se abre la cuenta de Gmail del admin con todo cargado */
+/* Gmail con el mail ya cargado, abierto SIEMPRE en la cuenta de WorkUco (authuser elige la cuenta aunque el
+   navegador tenga otras abiertas). Se puede cambiar con WORKUCO_GMAIL_FROM. */
+const GMAIL_FROM = (process.env.WORKUCO_GMAIL_FROM || 'contacto.workuco@gmail.com').trim();
+const gmailUrl = (to, subject, body) => `https://mail.google.com/mail/?${GMAIL_FROM ? `authuser=${encodeURIComponent(GMAIL_FROM)}&` : ''}view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+/* avisar por Gmail a una empresa importada */
 const IMPORT_MAIL_SUBJECT = 'Publicamos su búsqueda en WorkUco';
-const gmailCompose = (email, message) => (email && message
-  ? `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}&su=${encodeURIComponent(IMPORT_MAIL_SUBJECT)}&body=${encodeURIComponent(message)}` : '');
+const gmailCompose = (email, message) => (email && message ? gmailUrl(email, IMPORT_MAIL_SUBJECT, message) : '');
 /* ---------- avisos importados: plazo, vencimiento y filas del admin ---------- */
 const IMPORT_TTL_DEFAULT = 14;
 const importTtlDays = () => {
@@ -3080,7 +3083,7 @@ async function handleApi(req, res, url) {
         status, contactedAt: r.contacted_at || null, remindedAt: r.reminded_at || null, createdAt: r.created_at,
         message: r.message || '', messageText: message,
         waUrl: !blocked && r.phone_norm ? `https://wa.me/549${r.phone_norm}?text=${encodeURIComponent(message)}` : '',
-        gmailUrl: !blocked && r.email ? `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(r.email)}&su=${encodeURIComponent(prospectsLib.MAIL_SUBJECT)}&body=${encodeURIComponent(message)}` : '',
+        gmailUrl: !blocked && r.email ? gmailUrl(r.email, prospectsLib.MAIL_SUBJECT, message) : '',
       };
     };
     if (p === '/api/admin/prospects' && method === 'GET') {

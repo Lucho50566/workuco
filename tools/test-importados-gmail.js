@@ -47,7 +47,7 @@ function client() {
   }
   return { get: (p) => req(p), post: (p, b = {}) => req(p, { method: 'POST', body: b }), put: (p, b) => req(p, { method: 'PUT', body: b }) };
 }
-const gmailParts = (url) => { const u = new URL(url); return { host: u.host, to: u.searchParams.get('to'), su: u.searchParams.get('su'), body: u.searchParams.get('body') }; };
+const gmailParts = (url) => { const u = new URL(url); return { host: u.host, to: u.searchParams.get('to'), su: u.searchParams.get('su'), body: u.searchParams.get('body'), authuser: u.searchParams.get('authuser') }; };
 
 async function testApi() {
   console.log('— Admin —');
@@ -70,6 +70,7 @@ async function testApi() {
     const g = con && con.gmailUrl ? gmailParts(con.gmailUrl) : {};
     check('link de Gmail con destinatario y asunto', g.host === 'mail.google.com' && g.to === 'resto.mail@gmail.com' && /WorkUco/.test(g.su || ''), JSON.stringify(g));
     check('…y el mensaje con el link de reclamo', (g.body || '').includes(con.claimUrl));
+    check('se abre siempre con la cuenta de WorkUco', g.authuser === 'contacto.workuco@gmail.com', JSON.stringify(g.authuser));
     check('sin mail: sin link de Gmail', sin && sin.email === '' && sin.gmailUrl === '');
     const gen = await admin.post(`/api/admin/import/companies/${con.id}/message`);
     check('el mensaje de la IA va también al Gmail', gen.data.gmailUrl && gmailParts(gen.data.gmailUrl).body === gen.data.message, JSON.stringify(gen.data).slice(0, 200));

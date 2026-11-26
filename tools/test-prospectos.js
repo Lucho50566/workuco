@@ -85,6 +85,7 @@ async function testApi() {
     check('todas empiezan "para contactar"', list.prospects.every((p) => p.status === 'pendiente') && list.counts.pendiente === 4, JSON.stringify(list.counts));
     check('WhatsApp con el mensaje', /^https:\/\/wa\.me\/5492622411111\?text=/.test(bodega.waUrl) && decodeURIComponent(bodega.waUrl).includes('Bodega Los Andes'));
     check('Gmail con destinatario, asunto y mensaje', new URL(hotel.gmailUrl).searchParams.get('to') === 'reservas@hotelvalle.test' && /WorkUco/.test(new URL(hotel.gmailUrl).searchParams.get('su')));
+    check('Gmail desde la cuenta de WorkUco', new URL(hotel.gmailUrl).searchParams.get('authuser') === 'contacto.workuco@gmail.com');
     check('sin teléfono: sin WhatsApp', hotel.waUrl === '');
 
     const gen = await admin.post(`/api/admin/prospects/${bodega.id}/message`);
