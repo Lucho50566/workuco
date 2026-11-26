@@ -41,6 +41,7 @@ async function api(path, { method = 'GET', body } = {}) {
     const err = new Error(data.error || `Error ${res.status}`);
     err.status = res.status;
     err.fields = data.fields || null;
+    err.data = data;
     throw err;
   }
   return data;
@@ -2078,8 +2079,9 @@ async function initPublicProfile() {
   const root = $('#public-root');
   const slug = location.pathname.split('/').pop();
   let p;
+  let certs = [];
   try {
-    ({ person: p } = await api(`/api/public/${encodeURIComponent(slug)}`));
+    ({ person: p, certificates: certs = [] } = await api(`/api/public/${encodeURIComponent(slug)}`));
   } catch (_) {
     root.innerHTML = `<div class="container section"><div class="empty"><h3>Este perfil no es público</h3>
       <p>La persona puede haberlo ocultado. Igual podés buscar empleo o talento en WorkUco.</p>
@@ -2104,6 +2106,7 @@ async function initPublicProfile() {
       ${block('Sobre mí', p.about)}
       ${block('Experiencia', p.experience)}
       ${block('Formación', p.education)}
+      ${window.WKCert ? window.WKCert.publicBlock(certs) : ''}
     </div>
     <aside class="pp-side card">
       ${(p.skills || []).length ? `<h3>Habilidades</h3><div class="chips">${p.skills.map((s) => `<span class="chip">${esc(s)}</span>`).join('')}</div>` : ''}

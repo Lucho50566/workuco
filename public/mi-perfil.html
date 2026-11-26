@@ -9,6 +9,7 @@
   <link rel="icon" href="/favicon.png" type="image/png" sizes="64x64">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/certificado.css">
 </head>
 <body data-page="profile">
 {{NAV}}
@@ -35,6 +36,7 @@
           <button class="tab is-active" data-tab="profile" type="button">Mi perfil</button>
           <button class="tab" data-tab="foryou" type="button">Para vos <span class="tab-count" id="foryou-count" hidden></span></button>
           <button class="tab" data-tab="apps" type="button">Mis postulaciones</button>
+          <button class="tab" data-tab="certs" type="button">Certificados</button>
           <button class="tab" data-tab="alerts" type="button">Alertas</button>
           <button class="tab" data-tab="saved" type="button">Guardadas</button>
           <button class="tab" data-tab="services" type="button">Mis servicios</button>
@@ -192,6 +194,14 @@
           </div>
         </section>
 
+        <section data-panel="certs" hidden>
+          <div class="card">
+            <h2>Mis certificados de trabajo</h2>
+            <p class="sub">Los da la empresa cuando termina un trabajo que conseguiste por WorkUco. Descargalos o imprimilos para tu próxima búsqueda: cualquiera los verifica con el código o el QR.</p>
+            <div id="my-certs"></div>
+          </div>
+        </section>
+
         <section data-panel="saved" hidden>
           <div class="card">
             <h2>Ofertas guardadas</h2>
@@ -215,6 +225,7 @@
 {{FOOTER}}
 <script src="/app.js"></script>
 <script src="/guia.js"></script>
+<script src="/certificados.js"></script>
 <script src="/panel.js"></script>
 </body>
 </html>

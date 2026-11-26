@@ -94,6 +94,7 @@
       renderKanban();
       renderCompanyTab();
       renderAiTab();
+      if (window.WKCert) window.WKCert.companyList($('#cert-issued'));
     }
 
     function paintSidebar() {
@@ -555,6 +556,8 @@
           <div class="stage-picker">${STAGE_ORDER.map((s) => `<button type="button" class="stage-choice stage-${s}${a.stage === s ? ' is-active' : ''}" data-set-stage="${s}">${esc(STAGE_LABEL[s])}</button>`).join('')}</div>
         </div>
 
+        ${a.stage === 'contratado' && window.WKCert ? '<div class="drawer-section cert-box" id="cert-slot"></div>' : ''}
+
         <div class="drawer-section">
           <h3>Tu evaluación</h3>
           <div class="rating-row"><span>Puntaje</span><div class="stars">${starRow(a.rating, true)}</div></div>
@@ -597,6 +600,7 @@
 
       $$('[data-close-drawer]', $('#drawer')).forEach((b) => b.addEventListener('click', closeDrawer));
       $$('[data-set-stage]').forEach((b) => b.addEventListener('click', () => changeStage(a.id, b.dataset.setStage)));
+      if ($('#cert-slot')) window.WKCert.drawerSection($('#cert-slot'), a, () => window.WKCert.companyList($('#cert-issued')));
       $$('[data-rate]').forEach((b) => b.addEventListener('click', async () => {
         try {
           const { application } = await api(`/api/company/applications/${a.id}`, { method: 'PATCH', body: { rating: Number(b.dataset.rate) } });
@@ -958,12 +962,13 @@
       $$('[data-panel]').forEach((p) => { p.hidden = p.dataset.panel !== name; });
       if (name === 'services' && !placesReady && window.WKGuia) { placesReady = true; window.WKGuia.initMyPlaces($('#my-places')); }
       if (name === 'prefs' && !prefsReady) { prefsReady = true; W.initPrefs($('#prefs-box')); }
+      if (name === 'certs' && window.WKCert) window.WKCert.profileSection($('#my-certs'));
     };
     $$('[data-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
     /* las notificaciones abren la pestaña justa: /mi-perfil?tab=postulaciones */
-    const TAB_ALIAS = { postulaciones: 'apps', alertas: 'alerts', invitaciones: 'foryou', guardadas: 'saved', servicios: 'services', preferencias: 'prefs', datos: 'prefs' };
+    const TAB_ALIAS = { postulaciones: 'apps', alertas: 'alerts', invitaciones: 'foryou', guardadas: 'saved', servicios: 'services', preferencias: 'prefs', datos: 'prefs', certificados: 'certs' };
     const wanted = new URLSearchParams(location.search).get('tab');
-    const tabName = TAB_ALIAS[wanted] || (['profile', 'foryou', 'apps', 'alerts', 'saved', 'services', 'prefs'].includes(wanted) ? wanted : '');
+    const tabName = TAB_ALIAS[wanted] || (['profile', 'foryou', 'apps', 'certs', 'alerts', 'saved', 'services', 'prefs'].includes(wanted) ? wanted : '');
     if (tabName) showTab(tabName);
 
     async function load() {
@@ -1222,6 +1227,7 @@
       if (matchMedia('(max-width: 960px)').matches) tab.scrollIntoView({ block: 'nearest', inline: 'center' });
       if (tab.dataset.tab === 'guide' && !adminPlacesReady && window.WKGuia) { adminPlacesReady = true; window.WKGuia.initAdminPlaces($('#admin-places')); }
       if (tab.dataset.tab === 'services') adminServices();
+      if (tab.dataset.tab === 'certs' && window.WKCert) window.WKCert.adminList($('#admin-certs'));
       if (tab.dataset.tab === 'vecinos') adminVecinos();
       if (tab.dataset.tab === 'home') adminInbox();
       if (tab.dataset.tab === 'people') adminPeople();

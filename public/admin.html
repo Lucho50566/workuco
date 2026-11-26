@@ -9,6 +9,7 @@
   <link rel="icon" href="/favicon.png" type="image/png" sizes="64x64">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/certificado.css">
 </head>
 <body data-page="admin">
 {{NAV}}
@@ -42,6 +43,7 @@
         <button class="tab" data-tab="jobs" data-title="Ofertas" data-sub="Aprobá, rechazá o destacá publicaciones." type="button" role="tab">{{ICON_BAG}}<span>Ofertas</span><span class="tab-count" data-count="jobs" hidden></span></button>
         <button class="tab" data-tab="guide" data-title="Guía del Valle" data-sub="Fichas de oficios, comercios, salidas y comida." type="button" role="tab">{{ICON_PIN}}<span>Guía</span><span class="tab-count" data-count="places" hidden></span></button>
         <button class="tab" data-tab="vecinos" data-title="Changas de vecinos" data-sub="Pedidos de particulares: revisalos antes de que se publiquen." type="button" role="tab">{{ICON_HOME}}<span>Vecinos</span><span class="tab-count" data-count="requests" hidden></span></button>
+        <button class="tab" data-tab="certs" data-title="Certificados de trabajo" data-sub="Los que emitieron las empresas. Podés anular uno ante una denuncia." type="button" role="tab">{{ICON_FILE}}<span>Certificados</span></button>
         <p class="adm-nav-group">Gente</p>
         <button class="tab" data-tab="people" data-title="Personas" data-sub="Quiénes buscan trabajo en el Valle." type="button" role="tab">{{ICON_USER}}<span>Personas</span></button>
         <button class="tab" data-tab="apps" data-title="Postulaciones" data-sub="Todas las postulaciones de la página." type="button" role="tab">{{ICON_FILE}}<span>Postulaciones</span></button>
@@ -163,6 +165,14 @@
           <button class="chip-filter" type="button" data-vec-admin="">Todos</button>
         </div>
         <div id="admin-vecinos"></div>
+      </div>
+    </section>
+    <section data-panel="certs" hidden>
+      <div class="card">
+        <h2>Certificados de trabajo</h2>
+        <p class="sub">Los emiten las empresas cuando termina un trabajo conseguido por WorkUco. Si recibís una denuncia, anulalo: la persona recibe un aviso y la empresa no puede volver a emitirlo para esa postulación.</p>
+        <input class="input" id="admin-cert-q" placeholder="Buscar por persona, empresa, puesto o código" style="margin:12px 0;max-width:420px">
+        <div id="admin-certs"></div>
       </div>
     </section>
     <section data-panel="services" hidden>
@@ -304,6 +314,7 @@
 {{FOOTER}}
 <script src="/app.js"></script>
 <script src="/guia.js"></script>
+<script src="/certificados.js"></script>
 <script src="/panel.js"></script>
 </body>
 </html>
