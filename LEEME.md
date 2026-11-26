@@ -267,6 +267,18 @@ API: `GET /api/places`, `GET /api/places/:slug`, `POST /api/places/:id/contact`,
 `GET|POST /api/my/places`, `PUT|DELETE /api/my/places/:id`, `GET|POST /api/admin/places`,
 `PATCH|DELETE /api/admin/places/:id`, `GET /api/claim-place/:token`, `POST /api/claim-place/:token/accept|delete`.
 
+## Certificados de trabajo
+
+Cuando una empresa con cuenta propia contrata a alguien por una postulación de WorkUco (etapa "Contratado", postulación hecha con cuenta), al terminar el trabajo le da un certificado desde la ficha del postulante: puesto, desde/hasta y un comentario opcional.
+
+- La persona lo ve en *Mi perfil → Certificados*, lo descarga o imprime (A4, desde el navegador) y decide si el comentario aparece y si el certificado se ve en su perfil público.
+- Cualquiera lo verifica en `/certificado/<código>` (8 caracteres sin letras ambiguas, o el QR). La página lleva `noindex` y no va al sitemap; nunca muestra teléfono, mail ni DNI.
+- La empresa lo anula desde la ficha o desde "Certificados emitidos" (en Postulantes) y puede reemitirlo. Si lo anula WorkUco (Admin → Certificados), no se puede reemitir para esa postulación.
+- Guarda una copia de los datos: sigue valiendo si se borra el aviso o la empresa. Se borra si la persona se da de baja.
+- El QR lo dibuja `public/vendor/qrcode.js` (qrcode-generator 1.4.4, MIT), sin pedidos a la red.
+
+API: `POST /api/company/applications/:id/certificate`, `GET /api/company/certificates`, `POST /api/company/certificates/:id/revoke`, `GET /api/candidate/certificates`, `PATCH /api/candidate/certificates/:id`, `GET /api/certificates/:code`, `GET /api/admin/certificates`, `POST /api/admin/certificates/:id/revoke`. Pruebas: `node tools/test-certificados.js`.
+
 ## Preferencias de la cuenta
 
 - **Persona** (pestaña "Preferencias" de `/mi-perfil`): localidades donde quiere trabajar (suman en la
