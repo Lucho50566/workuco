@@ -36,6 +36,7 @@ function reglas() {
   check('puesto de 81', !!(validateIssue({ position: 'a'.repeat(81), startDate: '2026-03-15', endDate: '2026-04-30' }, ctx).errors || {}).position);
   check('puesto editado', validateIssue({ position: '  Encargado de riego ', startDate: '2026-03-15', endDate: '2026-04-30' }, ctx).value.position === 'Encargado de riego');
   check('período legible', periodLabel('2026-03-03', '2026-04-30') === 'del 3 de marzo de 2026 al 30 de abril de 2026');
+  check('un solo día', periodLabel('2026-11-25', '2026-11-25') === 'el 25 de noviembre de 2026');
 }
 
 function base() {
@@ -147,7 +148,7 @@ async function api() {
     check('comentario pendiente no se muestra', !('comment' in pub.data.certificate));
     check('sin datos privados', !/2622|@test\.workuco|candidateId|applicationId|revokeReason|"id"/.test(pub.text), pub.text);
     check('nombre de la cuenta y datos del aviso', pub.data.certificate.personName === 'Ana Certificada' && pub.data.certificate.companyName === 'Finca Certifica'
-      && pub.data.certificate.position === 'Tractorista para finca' && pub.data.certificate.locality === 'Tunuyán' && /^del /.test(pub.data.certificate.period));
+      && pub.data.certificate.position === 'Tractorista para finca' && pub.data.certificate.locality === 'Tunuyán' && /^(del|el) /.test(pub.data.certificate.period));
     check('código inexistente → 404', (await client().get('/api/certificates/AAAA-BBBB')).status === 404 && (await client().get('/api/certificates/x')).status === 404);
     await wait(150);
     check('aviso a la persona por mail', mailsTo('ana@test.workuco').some((m) => /te dio un certificado de trabajo/.test(m.subject)));

@@ -2592,6 +2592,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       case 'gigs': await initGigs(); break;
       case 'vecinos': await window.WKVecinos.initList(); break;
       case 'pedido': await window.WKVecinos.initDetail(); break;
+      case 'certificado': await window.WKCert.initPage(); break;
       case 'cosecha': await initCosecha(); break;
       case 'cv': await initCv(); break;
       case 'public-profile': await initPublicProfile(); break;
