@@ -22,6 +22,7 @@ const demo = require('./lib/demo');
 const ai = require('./lib/ai');
 const prospectsLib = require('./lib/prospects');
 const vecinosLib = require('./lib/vecinos');
+const certLib = require('./lib/certificates');
 const { extractCv } = require('./lib/cvtext');
 const legal = require('./lib/legal');
 const seo = require('./lib/seo');
@@ -1351,6 +1352,129 @@ async function handleVecinosApi(req, res, p, method, q, me) {
   return false;
 }
 
+/* ---------- certificados de trabajo ---------- */
+/* lo que ve cualquiera con el código: nunca ids, motivos ni comentarios no aceptados */
+function publicCertificate(c) {
+  const code = certLib.formatCode(c.code);
+  if (c.status !== 'valid') return { code, status: 'revoked', revokedBy: c.revokedBy === 'admin' ? 'admin' : 'company' };
+  return {
+    code, status: 'valid', personName: c.personName, companyName: c.companyName, position: c.position, locality: c.locality,
+    startDate: c.startDate, endDate: c.endDate, period: certLib.periodLabel(c.startDate, c.endDate), issuedAt: c.issuedAt,
+    ...(c.commentStatus === 'shown' && c.comment ? { comment: c.comment } : {}),
+  };
+}
+/* lo que ve la empresa que lo emitió o la persona: sin el motivo interno de anulación */
+function ownCertificate(c) {
+  if (!c) return null;
+  return {
+    id: c.id, code: c.code, codeLabel: certLib.formatCode(c.code), applicationId: c.applicationId, personName: c.personName,
+    companyName: c.companyName, position: c.position, locality: c.locality, startDate: c.startDate, endDate: c.endDate,
+    period: certLib.periodLabel(c.startDate, c.endDate), comment: c.comment, commentStatus: c.commentStatus, onProfile: c.onProfile,
+    status: c.status, revokedBy: c.revokedBy, issuedAt: c.issuedAt, revokedAt: c.revokedAt, url: `/certificado/${c.code}`,
+  };
+}
+const certLink = '/mi-perfil?tab=certificados';
+/* el certificado vigente de una postulación, o la anulación de WorkUco que impide reemitirlo */
+function applicationCertificate(applicationId) {
+  const list = store.certificatesForApplication(applicationId);
+  const valid = list.find((c) => c.status === 'valid');
+  if (valid) return ownCertificate(valid);
+  const byAdmin = list.find((c) => c.revokedBy === 'admin');
+  return byAdmin ? ownCertificate(byAdmin) : null;
+}
+
+async function handleCertificatesApi(req, res, p, method, q, me) {
+  /* ---- verificación pública ---- */
+  const pubM = p.match(/^\/api\/certificates\/([^/]+)$/);
+  if (pubM && method === 'GET') {
+    const code = certLib.normCode(decodeURIComponent(pubM[1]));
+    const c = code ? store.certificateByCode(code) : null;
+    if (!c) return send(res, 404, { error: 'No existe un certificado con ese código' });
+    return send(res, 200, { certificate: publicCertificate(c) });
+  }
+
+  /* ---- empresa ---- */
+  const issueM = p.match(/^\/api\/company\/applications\/([a-z0-9]+)\/certificate$/);
+  if (issueM && method === 'POST') {
+    if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
+    const a = store.applicationDetail(issueM[1]);
+    if (!a || a.companyId !== me.company.id) return send(res, 404, { error: 'Postulación no encontrada' });
+    const b = await readBody(req);
+    const company = store.company(me.company.id);
+    if (!company || company.claimed === 0) return send(res, 400, { error: 'Sólo empresas con cuenta propia pueden dar certificados' });
+    if (!a.candidateId || !a.candidate) return send(res, 400, { error: 'Sólo se puede certificar a personas que se postularon con su cuenta de WorkUco' });
+    if (a.stage !== 'contratado') return send(res, 400, { error: 'Primero mové a la persona a "Contratado"' });
+    const prev = store.certificatesForApplication(a.id);
+    if (prev.some((c) => c.status === 'valid')) return send(res, 409, { error: 'Esta postulación ya tiene un certificado vigente' });
+    if (prev.some((c) => c.revokedBy === 'admin')) return send(res, 409, { error: 'WorkUco anuló el certificado de esta postulación: no se puede volver a emitir' });
+    const job = store.job(a.jobId);
+    const v = certLib.validateIssue(b, {
+      appliedDate: new Date(a.createdAt - 3 * 3600e3).toISOString().slice(0, 10), today: todayAR(), defaultPosition: a.jobTitle || (job && job.title) || '',
+    });
+    if (v.errors) return send(res, 400, { error: 'Revisá los datos del certificado', errors: v.errors });
+    /* otro pedido pudo emitir mientras se leía el cuerpo (doble clic) */
+    if (store.certificatesForApplication(a.id).some((c) => c.status === 'valid')) return send(res, 409, { error: 'Esta postulación ya tiene un certificado vigente' });
+    const c = store.insertCertificate({
+      applicationId: a.id, candidateId: a.candidateId, companyId: company.id, jobId: a.jobId,
+      personName: a.candidate.name, companyName: company.name, locality: (job && job.locality) || '', ...v.value,
+    });
+    tryNotify('candidate', a.candidateId, { kind: 'etapa', title: `${company.name} te dio un certificado de trabajo`, body: `Puesto: ${c.position}`, link: certLink });
+    return send(res, 201, { certificate: ownCertificate(c) });
+  }
+  if (p === '/api/company/certificates' && method === 'GET') {
+    if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
+    return send(res, 200, { certificates: store.certificatesOfCompany(me.company.id).map(ownCertificate) });
+  }
+  const compRevM = p.match(/^\/api\/company\/certificates\/([a-z0-9]+)\/revoke$/);
+  if (compRevM && method === 'POST') {
+    if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
+    const c = store.certificate(compRevM[1]);
+    if (!c || c.companyId !== me.company.id) return send(res, 404, { error: 'Certificado no encontrado' });
+    const b = await readBody(req);
+    const out = store.revokeCertificate(c.id, 'company', clean(b.reason, 200));
+    if (!out) return send(res, 409, { error: 'Ese certificado ya estaba anulado' });
+    tryNotify('candidate', c.candidateId, { kind: 'etapa', title: `Se anuló tu certificado de ${c.companyName}`, body: 'Lo anuló la empresa.', link: certLink });
+    return send(res, 200, { certificate: ownCertificate(out) });
+  }
+
+  /* ---- persona ---- */
+  if (p === '/api/candidate/certificates' && method === 'GET') {
+    if (!me || me.role !== 'candidate') return send(res, 401, { error: 'Iniciá sesión' });
+    return send(res, 200, { certificates: store.certificatesOfCandidate(me.candidate.id).map(ownCertificate) });
+  }
+  const candM = p.match(/^\/api\/candidate\/certificates\/([a-z0-9]+)$/);
+  if (candM && method === 'PATCH') {
+    if (!me || me.role !== 'candidate') return send(res, 401, { error: 'Iniciá sesión' });
+    let c = store.certificate(candM[1]);
+    if (!c || c.candidateId !== me.candidate.id) return send(res, 404, { error: 'Certificado no encontrado' });
+    const b = await readBody(req);
+    if (typeof b.commentShown === 'boolean') {
+      if (c.commentStatus === 'none') return send(res, 400, { error: 'Este certificado no tiene comentario' });
+      c = store.setCertificateComment(c.id, b.commentShown ? 'shown' : 'hidden');
+    }
+    if (typeof b.onProfile === 'boolean') c = store.setCertificateOnProfile(c.id, b.onProfile);
+    return send(res, 200, { certificate: ownCertificate(c) });
+  }
+
+  /* ---- admin ---- */
+  if (p === '/api/admin/certificates' && method === 'GET') {
+    if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
+    return send(res, 200, { certificates: store.adminCertificates({ q: clean(q.get('q'), 60) }).map((c) => ({ ...ownCertificate(c), revokeReason: c.revokeReason })) });
+  }
+  const admRevM = p.match(/^\/api\/admin\/certificates\/([a-z0-9]+)\/revoke$/);
+  if (admRevM && method === 'POST') {
+    if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
+    const c = store.certificate(admRevM[1]);
+    if (!c) return send(res, 404, { error: 'Certificado no encontrado' });
+    const b = await readBody(req);
+    const out = store.revokeCertificate(c.id, 'admin', clean(b.reason, 200));
+    if (!out) return send(res, 409, { error: 'Ese certificado ya estaba anulado' });
+    tryNotify('candidate', c.candidateId, { kind: 'etapa', title: `Se anuló tu certificado de ${c.companyName}`, body: 'Lo anuló WorkUco.', link: certLink });
+    return send(res, 200, { certificate: { ...ownCertificate(out), revokeReason: out.revokeReason } });
+  }
+  return false;
+}
+
 async function handleApi(req, res, url) {
   const p = url.pathname;
   const method = req.method;
@@ -1670,6 +1794,8 @@ async function handleApi(req, res, url) {
   if (placeHandled !== false) return placeHandled;
   const vecinosHandled = await handleVecinosApi(req, res, p, method, q, me);
   if (vecinosHandled !== false) return vecinosHandled;
+  const certHandled = await handleCertificatesApi(req, res, p, method, q, me);
+  if (certHandled !== false) return certHandled;
 
   /* ---------- tus datos: descarga (derecho de acceso) y baja (supresión, "botón de baja") ---------- */
   if (p === '/api/account/export' && method === 'GET') {
@@ -2209,7 +2335,7 @@ async function handleApi(req, res, url) {
     if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
     const a = store.applicationDetail(appOne[1]);
     if (!a || a.companyId !== me.company.id) return send(res, 404, { error: 'Postulación no encontrada' });
-    if (method === 'GET') return send(res, 200, { application: a });
+    if (method === 'GET') return send(res, 200, { application: { ...a, certificate: applicationCertificate(a.id) } });
     const b = await readBody(req);
     const patch = {};
     if ('stage' in b) {
@@ -2579,6 +2705,10 @@ async function handleApi(req, res, url) {
         experience: c.experience || '', education: c.education || '', availability: c.availability || '',
         openToWork: !!c.open_to_work, photo: c.photo_file ? `/api/public/${c.public_slug}/photo` : null,
       },
+      certificates: store.publicCertificatesOf(c.id).map((x) => ({
+        code: x.code, codeLabel: certLib.formatCode(x.code), position: x.position, companyName: x.companyName,
+        period: certLib.periodLabel(x.startDate, x.endDate), url: `/certificado/${x.code}`,
+      })),
     });
   }
 
@@ -3265,6 +3395,12 @@ const server = http.createServer(async (req, res) => {
     }
     if (/^\/p\/[a-z0-9-]+$/.test(url.pathname) && req.method === 'GET') {
       return renderPage(res, 'perfil-publico.html', { req, title: 'Perfil · WorkUco' });
+    }
+    const certPage = url.pathname.match(/^\/certificado\/([^/]+)$/);
+    if (certPage && req.method === 'GET') {
+      const code = certLib.normCode(decodeURIComponent(certPage[1]));
+      if (!code || !store.certificateByCode(code)) return notFound(req, res);
+      return renderPage(res, 'certificado.html', { req, title: 'Certificado de trabajo · WorkUco', noindex: true });
     }
     if (url.pathname === '/empresas' && req.method === 'GET') {
       return renderPage(res, 'empresas.html', { req, active: '/empresas', title: 'Empresas del Valle de Uco · WorkUco' });

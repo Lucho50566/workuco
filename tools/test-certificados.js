@@ -70,10 +70,154 @@ function base() {
   }
 }
 
+const PORT = 4641;
+const BASE = `http://127.0.0.1:${PORT}`;
+const ADMIN = { email: 'admin@workuco.com.ar', pass: 'workuco2026' };
+function client() {
+  let cookie = '';
+  async function req(p, { method = 'GET', body } = {}) {
+    const h = {};
+    if (cookie) h.Cookie = cookie;
+    if (body !== undefined) h['Content-Type'] = 'application/json';
+    const res = await fetch(BASE + p, { method, headers: h, body: body === undefined ? undefined : JSON.stringify(body) });
+    for (const c of (res.headers.getSetCookie ? res.headers.getSetCookie() : [])) { const kv = c.split(';')[0]; if (kv.startsWith('wk_sess=')) cookie = kv; }
+    const text = await res.text();
+    let data = null;
+    try { data = JSON.parse(text); } catch (_) { /* html */ }
+    return { status: res.status, data: data || {}, text };
+  }
+  return { get: (p) => req(p), post: (p, b = {}) => req(p, { method: 'POST', body: b }), patch: (p, b) => req(p, { method: 'PATCH', body: b }), del: (p) => req(p, { method: 'DELETE' }) };
+}
+
+async function api() {
+  console.log('— API —');
+  const DATA = path.join(os.tmpdir(), `workuco-cert-${Date.now()}`);
+  const OUTBOX = path.join(DATA, 'outbox.jsonl');
+  const outbox = () => (fs.existsSync(OUTBOX) ? fs.readFileSync(OUTBOX, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
+  const mailsTo = (to) => outbox().filter((m) => m.to === to);
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const child = spawn(process.execPath, ['server.js'], {
+    cwd: path.join(__dirname, '..'), stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, PORT: String(PORT), WORKUCO_DATA: DATA, WORKUCO_DEMO: '0', WORKUCO_MAIL_FAKE: '1',
+      PUBLIC_URL: 'https://workuco.com.ar', WORKUCO_ADMIN_EMAIL: ADMIN.email, WORKUCO_ADMIN_PASS: ADMIN.pass },
+  });
+  try {
+    for (let i = 0; i < 60; i++) { try { if ((await fetch(`${BASE}/api/meta`)).ok) break; } catch (_) { /* arrancando */ } await wait(150); }
+    const today = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
+    const okBody = { startDate: today, endDate: today };
+    const admin = client();
+    await admin.post('/api/admin/login', { email: ADMIN.email, password: ADMIN.pass });
+    const emp = client();
+    await emp.post('/api/auth/register', { role: 'company', name: 'Finca Certifica', email: 'finca@test.workuco', phone: '2622 408408', password: 'clave12345', acceptTerms: true });
+    const otra = client();
+    await otra.post('/api/auth/register', { role: 'company', name: 'Otra Empresa', email: 'otra@test.workuco', phone: '2622 409409', password: 'clave12345', acceptTerms: true });
+    const ana = client();
+    await ana.post('/api/auth/register', { role: 'candidate', name: 'Ana Certificada', email: 'ana@test.workuco', phone: '2622 410410', password: 'clave12345', acceptTerms: true });
+    const leo = client();
+    await leo.post('/api/auth/register', { role: 'candidate', name: 'Leo Certificado', email: 'leo@test.workuco', phone: '2622 411411', password: 'clave12345', acceptTerms: true });
+    const mkJob = async (title) => {
+      const j = (await emp.post('/api/company/jobs', { title, description: 'Tareas generales de la finca, turno mañana, con ganas de aprender y trabajar en equipo.', locality: 'Tunuyán', category: 'Agricultura', type: 'Tiempo completo', modality: 'Presencial', contactEmail: 'finca@test.workuco' })).data.job;
+      await admin.patch(`/api/admin/jobs/${j.id}`, { status: 'approved' });
+      return j;
+    };
+    const job = await mkJob('Tractorista para finca');
+    const job2 = await mkJob('Ayudante de cosecha');
+    await ana.post(`/api/jobs/${job.id}/apply`, { message: 'Hola' });
+    await leo.post(`/api/jobs/${job2.id}/apply`, { message: 'Hola' });
+    const apps = (await emp.get('/api/company/applications')).data.applications;
+    const app = apps.find((a) => a.jobId === job.id);
+    const app2 = apps.find((a) => a.jobId === job2.id);
+    const cert = (id, b = okBody, c = emp) => c.post(`/api/company/applications/${id}/certificate`, b);
+
+    check('no se emite si no está contratada', (await cert(app.id)).status === 400);
+    await emp.patch(`/api/company/applications/${app.id}`, { stage: 'contratado' });
+    await emp.patch(`/api/company/applications/${app2.id}`, { stage: 'contratado' });
+    check('validación con errores por campo', (await cert(app.id, { startDate: '2026-02-30', endDate: today })).data.errors.startDate !== undefined);
+    check('otra empresa → 404', (await cert(app.id, okBody, otra)).status === 404);
+    check('una persona no puede emitir', (await cert(app.id, okBody, ana)).status === 401);
+    const r1 = await cert(app.id, { ...okBody, comment: 'Muy responsable' });
+    check('emite', r1.status === 201 && /^[A-Z2-9]{8}$/.test(r1.data.certificate.code), `${r1.status} ${r1.text}`);
+    check('doble clic → 409', (await cert(app.id)).status === 409);
+    const code = r1.data.certificate.code;
+    const id = r1.data.certificate.id;
+    const det = (await emp.get(`/api/company/applications/${app.id}`)).data.application;
+    check('el detalle de la postulación trae el certificado', det.certificate && det.certificate.code === code);
+    const pub = await client().get(`/api/certificates/${code.slice(0, 4).toLowerCase()}-${code.slice(4).toLowerCase()}`);
+    check('verificación pública con minúsculas y guion', pub.status === 200 && pub.data.certificate.status === 'valid', `${pub.status}`);
+    check('comentario pendiente no se muestra', !('comment' in pub.data.certificate));
+    check('sin datos privados', !/2622|@test\.workuco|candidateId|applicationId|revokeReason|"id"/.test(pub.text), pub.text);
+    check('nombre de la cuenta y datos del aviso', pub.data.certificate.personName === 'Ana Certificada' && pub.data.certificate.companyName === 'Finca Certifica'
+      && pub.data.certificate.position === 'Tractorista para finca' && pub.data.certificate.locality === 'Tunuyán' && /^del /.test(pub.data.certificate.period));
+    check('código inexistente → 404', (await client().get('/api/certificates/AAAA-BBBB')).status === 404 && (await client().get('/api/certificates/x')).status === 404);
+    await wait(150);
+    check('aviso a la persona por mail', mailsTo('ana@test.workuco').some((m) => /te dio un certificado de trabajo/.test(m.subject)));
+    check('y a la campanita', (await ana.get('/api/notifications')).data.items.some((n) => /te dio un certificado de trabajo/.test(n.title)));
+    const mine = (await ana.get('/api/candidate/certificates')).data.certificates;
+    check('la persona ve su certificado con el comentario pendiente', mine.length === 1 && mine[0].comment === 'Muy responsable' && mine[0].commentStatus === 'pending');
+    check('otra persona no puede tocarlo', (await leo.patch(`/api/candidate/certificates/${id}`, { onProfile: true })).status === 404);
+    await ana.patch(`/api/candidate/certificates/${id}`, { commentShown: true });
+    check('comentario aceptado se muestra', (await client().get(`/api/certificates/${code}`)).data.certificate.comment === 'Muy responsable');
+    await ana.patch(`/api/candidate/certificates/${id}`, { commentShown: false });
+    check('y se puede volver a ocultar', !('comment' in (await client().get(`/api/certificates/${code}`)).data.certificate));
+    const page = await client().get(`/certificado/${code}`);
+    check('página con noindex', page.status === 200 && /noindex/.test(page.text));
+    check('código inválido en la página → 404', (await client().get('/certificado/nada')).status === 404);
+    check('no está en el sitemap', !/\/certificado\//.test((await client().get('/sitemap.xml')).text));
+
+    // perfil público
+    await ana.patch('/api/candidate/profile', { isPublic: true });
+    const slug = (await ana.get('/api/me')).data.user.candidate.publicSlug;
+    check('no figura en el perfil público hasta prenderlo', !((await client().get(`/api/public/${slug}`)).data.certificates || []).length);
+    await ana.patch(`/api/candidate/certificates/${id}`, { onProfile: true });
+    const pp = (await client().get(`/api/public/${slug}`)).data;
+    check('figura en el perfil público, sin el comentario oculto', (pp.certificates || []).length === 1 && pp.certificates[0].code === code
+      && pp.certificates[0].companyName === 'Finca Certifica' && !/Muy responsable/.test(JSON.stringify(pp.certificates)));
+
+    // sin comentario: no se puede "mostrar comentario"
+    const r2 = await cert(app2.id);
+    check('sin comentario, mostrar comentario → 400', (await leo.patch(`/api/candidate/certificates/${r2.data.certificate.id}`, { commentShown: true })).status === 400);
+
+    // anulación de la empresa y reemisión
+    const rv = await emp.post(`/api/company/certificates/${r2.data.certificate.id}/revoke`, { reason: 'fechas mal' });
+    check('la empresa anula', rv.status === 200 && rv.data.certificate.status === 'revoked');
+    const anul = (await client().get(`/api/certificates/${r2.data.certificate.code}`)).data.certificate;
+    check('anulado se ve como anulado y sin datos', anul.status === 'revoked' && !anul.personName && anul.revokedBy === 'company');
+    check('otra empresa no puede anular', (await otra.post(`/api/company/certificates/${id}/revoke`, { reason: 'x' })).status === 404);
+    const r3 = await cert(app2.id);
+    check('anulado por la empresa: puede reemitir', r3.status === 201);
+    await wait(150);
+    check('aviso de anulación', mailsTo('leo@test.workuco').some((m) => /Se anuló tu certificado/.test(m.subject)));
+
+    // admin
+    check('admin lista', (await admin.get('/api/admin/certificates?q=finca')).data.certificates.length >= 2);
+    check('empresa no entra a la lista de admin', (await emp.get('/api/admin/certificates')).status === 401);
+    await admin.post(`/api/admin/certificates/${id}/revoke`, { reason: 'denuncia' });
+    check('anulado por admin bloquea reemitir', (await cert(app.id)).status === 409);
+    check('la persona ve que lo anuló WorkUco', (await client().get(`/api/certificates/${code}`)).data.certificate.revokedBy === 'admin');
+
+    // sobrevive al borrado del aviso
+    const code3 = r3.data.certificate.code;
+    await emp.del(`/api/company/jobs/${job2.id}`);
+    check('sobrevive al borrado del aviso', (await client().get(`/api/certificates/${code3}`)).data.certificate.status === 'valid'
+      && (await emp.get('/api/company/certificates')).data.certificates.some((c) => c.code === code3));
+
+    // postulación sin cuenta
+    const g = await emp.post('/api/company/applications', { jobId: job.id, name: 'Invitado Sin Cuenta', email: 'invitado@test.workuco', phone: '2622 412412' });
+    const gid = (g.data.application || {}).id;
+    await emp.patch(`/api/company/applications/${gid}`, { stage: 'contratado' });
+    check('postulación sin cuenta → 400', (await cert(gid)).status === 400);
+  } finally {
+    child.kill();
+    await new Promise((r) => setTimeout(r, 300));
+    fs.rmSync(DATA, { recursive: true, force: true });
+  }
+}
+
 async function main() {
   try {
     reglas();
     base();
+    await api();
   } catch (e) {
     fail++; console.error('ERROR:', e);
   }
