@@ -1418,6 +1418,7 @@ async function handleCertificatesApi(req, res, p, method, q, me) {
       applicationId: a.id, candidateId: a.candidateId, companyId: company.id, jobId: a.jobId,
       personName: a.candidate.name, companyName: company.name, locality: (job && job.locality) || '', ...v.value,
     });
+    if (!c) return send(res, 409, { error: 'Esta postulación ya tiene un certificado vigente' });
     tryNotify('candidate', a.candidateId, { kind: 'etapa', title: `${company.name} te dio un certificado de trabajo`, body: `Puesto: ${c.position}`, link: certLink });
     return send(res, 201, { certificate: ownCertificate(c) });
   }

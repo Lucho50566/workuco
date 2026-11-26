@@ -54,6 +54,7 @@ function base() {
     check('sin comentario queda none', c2.commentStatus === 'none');
     check('códigos distintos', c1.code !== c2.code);
     check('por postulación', s.certificatesForApplication('a1').length === 1 && s.certificatesForApplication('a1')[0].id === c1.id);
+    check('la base no deja dos vigentes para la misma postulación', s.insertCertificate({ ...base, comment: '' }) === null && s.certificatesForApplication('a1').length === 1);
     check('de la persona y de la empresa', s.certificatesOfCandidate('u1').length === 2 && s.certificatesOfCompany('co1').length === 2);
     check('no figura en público hasta prenderlo', s.publicCertificatesOf('u1').length === 0);
     s.setCertificateOnProfile(c1.id, true);
