@@ -1353,6 +1353,8 @@ async function handleVecinosApi(req, res, p, method, q, me) {
 }
 
 /* ---------- certificados de trabajo ---------- */
+/* un código mal codificado en la URL (%E0%A4%A) no es un error del servidor: es "no existe" */
+const safeDecode = (s) => { try { return decodeURIComponent(s); } catch (_) { return ''; } };
 /* lo que ve cualquiera con el código: nunca ids, motivos ni comentarios no aceptados */
 function publicCertificate(c) {
   const code = certLib.formatCode(c.code);
@@ -1387,7 +1389,7 @@ async function handleCertificatesApi(req, res, p, method, q, me) {
   /* ---- verificación pública ---- */
   const pubM = p.match(/^\/api\/certificates\/([^/]+)$/);
   if (pubM && method === 'GET') {
-    const code = certLib.normCode(decodeURIComponent(pubM[1]));
+    const code = certLib.normCode(safeDecode(pubM[1]));
     const c = code ? store.certificateByCode(code) : null;
     if (!c) return send(res, 404, { error: 'No existe un certificado con ese código' });
     return send(res, 200, { certificate: publicCertificate(c) });
@@ -1811,8 +1813,10 @@ async function handleApi(req, res, url) {
       data.alertas = store.all('SELECT * FROM alerts WHERE candidate_id=?', c.id);
       data.invitaciones = store.all('SELECT id, job_id, company_id, message, status, created_at FROM invitations WHERE candidate_id=?', c.id);
       data.cvPro = store.cvOrdersOf(c.id).map(({ sourceText, ...o }) => o);
+      data.certificados = store.certificatesOfCandidate(c.id).map(ownCertificate);
     } else {
       data.empresa = strip(store.company(me.company.id));
+      data.certificadosEmitidos = store.certificatesOfCompany(me.company.id).map(ownCertificate);
       data.avisos = store.all('SELECT * FROM jobs WHERE company_id=?', me.company.id);
     }
     data.fichas = store.placesOf(me.role, me.role === 'candidate' ? me.candidate.id : me.company.id)
@@ -3399,7 +3403,7 @@ const server = http.createServer(async (req, res) => {
     }
     const certPage = url.pathname.match(/^\/certificado\/([^/]+)$/);
     if (certPage && req.method === 'GET') {
-      const code = certLib.normCode(decodeURIComponent(certPage[1]));
+      const code = certLib.normCode(safeDecode(certPage[1]));
       if (!code || !store.certificateByCode(code)) return notFound(req, res);
       return renderPage(res, 'certificado.html', { req, title: 'Certificado de trabajo · WorkUco', noindex: true });
     }

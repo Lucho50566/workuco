@@ -161,6 +161,10 @@ async function api() {
     check('comentario aceptado se muestra', (await client().get(`/api/certificates/${code}`)).data.certificate.comment === 'Muy responsable');
     await ana.patch(`/api/candidate/certificates/${id}`, { commentShown: false });
     check('y se puede volver a ocultar', !('comment' in (await client().get(`/api/certificates/${code}`)).data.certificate));
+    const exp = await ana.get('/api/account/export');
+    check('los certificados salen en "Descargar mis datos"', (exp.data.certificados || []).some((c) => c.code === code), exp.text.slice(0, 120));
+    check('código mal codificado en la API → 404', (await client().get('/api/certificates/%E0%A4%A')).status === 404);
+    check('código mal codificado en la página → 404', (await client().get('/certificado/%E0%A4%A')).status === 404);
     const page = await client().get(`/certificado/${code}`);
     check('página con noindex', page.status === 200 && /noindex/.test(page.text));
     check('código inválido en la página → 404', (await client().get('/certificado/nada')).status === 404);

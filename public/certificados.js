@@ -23,7 +23,8 @@
   async function initPage() {
     const root = $('#cert-root');
     if (!root) return;
-    const raw = decodeURIComponent(location.pathname.split('/').pop() || '');
+    let raw = location.pathname.split('/').pop() || '';
+    try { raw = decodeURIComponent(raw); } catch (_) { /* queda como vino: la API responde que no existe */ }
     let data;
     try {
       data = (await api(`/api/certificates/${encodeURIComponent(raw)}`)).certificate;
