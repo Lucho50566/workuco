@@ -94,13 +94,13 @@ function readBody(req, limit = 16 * 1024 * 1024) {
     const chunks = [];
     req.on('data', (c) => {
       size += c.length;
-      if (size > limit) { reject(new Error('El archivo o formulario es demasiado grande')); req.destroy(); return; }
+      if (size > limit) { reject(Object.assign(new Error('El archivo o formulario es demasiado grande'), { status: 413 })); req.destroy(); return; }
       chunks.push(c);
     });
     req.on('end', () => {
       const raw = Buffer.concat(chunks).toString('utf8');
       if (!raw) return resolve({});
-      try { resolve(JSON.parse(raw)); } catch (_) { reject(new Error('JSON inválido')); }
+      try { resolve(JSON.parse(raw)); } catch (_) { reject(Object.assign(new Error('JSON inválido'), { status: 400 })); }
     });
     req.on('error', reject);
   });
@@ -1762,7 +1762,8 @@ async function handleApi(req, res, url) {
       if (buf.length > 4 * 1024 * 1024) return send(res, 413, { error: 'El CV supera los 4 MB' });
       if (buf.subarray(0, 5).toString('latin1') !== '%PDF-') return send(res, 400, { error: 'El CV debe ser un PDF' });
       cvFile = `cv-${uid('')}.pdf`;
-      cvName = clean(b.cv.name, 120).replace(/[^\w.\-() ]+/g, '') || 'cv.pdf';
+      /* se conservan tildes y ñ (el encabezado de descarga ya las codifica) */
+      cvName = clean(b.cv.name, 120).normalize('NFC').replace(/[^\p{L}\p{N}.\-() _]+/gu, '') || 'cv.pdf';
       fs.writeFileSync(path.join(UP_DIR, cvFile), buf);
     } else if (cand && cand.cv_file) {
       cvFile = cand.cv_file; cvName = cand.cv_name || 'cv.pdf';
@@ -3516,7 +3517,10 @@ const server = http.createServer(async (req, res) => {
     });
   } catch (e) {
     console.error(e);
-    send(res, e.status || 500, { error: e.message || 'Error interno' });
+    /* los errores pensados para la persona traen su status (400, 413…); los inesperados no muestran detalles internos */
+    const status = e.status || 500;
+    if (res.headersSent) { try { res.end(); } catch (_) { /* ya cerrado */ } return; }
+    send(res, status, { error: status < 500 && e.message ? e.message : 'Ocurrió un error inesperado. Probá de nuevo en un momento.' });
   }
 });
 

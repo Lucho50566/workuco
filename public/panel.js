@@ -20,7 +20,8 @@
       src = await new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = () => resolve(img);
-        img.onerror = reject;
+        /* foto que el navegador no sabe leer (típico: HEIC del iPhone abierta en una compu): mensaje claro */
+        img.onerror = () => reject(new Error('No pudimos leer esa foto. Si es del iPhone (HEIC), subila desde el celular o sacale una captura y subí la captura. Sirven JPG, PNG o WebP.'));
         img.src = URL.createObjectURL(file);
       });
     }
@@ -151,9 +152,10 @@
       on('[data-cosecha-req]', async () => { try { await api('/api/company/cosecha/request', { method: 'POST' }); toast('Listo: te avisamos cuando el pack esté activo', 'ok'); renderCosecha(); } catch (err) { toast(err.message, 'err'); } });
       on('[data-cosecha-cancel]', async () => { try { await api('/api/company/cosecha/request', { method: 'DELETE' }); renderCosecha(); } catch (err) { toast(err.message, 'err'); } });
       on('[data-cosecha-pay]', async (e) => {
-        e.currentTarget.disabled = true;
+        const btn = e.currentTarget; /* después del await, e.currentTarget ya es null */
+        btn.disabled = true;
         try { const r = await api('/api/company/cosecha/checkout', { method: 'POST' }); location.href = r.url; }
-        catch (err) { toast(err.message, 'err'); e.currentTarget.disabled = false; }
+        catch (err) { toast(err.message, 'err'); btn.disabled = false; }
       });
     }
 

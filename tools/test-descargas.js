@@ -49,6 +49,23 @@ function client() {
     check('el nombre viaja con tildes (filename*=UTF-8)', /filename\*=UTF-8''CV%20Joaqu%C3%ADn%20Mu%C3%B1oz\.pdf/.test(cd), cd);
     check('y con un nombre de respaldo sin tildes', /filename="CV Joaquin Munoz\.pdf"/.test(cd), cd);
     check('la persona también lo abre', (await jo.get(`/api/cv/c/${id}`)).status === 200);
+
+    /* errores: los pensados para la persona conservan su mensaje; los internos no muestran detalles */
+    const bad = await fetch(`${BASE}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{roto' });
+    check('formulario roto: 400 con mensaje claro', bad.status === 400 && /JSON inválido/.test(await bad.text()));
+
+    /* postularse con un CV con tildes: el nombre se conserva y se puede abrir */
+    const emp = client();
+    await emp.post('/api/auth/register', { role: 'company', name: 'Finca Tildes', email: 'tildes@test.workuco', phone: '2622 441441', password: 'clave12345', acceptTerms: true });
+    const job = await (await emp.post('/api/company/jobs', { title: 'Peón rural', description: 'Tareas generales de la finca, turno mañana, con ganas de aprender y trabajar.', locality: 'Tunuyán', category: 'Agricultura', type: 'Tiempo completo', modality: 'Presencial', contactEmail: 'tildes@test.workuco' })).json();
+    await admin.patch(`/api/admin/jobs/${job.job.id}`, { status: 'approved' });
+    const ap = await (await jo.post(`/api/jobs/${job.job.id}/apply`, { message: 'Hola', cv: { name: 'CV Joaquín Muñoz.pdf'.normalize('NFD'), data: pdf } })).json();
+    const appId = (ap.application && ap.application.id) || ap.id;
+    const apps = await (await emp.get('/api/company/applications')).json();
+    const mine = (apps.applications || []).find((a) => a.id === appId) || (apps.applications || [])[0];
+    const r2 = await emp.get(`/api/company/cv/${mine && mine.id}`);
+    const cd2 = r2.headers.get('content-disposition') || '';
+    check('postulación con CV con tildes: abre y conserva "Joaquín Muñoz"', r2.status === 200 && /Joaqu%C3%ADn%20Mu%C3%B1oz/.test(cd2), `${r2.status} ${cd2}`);
   } catch (e) { fail++; console.error('ERROR:', e); } finally {
     server.kill(); await wait(300); fs.rmSync(DATA, { recursive: true, force: true });
   }

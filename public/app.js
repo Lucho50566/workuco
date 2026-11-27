@@ -247,12 +247,14 @@ async function loadMeta() {
 }
 
 /* Achica una imagen en el navegador y la devuelve como JPEG (data URL). */
+/* Mensaje claro cuando el navegador no puede leer la foto (típico: HEIC del iPhone abierta en una compu). */
+const IMAGE_UNREADABLE = 'No pudimos leer esa foto. Si es del iPhone (HEIC), subila desde el celular o sacale una captura y subí la captura. Sirven JPG, PNG o WebP.';
 async function shrinkImage(file, max = 1600, quality = 0.86) {
   let src;
   try { src = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
   catch (_) {
     src = await new Promise((resolve, reject) => {
-      const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = URL.createObjectURL(file);
+      const img = new Image(); img.onload = () => resolve(img); img.onerror = () => reject(new Error(IMAGE_UNREADABLE)); img.src = URL.createObjectURL(file);
     });
   }
   const w = src.width || src.naturalWidth; const h = src.height || src.naturalHeight;
@@ -2209,11 +2211,12 @@ async function initClaim() {
       }));
       $('#claim-delete').addEventListener('click', async (e) => {
         if (!reason) { $('#reason-error').hidden = false; $('.reason-chip', panel)?.focus(); return; }
-        e.currentTarget.disabled = true;
+        const btn = e.currentTarget; /* después del await, e.currentTarget ya es null */
+        btn.disabled = true;
         try {
           await api(`/api/claim/${encodeURIComponent(token)}/delete`, { method: 'POST', body: { reason, comment: $('#claim-comment').value.trim() } });
           root.innerHTML = '<section class="section"><div class="container"><div class="empty"><h3>Listo, la borramos</h3><p>Su empresa ya no aparece en WorkUco y no la vamos a volver a publicar. Gracias por avisarnos.</p><a class="btn btn-outline" href="/">Ir al inicio</a></div></div></section>';
-        } catch (err) { toast(err.message, 'err'); e.currentTarget.disabled = false; }
+        } catch (err) { toast(err.message, 'err'); btn.disabled = false; }
       });
     } else {
       panel.innerHTML = `<h3>${mode === 'fix' ? 'Reclamá la ficha para corregirla' : 'Creá tu acceso'}</h3>
