@@ -1016,6 +1016,7 @@
         $('#c-locality').value = profile.locality || '';
       }
       $('#photo-preview').innerHTML = avatarHtml(profile.name, profile.photo, 'avatar-xxl');
+      if ($('#photo-remove')) $('#photo-remove').hidden = !profile.photo;
       renderSkills();
       renderAvailability();
       $('#cv-status').innerHTML = profile.hasCv
@@ -1146,6 +1147,17 @@
         catch (err) { toast(err.message, 'err'); }
       }));
     }
+
+    /* quitar la foto: dos toques (el primero pide confirmar) para no borrarla sin querer */
+    $('#photo-remove')?.addEventListener('click', async () => {
+      const b = $('#photo-remove');
+      if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Tocá de nuevo para quitarla'; setTimeout(() => { if (b.dataset.armed === '1') { b.dataset.armed = ''; b.textContent = 'Quitar foto'; } }, 4000); return; }
+      b.dataset.armed = ''; b.textContent = 'Quitar foto'; b.disabled = true;
+      try {
+        const r = await api('/api/candidate/profile', { method: 'PATCH', body: { removePhoto: true } });
+        profile = r.candidate; W.state.user.candidate = profile; render(); toast('Foto quitada', 'ok');
+      } catch (err) { toast(err.message, 'err'); } finally { b.disabled = false; }
+    });
 
     $('#photo-input').addEventListener('change', async (e) => {
       const file = e.target.files && e.target.files[0];

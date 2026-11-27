@@ -1358,3 +1358,7 @@ select.input.input-sm, select.input-sm { padding-right: 32px; background-positio
 .btn-act.is-on { color: #e5484d; border-color: #f1c3c0; background: #fdecec; }
 .btn-act.is-on svg { fill: currentColor; }
 @media (max-width: 720px) { .job-row .side .date { margin-right: 0; } .job-row-main { padding-bottom: 58px; } }
+
+/* Mi perfil: botones de la foto (cambiar / quitar) */
+.photo-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+#photo-remove[data-armed="1"] { color: #b3261e; border-color: #f1c3c0; background: #fdecec; }

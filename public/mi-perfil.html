@@ -82,7 +82,10 @@
               <div class="photo-row">
                 <div id="photo-preview" class="photo-preview"></div>
                 <div>
-                  <label class="btn btn-outline btn-sm" for="photo-input">{{ICON_UPLOAD}} Cambiar foto</label>
+                  <div class="photo-actions">
+                    <label class="btn btn-outline btn-sm" for="photo-input">{{ICON_UPLOAD}} Cambiar foto</label>
+                    <button class="btn btn-ghost btn-sm" type="button" id="photo-remove" hidden>Quitar foto</button>
+                  </div>
                   <input class="sr-only" id="photo-input" type="file" accept="image/*">
                   <p class="hint">JPG, PNG o WebP. Se recorta en cuadrado.</p>
                 </div>
