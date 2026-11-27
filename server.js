@@ -182,6 +182,9 @@ function saveImage(dataUrl, prefix = 'img') {
 }
 const mediaUrl = (f) => (f ? (/^https?:|^\//.test(f) ? f : `/media/${f}`) : null);
 const galleryUrls = (list) => jparse(list, []).map(mediaUrl).filter(Boolean);
+/* Foto de perfil: la dirección lleva la versión (el nombre del archivo, que cambia en cada subida).
+   Si fuera siempre la misma, el navegador seguía mostrando la foto vieja guardada después de cambiarla. */
+const candPhoto = (c, base = `/api/photo/c/${c.id}`) => (c.photo_file ? `${base}?v=${encodeURIComponent(path.parse(c.photo_file).name)}` : null);
 
 function publicCompany(c, { privateView = false } = {}) {
   if (!c) return null;
@@ -214,7 +217,7 @@ function publicCandidate(c, { privateView = false } = {}) {
     locality: c.locality || '', headline: c.headline || '', about: c.about || '',
     skills: jparse(c.skills, []), experience: c.experience || '', education: c.education || '',
     availability: c.availability || '', linkedin: c.linkedin || '',
-    photo: c.photo_file ? `/api/photo/c/${c.id}` : null,
+    photo: candPhoto(c),
     hasCv: !!c.cv_file, cvName: c.cv_name || '',
     openToWork: !!c.open_to_work, categories: jparse(c.categories, []),
     createdAt: c.created_at,
@@ -1628,7 +1631,7 @@ async function handleApi(req, res, url) {
       allowed = !!c.open_to_work || companyHasApplicant(me.company.id, c.id);
     }
     if (!allowed) return send(res, 401, { error: 'Iniciá sesión para ver la foto' });
-    return serveFile(res, path.join(UP_DIR, path.basename(c.photo_file)), 'image/*', true);
+    return serveFile(res, path.join(UP_DIR, path.basename(c.photo_file)), 'image/*', 'private');
   }
   if (p.startsWith('/api/cv/c/') && method === 'GET') {
     const me = current(req);
@@ -2647,7 +2650,7 @@ async function handleApi(req, res, url) {
       category: CATEGORIES.includes(q.get('category')) ? q.get('category') : '',
     }).map((c) => ({
       /* sin teléfono ni mail: el contacto llega recién cuando la persona se postula */
-      id: c.id, name: c.name, photo: c.photo_file ? `/api/photo/c/${c.id}` : null,
+      id: c.id, name: c.name, photo: candPhoto(c),
       headline: c.headline || '', about: c.about || '', locality: c.locality || '',
       skills: jparse(c.skills, []), categories: jparse(c.categories, []),
       availability: c.availability || '', experience: c.experience || '',
@@ -2704,7 +2707,7 @@ async function handleApi(req, res, url) {
     if (!c || !c.is_public) return send(res, 404, { error: 'Este perfil no es público' });
     if (pubProfile[2]) {
       if (!c.photo_file) return send(res, 404, { error: 'Sin foto' });
-      return serveFile(res, path.join(UP_DIR, path.basename(c.photo_file)), 'image/*', true);
+      return serveFile(res, path.join(UP_DIR, path.basename(c.photo_file)), 'image/*', 'private');
     }
     /* nunca teléfono ni mail en el perfil público */
     return send(res, 200, {
@@ -2712,7 +2715,7 @@ async function handleApi(req, res, url) {
         slug: c.public_slug, name: c.name, headline: c.headline || '', about: c.about || '',
         locality: c.locality || '', skills: jparse(c.skills, []), categories: jparse(c.categories, []),
         experience: c.experience || '', education: c.education || '', availability: c.availability || '',
-        openToWork: !!c.open_to_work, photo: c.photo_file ? `/api/public/${c.public_slug}/photo` : null,
+        openToWork: !!c.open_to_work, photo: candPhoto(c, `/api/public/${c.public_slug}/photo`),
       },
       certificates: store.publicCertificatesOf(c.id).map((x) => ({
         code: x.code, codeLabel: certLib.formatCode(x.code), position: x.position, companyName: x.companyName,
@@ -3195,7 +3198,7 @@ async function handleApi(req, res, url) {
         headline: c.headline || '', about: c.about || '', skills: jparse(c.skills, []), categories: jparse(c.categories, []),
         availability: c.availability || '', openToWork: !!c.open_to_work, isPublic: !!c.is_public,
         publicUrl: c.is_public && c.public_slug ? `/p/${c.public_slug}` : '',
-        photo: c.photo_file ? `/api/photo/c/${c.id}` : null, cvUrl: c.cv_file ? `/api/cv/c/${c.id}` : null,
+        photo: candPhoto(c), cvUrl: c.cv_file ? `/api/cv/c/${c.id}` : null,
         applications: c.applications, createdAt: c.created_at,
       })),
     });
@@ -3325,7 +3328,8 @@ function serveFile(res, file, mime, cache = false, downloadName = '') {
     : (mime || 'application/octet-stream');
   const headers = {
     'Content-Type': type,
-    'Cache-Control': cache ? 'public, max-age=86400' : 'private, no-store',
+    /* true: imagen pública (flyers, logos); 'private': sólo el navegador de quien la ve (fotos de personas) */
+    'Cache-Control': cache === 'private' ? 'private, max-age=86400' : cache ? 'public, max-age=86400' : 'private, no-store',
     'X-Content-Type-Options': 'nosniff',
   };
   if (downloadName) headers['Content-Disposition'] = contentDisposition(downloadName);

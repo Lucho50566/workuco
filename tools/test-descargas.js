@@ -50,6 +50,24 @@ function client() {
     check('y con un nombre de respaldo sin tildes', /filename="CV Joaquin Munoz\.pdf"/.test(cd), cd);
     check('la persona también lo abre', (await jo.get(`/api/cv/c/${id}`)).status === 200);
 
+    /* foto de perfil: al cambiarla, la dirección cambia (si no, el navegador mostraba la vieja guardada 24 h) */
+    const png = (r, g, b) => { /* PNG 1×1 de un color */
+      const zlib = require('zlib');
+      const crc = (buf) => { let c = ~0; for (const x of buf) { c ^= x; for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1)); } return ~c >>> 0; };
+      const chunk = (type, data) => { const len = Buffer.alloc(4); len.writeUInt32BE(data.length); const td = Buffer.concat([Buffer.from(type), data]); const c = Buffer.alloc(4); c.writeUInt32BE(crc(td)); return Buffer.concat([len, td, c]); };
+      const ihdr = Buffer.from([0, 0, 0, 1, 0, 0, 0, 1, 8, 2, 0, 0, 0]);
+      const raw = zlib.deflateSync(Buffer.from([0, r, g, b]));
+      return `data:image/png;base64,${Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', raw), chunk('IEND', Buffer.alloc(0))]).toString('base64')}`;
+    };
+    const ph1 = await (await jo.patch('/api/candidate/profile', { photo: png(255, 0, 0) })).json();
+    const url1 = (ph1.candidate || {}).photo;
+    const ph2 = await (await jo.patch('/api/candidate/profile', { photo: png(0, 0, 255) })).json();
+    const url2 = (ph2.candidate || {}).photo;
+    check('cambiar la foto cambia su dirección', !!url1 && !!url2 && url1 !== url2, `${url1} → ${url2}`);
+    const f2 = await jo.get(url2);
+    const b2 = Buffer.from(await f2.arrayBuffer());
+    check('la dirección nueva trae la foto nueva', f2.status === 200 && b2.equals(Buffer.from(png(0, 0, 255).split(',')[1], 'base64')));
+    check('la foto no se guarda en servidores intermedios (private)', /private/.test(f2.headers.get('cache-control') || ''), f2.headers.get('cache-control'));
     /* errores: los pensados para la persona conservan su mensaje; los internos no muestran detalles */
     const bad = await fetch(`${BASE}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{roto' });
     check('formulario roto: 400 con mensaje claro', bad.status === 400 && /JSON inválido/.test(await bad.text()));
