@@ -145,6 +145,9 @@ async function main() {
     const dash = await owner.get('/api/company/dashboard');
     check('la empresa ve a quien se postuló', dash.status === 200 && dash.data.applications.some((a) => a.name === 'Martina Salinas'));
     check('la ficha ya figura como reclamada', (await pub.get(`/api/companies/${co1.id}`)).data.company.claimed === true);
+    const detAcc = (await pub.get(`/api/jobs/${job1.id}`)).data.job;
+    check('reclamado: el aviso ya no dice "Tomado de…"', detAcc.sourceKind !== 'importado', JSON.stringify(detAcc.sourceKind));
+    check('reclamado: tampoco en la lista', ((await pub.get('/api/jobs?limit=50')).data.jobs || []).filter((x) => x.companyId === co1.id).every((x) => x.sourceKind !== 'importado'));
     check('el mismo código no sirve dos veces', (await pub.get(`/api/claim/${token1}`)).status === 404 && (await client().post(`/api/claim/${token1}/accept`, { email: 'otra@test.workuco', password: 'clave12345', acceptTerms: true })).status === 404);
     const notes = (await martina.get('/api/notifications')).data.items || [];
     check('la persona se entera de que la empresa ya administra el aviso', notes.some((n) => /ya administra/.test(n.title + n.body)));
