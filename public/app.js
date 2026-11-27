@@ -247,6 +247,11 @@ async function loadMeta() {
 }
 
 /* Achica una imagen en el navegador y la devuelve como JPEG (data URL). */
+/* WebP pesa ~30 % menos que JPG con la misma calidad. Si el navegador no sabe generarlo (devuelve PNG), JPG. */
+function encodeCanvas(canvas, quality) {
+  const webp = canvas.toDataURL('image/webp', quality);
+  return webp.startsWith('data:image/webp') ? webp : canvas.toDataURL('image/jpeg', quality);
+}
 /* Mensaje claro cuando el navegador no puede leer la foto (típico: HEIC del iPhone abierta en una compu). */
 const IMAGE_UNREADABLE = 'No pudimos leer esa foto. Si es del iPhone (HEIC), subila desde el celular o sacale una captura y subí la captura. Sirven JPG, PNG o WebP.';
 async function shrinkImage(file, max = 1600, quality = 0.86) {
@@ -264,7 +269,7 @@ async function shrinkImage(file, max = 1600, quality = 0.86) {
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL('image/jpeg', quality);
+  return encodeCanvas(canvas, quality);
 }
 /* Un flyer ya publicado (URL) → data URL, para mandarlo a la IA. */
 async function urlToDataUrl(url) {
@@ -273,8 +278,9 @@ async function urlToDataUrl(url) {
 }
 
 /* Flyer siempre completo (sin recortes) sobre una versión desenfocada de sí mismo. */
-function flyerFrame(src, alt, cls = '') {
-  return `<div class="flyer-frame ${cls}" style="--flyer-bg:url('${esc(src)}')"><img src="${esc(src)}" alt="${esc(alt)}" loading="lazy" decoding="async"></div>`;
+function flyerFrame(src, alt, cls = '', bg = src) {
+  /* bg: imagen del fondo difuminado (alcanza con la miniatura: el difuminado no muestra detalle) */
+  return `<div class="flyer-frame ${cls}" style="--flyer-bg:url('${esc(bg || src)}')"><img src="${esc(src)}" alt="${esc(alt)}" loading="lazy" decoding="async"></div>`;
 }
 
 /* Puntos de un carrusel horizontal de flyers (scroll-snap): siguen el scroll y lo controlan. */
@@ -353,7 +359,7 @@ function jobCard(j, saved = false) {
   const extra = (j.flyers || []).length - 1;
   return `<div class="job-card-wrap"><a class="job-card" href="/oferta/${j.id}">
     <div class="job-cover${j.flyer ? ' job-cover-flyer' : cover ? ' has-img' : ''}"${!j.flyer && cover ? ` style="background-image:url('${esc(cover)}')"` : ''}>
-      ${j.flyer ? flyerFrame(j.flyer, `Flyer: ${j.title} en ${j.companyName}`) + (extra > 0 ? `<span class="flyer-more">+${extra}</span>` : '') : '<span class="job-cover-shade"></span>'}
+      ${j.flyer ? flyerFrame(j.flyerThumb || j.flyer, `Flyer: ${j.title} en ${j.companyName}`) + (extra > 0 ? `<span class="flyer-more">+${extra}</span>` : '') : '<span class="job-cover-shade"></span>'}
       ${j.featured ? `<span class="badge badge-featured">${icon('star', 12)} Destacada${j.gig ? ' · Changa' : ''}</span>` : j.gig ? '<span class="badge badge-gig">Changa</span>' : ''}
     </div>
     <div class="job-card-body">
@@ -375,7 +381,7 @@ function jobCard(j, saved = false) {
 }
 
 function jobRow(j, saved = false) {
-  const cover = j.flyer || (j.companyGallery || [])[0];
+  const cover = j.flyerThumb || j.flyer || (j.companyGallery || [])[0];
   return `<div class="job-row">
     <a class="job-row-main" href="/oferta/${j.id}">
       ${logoHtml(j.companyName, j.companyLogo, 'logo')}
@@ -745,7 +751,7 @@ async function initJob() {
         </div>
 
         ${(job.flyers || []).length ? `<section class="detail-flyers" aria-label="Flyers del aviso">
-          <div class="flyer-rail" data-flyer-rail>${job.flyers.map((src, i) => `<a class="flyer-slide" href="${esc(src)}" target="_blank" rel="noopener" title="Ver el flyer en grande">${flyerFrame(src, `Flyer${job.flyers.length > 1 ? ` ${i + 1}` : ''}: ${job.title} en ${job.companyName}`)}</a>`).join('')}</div>
+          <div class="flyer-rail" data-flyer-rail>${job.flyers.map((src, i) => `<a class="flyer-slide" href="${esc(src)}" target="_blank" rel="noopener" title="Ver el flyer en grande">${flyerFrame(src, `Flyer${job.flyers.length > 1 ? ` ${i + 1}` : ''}: ${job.title} en ${job.companyName}`, '', (job.flyerThumbs || [])[i])}</a>`).join('')}</div>
           ${job.flyers.length > 1 ? `<div class="flyer-dots">${job.flyers.map((_, i) => `<button type="button" class="flyer-dot${i === 0 ? ' is-on' : ''}" data-flyer-dot="${i}" aria-label="Ver flyer ${i + 1}"></button>`).join('')}</div>` : ''}
           <p class="flyer-hint">Tocá el flyer para verlo en grande${job.flyers.length > 1 ? ' · deslizá para ver los demás' : ''}</p>
         </section>` : ''}

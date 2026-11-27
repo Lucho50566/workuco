@@ -77,7 +77,7 @@ async function main() {
       const html = await (await fetch(BASE + p)).text();
       const links = (html.match(/rel="manifest"/g) || []).length;
       check(`${p}: un solo manifiesto`, links === 1, `(${links})`);
-      check(`${p}: carga pwa.js`, /<script src="\/pwa\.js" defer><\/script>/.test(html));
+      check(`${p}: carga pwa.js`, /<script src="\/pwa\.js(\?v=[a-f0-9]+)?" defer><\/script>/.test(html));
       check(`${p}: botón de instalar en la cabecera, el menú y el pie (ocultos hasta saber si se puede)`,
         /class="app-install"[^>]*data-app-install hidden/.test(html) && /class="mobile-install"[^>]*data-app-install hidden/.test(html) && /class="footer-install"[^>]*data-app-install hidden/.test(html));
     }

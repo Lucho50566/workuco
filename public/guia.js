@@ -42,7 +42,7 @@
     const href = `/guia/${esc(p.slug)}`;
     return `<article class="place-card">
       <a class="place-cover" href="${href}" tabindex="-1" aria-hidden="true">
-        ${p.cover ? W.flyerFrame(p.cover, '', 'place-photo') : placeholder(p)}
+        ${p.cover ? W.flyerFrame(p.coverThumb || p.cover, '', 'place-photo') : placeholder(p)}
         ${p.featured ? '<span class="badge badge-featured place-feat">Destacado</span>' : ''}
       </a>
       <div class="place-body">
@@ -463,7 +463,7 @@
           ${can ? '<button class="btn btn-primary" type="button" data-place-new>Sumar ficha</button>' : `<span class="soft-text">Tenés el máximo de ${d.max} fichas.</span>`}
         </div>
         ${d.places.length ? d.places.map((p) => `<article class="my-place card">
-          <div class="my-place-media">${p.cover ? W.flyerFrame(p.cover, '', 'place-photo') : placeholder(p)}</div>
+          <div class="my-place-media">${p.cover ? W.flyerFrame(p.coverThumb || p.cover, '', 'place-photo') : placeholder(p)}</div>
           <div class="my-place-body">
             <div class="my-place-top">${statusBadge(p.status)}${p.featured ? '<span class="badge badge-featured">Destacada</span>' : ''}</div>
             <h3>${esc(p.name)}</h3>

@@ -23,6 +23,7 @@ const ai = require('./lib/ai');
 const prospectsLib = require('./lib/prospects');
 const vecinosLib = require('./lib/vecinos');
 const certLib = require('./lib/certificates');
+const imagesLib = require('./lib/images');
 const { extractCv } = require('./lib/cvtext');
 const legal = require('./lib/legal');
 const seo = require('./lib/seo');
@@ -178,9 +179,52 @@ function saveImage(dataUrl, prefix = 'img') {
   if (img.buf.length > 5 * 1024 * 1024) { const e = new Error('La imagen supera los 5 MB'); e.status = 413; throw e; }
   const name = `${prefix}-${uid('')}.${img.ext}`;
   fs.writeFileSync(path.join(UP_DIR, name), img.buf);
+  if (prefix !== 'perfil') queueThumb(name); /* las fotos de perfil ya son chicas (600 px) */
   return name;
 }
 const mediaUrl = (f) => (f ? (/^https?:|^\//.test(f) ? f : `/media/${f}`) : null);
+
+/* ---------- miniaturas WebP para las listas (carga rápida con señal débil) ---------- */
+const thumbs = new Set();        /* miniaturas que ya existen en uploads/ */
+const thumbQueue = [];
+let thumbBusy = false;
+function queueThumb(name) {
+  if (!name || imagesLib.isThumb(name) || thumbs.has(imagesLib.thumbName(name)) || thumbQueue.includes(name)) return;
+  thumbQueue.push(name);
+  if (!thumbBusy) runThumbs();
+}
+async function runThumbs() {
+  thumbBusy = true;
+  try {
+    while (thumbQueue.length) {
+      const name = thumbQueue.shift();
+      const src = path.join(UP_DIR, name);
+      const out = imagesLib.thumbName(name);
+      if (!fs.existsSync(src)) continue;
+      if (await imagesLib.makeThumb(src, path.join(UP_DIR, out))) thumbs.add(out);
+    }
+  } catch (e) { console.warn('Miniaturas:', e.message); }
+  thumbBusy = false;
+}
+/* /media/flyer-x.jpg → /media/flyer-x-t.webp si ya está la miniatura (si no, la original) */
+function thumbOf(url) {
+  const m = /^\/media\/([^/?#]+)$/.exec(String(url || ''));
+  if (!m) return url || null;
+  const t = imagesLib.thumbName(m[1]);
+  return thumbs.has(t) ? `/media/${t}` : url;
+}
+/* al arrancar: anota las miniaturas que hay y arma las que falten (imágenes subidas antes de esta versión) */
+function backfillThumbs() {
+  let files = [];
+  try { files = fs.readdirSync(UP_DIR); } catch (_) { return; }
+  for (const f of files) if (imagesLib.isThumb(f)) thumbs.add(f);
+  imagesLib.tool().then((t) => {
+    if (!t) { console.log('Miniaturas: sin cwebp ni ffmpeg (instalá el paquete "webp" para activarlas)'); return; }
+    const pending = files.filter((f) => /\.(jpe?g|png|webp)$/i.test(f) && !imagesLib.isThumb(f) && !/^perfil-/.test(f) && !thumbs.has(imagesLib.thumbName(f)));
+    if (pending.length) console.log(`Miniaturas: armando ${pending.length} con ${t}`);
+    pending.forEach(queueThumb);
+  });
+}
 const galleryUrls = (list) => jparse(list, []).map(mediaUrl).filter(Boolean);
 /* Foto de perfil: la dirección lleva la versión (el nombre del archivo, que cambia en cada subida).
    Si fuera siempre la misma, el navegador seguía mostrando la foto vieja guardada después de cambiarla. */
@@ -331,7 +375,7 @@ function jobSummary(j) {
     locality: j.locality, category: j.category, type: j.type, modality: j.modality,
     salary: j.salary, salaryMin: j.salaryMin, salaryMax: j.salaryMax, salaryPeriod: j.salaryPeriod, salaryLabel: j.salaryLabel,
     skills: j.skills, gig: j.gig, startDate: j.startDate, duration: j.duration, positions: j.positions,
-    sourceKind: j.sourceKind, sourceName: j.sourceName, flyer: j.flyer, flyers: j.flyers,
+    sourceKind: j.sourceKind, sourceName: j.sourceName, flyer: j.flyer, flyerThumb: thumbOf(j.flyer), flyers: j.flyers,
     featured: j.featured, featuredUntil: j.featured ? j.featuredUntil : null, createdAt: j.createdAt, publishedAt: j.publishedAt, closesAt: j.closesAt,
     cosecha: !!j.cosecha,
   };
@@ -834,6 +878,21 @@ function originOf(req) {
 
 /* head: etiquetas propias de la página (aviso, empresa); si no hay, se arman las generales.
    En modo demo nada se indexa: los avisos ficticios no tienen que aparecer en Google. */
+/* huella corta del contenido de un archivo público (cambia sólo si cambia el archivo); se recalcula si cambia la fecha */
+const assetVersions = new Map();
+function assetVersion(rel) {
+  if (rel === 'sw.js') return '';
+  const file = path.join(WEB, rel);
+  try {
+    const st = fs.statSync(file);
+    const hit = assetVersions.get(rel);
+    if (hit && hit.mtime === st.mtimeMs && hit.size === st.size) return hit.v;
+    const v = crypto.createHash('sha1').update(fs.readFileSync(file)).digest('hex').slice(0, 10);
+    assetVersions.set(rel, { mtime: st.mtimeMs, size: st.size, v });
+    return v;
+  } catch (_) { return ''; }
+}
+
 function renderPage(res, file, { active = '', title = 'WorkUco', req = null, head = '', status = 200, noindex = false } = {}) {
   fs.readFile(path.join(WEB, file), 'utf8', (err, html) => {
     if (err) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('No encontrado'); }
@@ -856,7 +915,9 @@ function renderPage(res, file, { active = '', title = 'WorkUco', req = null, hea
       .replace(/{{BRAND_MARK}}/g, brandMark())
       .replace('<link rel="stylesheet" href="/styles.css">', HEAD_EXTRA)
       .replace(/<meta name="theme-color" content="[^"]*">/, '<meta name="theme-color" content="#0b1612">')
-      .replace(/\{\{ICON_([A-Z]+)\}\}/g, (_, name) => pageIcon(name));
+      .replace(/\{\{ICON_([A-Z]+)\}\}/g, (_, name) => pageIcon(name))
+      /* /app.js → /app.js?v=<huella>: el celular lo guarda hasta que el archivo cambie */
+      .replace(/(href|src)="\/([\w\-/]+\.(?:css|js))"/g, (m, attr, f) => { const v = assetVersion(f); return v ? `${attr}="/${f}?v=${v}"` : m; });
     res.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
     res.end(out);
   });
@@ -944,7 +1005,7 @@ const mapsUrl = (p) => (p.address
 function placeSummary(p) {
   return {
     id: p.id, slug: p.slug, name: p.name, section: p.section, category: p.category, localities: p.localities,
-    cover: p.photos[0] || null, featured: p.featured, claimed: p.claimed, homeService: p.homeService,
+    cover: p.photos[0] || null, coverThumb: thumbOf(p.photos[0]), featured: p.featured, claimed: p.claimed, homeService: p.homeService,
     status: p.status, open: placesLib.openStatus(p.hours), waUrl: placesLib.waLink(p.whatsapp),
     telUrl: ((n) => (n && n.length === 10 ? `tel:+54${n}` : ''))(normPhone(p.phone || p.whatsapp)),
   };
@@ -1649,7 +1710,7 @@ async function handleApi(req, res, url) {
     const name = path.basename(decodeURIComponent(p.slice(7)));
     /* sólo imágenes públicas: los CV (PDF) se bajan por /api/cv/... con permiso */
     if (!/\.(jpe?g|png|webp)$/i.test(name)) return send(res, 404, { error: 'Archivo no encontrado' });
-    return serveFile(res, path.join(UP_DIR, name), 'image/*', true);
+    return serveFile(res, path.join(UP_DIR, name), 'image/*', 'immutable');
   }
 
   /* ---------- ofertas públicas ---------- */
@@ -1732,7 +1793,7 @@ async function handleApi(req, res, url) {
         salaryMin: j.salaryMin, salaryMax: j.salaryMax, salaryPeriod: j.salaryPeriod, salaryLabel: j.salaryLabel,
         skills: j.skills, gig: j.gig, startDate: j.startDate, duration: j.duration,
         match, companyResponse: store.responseStats(j.companyId),
-        flyer: j.flyer, flyers: j.flyers, sourceKind: j.sourceKind, sourceName: j.sourceName, companyClaimed: !unclaimed,
+        flyer: j.flyer, flyers: j.flyers, flyerThumbs: (j.flyers || []).map(thumbOf), sourceKind: j.sourceKind, sourceName: j.sourceName, companyClaimed: !unclaimed,
         benefits: j.benefits, positions: j.positions,
         /* aviso importado sin reclamar: no se difunden teléfono ni mail de terceros (Ley 25.326, minimización); se postula por WorkUco */
         contactEmail: unclaimed ? '' : j.contactEmail, contactPhone: unclaimed ? '' : j.contactPhone,
@@ -3308,7 +3369,11 @@ async function handleApi(req, res, url) {
 
 function removeUpload(file) {
   if (!file) return;
-  try { fs.unlinkSync(path.join(UP_DIR, path.basename(file))); } catch (_) { /* ya no está */ }
+  const del = (f, n = 0) => { try { fs.unlinkSync(f); } catch (e) { /* en Windows, si la miniatura se está armando, el archivo está en uso: reintentar */ if (e.code !== 'ENOENT' && n < 20) setTimeout(() => del(f, n + 1), 250); } };
+  del(path.join(UP_DIR, path.basename(file)));
+  /* y su miniatura, si tenía */
+  const t = imagesLib.thumbName(path.basename(file));
+  thumbs.delete(t); del(path.join(UP_DIR, t));
 }
 
 /* Nombre del archivo para el navegador. Un encabezado HTTP sólo admite caracteres simples: el nombre real va
@@ -3328,8 +3393,10 @@ function serveFile(res, file, mime, cache = false, downloadName = '') {
     : (mime || 'application/octet-stream');
   const headers = {
     'Content-Type': type,
-    /* true: imagen pública (flyers, logos); 'private': sólo el navegador de quien la ve (fotos de personas) */
-    'Cache-Control': cache === 'private' ? 'private, max-age=86400' : cache ? 'public, max-age=86400' : 'private, no-store',
+    /* 'immutable': imagen subida (nombre único, nunca cambia) · 'private': sólo el navegador de quien la ve (fotos de personas)
+       true: pública por un día · false: no se guarda */
+    'Cache-Control': cache === 'immutable' ? 'public, max-age=31536000, immutable'
+      : cache === 'private' ? 'private, max-age=86400' : cache ? 'public, max-age=86400' : 'private, no-store',
     'X-Content-Type-Options': 'nosniff',
   };
   if (downloadName) headers['Content-Disposition'] = contentDisposition(downloadName);
@@ -3381,7 +3448,7 @@ const server = http.createServer(async (req, res) => {
       const name = path.basename(decodeURIComponent(url.pathname.slice(7)));
       /* sólo imágenes públicas: los CV (PDF) se bajan por /api/cv/... con permiso */
       if (!name || name.startsWith('.') || !/\.(jpe?g|png|webp)$/i.test(name)) { res.writeHead(404); return res.end('No encontrado'); }
-      return serveFile(res, path.join(UP_DIR, name), 'image/*', true);
+      return serveFile(res, path.join(UP_DIR, name), 'image/*', 'immutable');
     }
 
     /* páginas */
@@ -3510,10 +3577,12 @@ const server = http.createServer(async (req, res) => {
     fs.stat(file, (err, st) => {
       if (err || !st.isFile()) return notFound(req, res);
       const ext = path.extname(file).toLowerCase();
+      /* código y estilos pedidos con ?v= (la versión cambia cuando cambia el archivo): guardados un año en el celular */
+      const versioned = ['.css', '.js'].includes(ext) && url.searchParams.has('v') && path.basename(file) !== 'sw.js';
       res.writeHead(200, {
         'Content-Type': MIME[ext] || 'application/octet-stream',
         /* las tipografías no cambian (si cambian, cambia el nombre): un año en caché */
-        'Cache-Control': ext === '.woff2' && /[\\/]fonts[\\/]/.test(file) ? 'public, max-age=31536000, immutable'
+        'Cache-Control': (ext === '.woff2' && /[\\/]fonts[\\/]/.test(file)) || versioned ? 'public, max-age=31536000, immutable'
           : ['.html', '.css', '.js'].includes(ext) ? 'no-cache' : 'public, max-age=3600',
         'X-Content-Type-Options': 'nosniff',
       });
@@ -3544,6 +3613,7 @@ setTimeout(() => { try { sweepImported(); } catch (e) { console.warn('Barrido de
 setInterval(() => { try { sweepImported(); } catch (e) { console.warn('Barrido de importados:', e.message); } }, 3600000).unref();
 
 server.listen(PORT, HOST, () => {
+  backfillThumbs();
   console.log(`WorkUco en http://localhost:${PORT}`);
   console.log(`Base de datos: ${DB_FILE}`);
   if (PUBLIC_URL) console.log(`URL pública: ${PUBLIC_URL}`);

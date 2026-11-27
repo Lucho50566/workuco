@@ -59,7 +59,7 @@ async function main() {
     console.log('— Tipografías propias —');
     const home = await (await get('/')).text();
     check('las páginas no cargan Google Fonts', !/fonts\.(googleapis|gstatic)\.com/.test(home));
-    check('cargan /fonts/fonts.css y precargan las dos tipografías', /href="\/fonts\/fonts\.css"/.test(home) && /rel="preload" href="\/fonts\/bricolage-grotesque-latin\.woff2" as="font"/.test(home) && /rel="preload" href="\/fonts\/inter-latin\.woff2" as="font"/.test(home));
+    check('cargan /fonts/fonts.css y precargan las dos tipografías', /href="\/fonts\/fonts\.css(\?v=[a-f0-9]+)?"/.test(home) && /rel="preload" href="\/fonts\/bricolage-grotesque-latin\.woff2" as="font"/.test(home) && /rel="preload" href="\/fonts\/inter-latin\.woff2" as="font"/.test(home));
     const css = await (await get('/fonts/fonts.css')).text();
     check('fonts.css declara Bricolage Grotesque e Inter con font-display: swap', /Bricolage Grotesque/.test(css) && /'Inter'/.test(css) && (css.match(/font-display: swap/g) || []).length === 4);
     for (const f of [...css.matchAll(/url\((\/fonts\/[^)]+)\)/g)].map((m) => m[1])) {

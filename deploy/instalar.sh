@@ -31,7 +31,7 @@ say "1/9 Actualizando el sistema"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get upgrade -y
-apt-get install -y openssh-server curl git ufw sqlite3 ca-certificates gnupg debian-keyring debian-archive-keyring apt-transport-https unattended-upgrades
+apt-get install -y openssh-server curl git ufw sqlite3 ca-certificates gnupg debian-keyring debian-archive-keyring apt-transport-https unattended-upgrades webp
 timedatectl set-timezone America/Argentina/Mendoza || true
 
 say "2/9 Memoria swap de 1 GB (el servidor tiene 1 GB de RAM)"

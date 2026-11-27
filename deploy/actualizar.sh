@@ -15,6 +15,11 @@ G pull --ff-only origin "$BRANCH"
 after="$(G rev-parse --short HEAD)"
 install -m 755 "$APP_DIR/deploy/backup.sh" /usr/local/bin/workuco-backup
 install -m 755 "$APP_DIR/deploy/actualizar.sh" /usr/local/bin/workuco-actualizar
+# herramienta para las miniaturas WebP de las listas (si falta, la página anda igual, sin miniaturas)
+if ! command -v cwebp >/dev/null 2>&1; then
+  echo "==> Instalando la herramienta de miniaturas (webp)"
+  apt-get install -y webp >/dev/null 2>&1 || echo "    (no se pudo instalar webp: las listas siguen sin miniaturas)"
+fi
 echo "==> Reiniciando ($before -> $after)"
 systemctl restart workuco
 sleep 2

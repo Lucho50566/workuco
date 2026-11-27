@@ -35,7 +35,9 @@
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/jpeg', quality);
+    /* WebP (~30 % más liviano, misma calidad); si el navegador no sabe generarlo, JPG */
+    const webp = canvas.toDataURL('image/webp', quality);
+    return webp.startsWith('data:image/webp') ? webp : canvas.toDataURL('image/jpeg', quality);
   }
 
   const starRow = (n, interactive = false) => [1, 2, 3, 4, 5].map((i) =>
