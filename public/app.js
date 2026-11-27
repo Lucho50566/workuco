@@ -304,7 +304,9 @@ function payHtml(j) {
 }
 
 /* Guardar (corazón) y compartir, para cualquier aviso: sin sesión, el corazón lleva a ingresar y vuelve. */
-function jobActs(j, saved = false) {
+function jobActs(j, savedIn = false) {
+  /* sólo true cuenta: así un .map(jobCard) que pase el índice (0, 1, 2…) nunca marca avisos como guardados */
+  const saved = savedIn === true;
   return `<div class="job-acts">
     <button class="act-btn${saved ? ' is-on' : ''}" type="button" data-act-save="${esc(j.id)}" aria-pressed="${saved}" aria-label="${saved ? 'Quitar de guardados' : 'Guardar aviso'}" title="${saved ? 'Quitar de guardados' : 'Guardar aviso'}">${icon('heart', 18)}</button>
     <button class="act-btn" type="button" data-act-share="${esc(j.id)}" data-title="${esc(j.title)}" data-company="${esc(j.companyName || '')}" aria-label="Compartir aviso" title="Compartir aviso">${icon('share', 18)}</button>
@@ -533,13 +535,13 @@ async function initHome() {
   if (state.user && state.user.role === 'candidate') {
     api('/api/candidate/recommended').then(({ jobs }) => {
       if (!jobs.length) return;
-      $('#rec-jobs').innerHTML = jobs.slice(0, 3).map(jobCard).join('');
+      $('#rec-jobs').innerHTML = jobs.slice(0, 3).map((j) => jobCard(j)).join('');
       $('#recomendadas').hidden = false;
     }).catch(() => {});
   }
 
   api('/api/jobs?limit=6&gig=0').then(({ jobs }) => {
-    $('#featured-jobs').innerHTML = jobs.length ? jobs.map(jobCard).join('')
+    $('#featured-jobs').innerHTML = jobs.length ? jobs.map((j) => jobCard(j)).join('')
       : '<div class="empty" style="grid-column:1/-1"><h3>Todavía no hay ofertas publicadas</h3><p>Volvé pronto o publicá la primera búsqueda.</p></div>';
   }).catch((err) => fail($('#featured-jobs'), err));
 
@@ -2009,7 +2011,7 @@ async function initCosecha() {
       if (loc) qs.set('locality', loc);
       const { jobs, total } = await api(`/api/jobs?${qs}`);
       $('[data-cosecha-count]').textContent = total === 1 ? '1 aviso de cosecha' : `${total} avisos de cosecha`;
-      list.innerHTML = jobs.length ? jobs.map(jobCard).join('')
+      list.innerHTML = jobs.length ? jobs.map((j) => jobCard(j)).join('')
         : `<div class="empty" style="grid-column:1/-1"><h3>Todavía no hay avisos de cosecha${loc ? ` en ${esc(loc)}` : ''}</h3><p>Volvé pronto: en temporada se publican todas las semanas.</p></div>`;
     } catch (err) {
       list.innerHTML = `<div class="empty" style="grid-column:1/-1"><h3>No pudimos cargar los avisos</h3><p>${esc(err.message)}</p></div>`;
@@ -2178,7 +2180,7 @@ async function initClaim() {
     <div class="container claim-grid">
       <div>
         <h2>Así se ve hoy</h2>
-        <div class="jobs-grid jobs-grid-2">${jobs.map(jobCard).join('')}</div>
+        <div class="jobs-grid jobs-grid-2">${jobs.map((j) => jobCard(j)).join('')}</div>
       </div>
       <aside class="card claim-panel" id="claim-panel" hidden></aside>
     </div>
