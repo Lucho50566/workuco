@@ -303,10 +303,51 @@ function payHtml(j) {
   return `<span class="job-pay"><span class="is-empty">${esc(j.salaryLabel || j.salary || 'Sueldo a convenir')}</span></span>`;
 }
 
-function jobCard(j) {
+/* Guardar (corazón) y compartir, para cualquier aviso: sin sesión, el corazón lleva a ingresar y vuelve. */
+function jobActs(j, saved = false) {
+  return `<div class="job-acts">
+    <button class="act-btn${saved ? ' is-on' : ''}" type="button" data-act-save="${esc(j.id)}" aria-pressed="${saved}" aria-label="${saved ? 'Quitar de guardados' : 'Guardar aviso'}" title="${saved ? 'Quitar de guardados' : 'Guardar aviso'}">${icon('heart', 18)}</button>
+    <button class="act-btn" type="button" data-act-share="${esc(j.id)}" data-title="${esc(j.title)}" data-company="${esc(j.companyName || '')}" aria-label="Compartir aviso" title="Compartir aviso">${icon('share', 18)}</button>
+  </div>`;
+}
+/* Compartir: el menú del celular; si no hay, WhatsApp con el link. */
+async function shareJob(id, title, company) {
+  const url = `${location.origin}/oferta/${id}`;
+  const text = `${title}${company ? ` en ${company}` : ''} · WorkUco`;
+  try {
+    if (navigator.share) await navigator.share({ title, text, url });
+    else window.open(`https://wa.me/?text=${encodeURIComponent(`${text}: ${url}`)}`, '_blank', 'noopener');
+  } catch (_) { /* compartir cancelado */ }
+}
+/* Guardar: devuelve true/false si quedó guardado, o null si hubo que ir a ingresar. */
+async function toggleSaveJob(id) {
+  const u = state.user;
+  if (!u) { location.href = `/acceder?rol=empleado&next=${encodeURIComponent(location.pathname + location.search)}`; return null; }
+  if (u.role !== 'candidate') { toast('Guardar avisos es para cuentas de persona', 'err'); return null; }
+  const { saved } = await api(`/api/candidate/saved/${id}`, { method: 'POST' });
+  toast(saved ? 'Guardado en Mi perfil' : 'Quitado de guardados', 'ok');
+  return saved;
+}
+/* un solo manejador para todos los botones de guardar y compartir de las listas */
+document.addEventListener('click', async (e) => {
+  const sv = e.target.closest('[data-act-save]');
+  const sh = e.target.closest('[data-act-share]');
+  if (!sv && !sh) return;
+  e.preventDefault(); e.stopPropagation();
+  if (sh) { shareJob(sh.dataset.actShare, sh.dataset.title, sh.dataset.company); return; }
+  try {
+    const on = await toggleSaveJob(sv.dataset.actSave);
+    if (on === null) return;
+    sv.classList.toggle('is-on', on);
+    sv.setAttribute('aria-pressed', String(on));
+    sv.setAttribute('aria-label', on ? 'Quitar de guardados' : 'Guardar aviso');
+  } catch (err) { toast(err.message, 'err'); }
+});
+
+function jobCard(j, saved = false) {
   const cover = j.flyer || (j.companyGallery || [])[0];
   const extra = (j.flyers || []).length - 1;
-  return `<a class="job-card" href="/oferta/${j.id}">
+  return `<div class="job-card-wrap"><a class="job-card" href="/oferta/${j.id}">
     <div class="job-cover${j.flyer ? ' job-cover-flyer' : cover ? ' has-img' : ''}"${!j.flyer && cover ? ` style="background-image:url('${esc(cover)}')"` : ''}>
       ${j.flyer ? flyerFrame(j.flyer, `Flyer: ${j.title} en ${j.companyName}`) + (extra > 0 ? `<span class="flyer-more">+${extra}</span>` : '') : '<span class="job-cover-shade"></span>'}
       ${j.featured ? `<span class="badge badge-featured">${icon('star', 12)} Destacada${j.gig ? ' · Changa' : ''}</span>` : j.gig ? '<span class="badge badge-gig">Changa</span>' : ''}
@@ -326,7 +367,7 @@ function jobCard(j) {
       ${j.sourceKind === 'importado' ? `<span class="src-tag">Tomado de ${esc(j.sourceName || 'un canal de empleo')}</span>` : ''}
       <div class="job-foot">${payHtml(j)}${matchPill(j.match) || `<span>${timeAgo(j.publishedAt)}</span>`}</div>
     </div>
-  </a>`;
+  </a>${jobActs(j, saved)}</div>`;
 }
 
 function jobRow(j, saved = false) {
@@ -351,7 +392,7 @@ function jobRow(j, saved = false) {
         <span class="date">${j.sourceKind === 'importado' ? 'Tomado de un canal · ' : j.gig ? 'Changa · ' : ''}${timeAgo(j.publishedAt)}</span>
       </div>
     </a>
-    ${state.user && state.user.role === 'candidate' ? `<button class="save-btn${saved ? ' is-on' : ''}" type="button" data-save="${j.id}" title="${saved ? 'Quitar de guardadas' : 'Guardar oferta'}">${icon('heart', 18)}</button>` : ''}
+    ${jobActs(j, saved)}
     ${cover ? `<span class="job-row-cover" style="background-image:url('${esc(cover)}')" aria-hidden="true"></span>` : ''}
   </div>`;
 }
@@ -591,21 +632,9 @@ async function initSearch() {
       else results.insertAdjacentHTML('beforeend', html);
       $('#load-more-wrap').hidden = page >= pages;
       history.replaceState(null, '', `/buscar${p.toString() ? '?' + p : ''}`);
-      bindSaves();
     } catch (err) {
       results.innerHTML = `<div class="empty"><h3>Error al buscar</h3><p>${esc(err.message)}</p></div>`;
     }
-  }
-
-  function bindSaves() {
-    $$('[data-save]').forEach((b) => b.addEventListener('click', async (e) => {
-      e.preventDefault();
-      try {
-        const { saved } = await api(`/api/candidate/saved/${b.dataset.save}`, { method: 'POST' });
-        b.classList.toggle('is-on', saved);
-        toast(saved ? 'Guardaste la oferta' : 'Quitada de guardadas', 'ok');
-      } catch (err) { toast(err.message, 'err'); }
-    }));
   }
 
   $('[data-filters-toggle]')?.addEventListener('click', () => {
@@ -745,8 +774,8 @@ async function initJob() {
           ${matchBoxHtml(job)}
           ${responseHtml(job.companyResponse)}
           <div class="aside-actions">
-            ${state.user && state.user.role === 'candidate' ? `<button class="btn btn-ghost btn-sm${saved ? ' is-on' : ''}" type="button" id="save-job">${icon('heart', 16)} ${saved ? 'Guardada' : 'Guardar'}</button>` : ''}
-            <button class="btn btn-ghost btn-sm" type="button" id="share-job">${icon('external', 16)} Compartir</button>
+            <button class="btn btn-act${saved ? ' is-on' : ''}" type="button" id="save-job" aria-pressed="${saved}">${icon('heart', 18)} <span>${saved ? 'Guardado' : 'Guardar'}</span></button>
+            <button class="btn btn-act" type="button" id="share-job">${icon('share', 18)} <span>Compartir</span></button>
           </div>
         </div>
         <div class="aside-card">
@@ -773,21 +802,17 @@ async function initJob() {
     setupFlyerRail($('.detail-flyers', view));
     if (canApply && !applied) initApply(job);
 
-    $('#save-job')?.addEventListener('click', async (e) => {
+    const saveBtn = $('#save-job');
+    saveBtn?.addEventListener('click', async () => {
       try {
-        const r = await api(`/api/candidate/saved/${job.id}`, { method: 'POST' });
-        e.currentTarget.classList.toggle('is-on', r.saved);
-        e.currentTarget.innerHTML = `${icon('heart', 16)} ${r.saved ? 'Guardada' : 'Guardar'}`;
-        toast(r.saved ? 'Guardaste la oferta' : 'Quitada de guardadas', 'ok');
+        const on = await toggleSaveJob(job.id);
+        if (on === null) return;
+        saveBtn.classList.toggle('is-on', on);
+        saveBtn.setAttribute('aria-pressed', String(on));
+        saveBtn.querySelector('span').textContent = on ? 'Guardado' : 'Guardar';
       } catch (err) { toast(err.message, 'err'); }
     });
-    $('#share-job')?.addEventListener('click', async () => {
-      const url = location.href;
-      try {
-        if (navigator.share) await navigator.share({ title: job.title, text: `${job.title} en ${job.companyName}`, url });
-        else { await navigator.clipboard.writeText(url); toast('Link copiado', 'ok'); }
-      } catch (_) {}
-    });
+    $('#share-job')?.addEventListener('click', () => shareJob(job.id, job.title, job.companyName));
   } catch (err) {
     view.innerHTML = `<div class="empty"><h3>Oferta no disponible</h3><p>${esc(err.message)}</p><a class="btn btn-outline" href="/buscar" style="margin-top:16px">Volver a buscar</a></div>`;
   }

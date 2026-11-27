@@ -1338,3 +1338,23 @@ select.input.input-sm, select.input-sm { padding-right: 32px; background-positio
 .vec-strip :focus-visible { outline-color: var(--lime); }
 .guia-body .vec-strip { margin: 0 0 22px; }
 @media (max-width: 720px) { .vec-strip { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- guardar y compartir en cualquier aviso (listas, empresa y detalle) ---------- */
+.job-acts { position: absolute; right: 12px; bottom: 10px; z-index: 3; display: flex; gap: 8px; }
+.act-btn { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface, #fff); display: grid; place-items: center; color: var(--muted); cursor: pointer; transition: color .15s, background .15s, border-color .15s, transform .15s; }
+.act-btn:hover { color: var(--night, #0b1612); border-color: var(--line-strong, #cbd5ce); transform: translateY(-1px); }
+.act-btn[data-act-save]:hover, .act-btn.is-on { color: #e5484d; border-color: #f1c3c0; }
+.act-btn.is-on { background: #fdecec; }
+.act-btn.is-on svg { fill: currentColor; }
+.act-btn:focus-visible { outline: 3px solid var(--lime, #c8f560); outline-offset: 2px; }
+.job-card-wrap { position: relative; display: flex; }
+.job-card-wrap > .job-card { flex: 1; }
+.job-card-wrap .job-acts { top: 12px; bottom: auto; left: 12px; right: auto; }
+.job-card-wrap .act-btn { background: rgba(255, 255, 255, .92); }
+.job-row .side .date { margin-right: 96px; }
+.aside-actions { gap: 10px; }
+.btn-act { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; border-radius: 999px; border: 1.5px solid var(--line-strong, #cbd5ce); background: var(--surface, #fff); color: var(--night, #0b1612); font-weight: 700; font-size: 15px; }
+.btn-act:hover { border-color: var(--night, #0b1612); }
+.btn-act.is-on { color: #e5484d; border-color: #f1c3c0; background: #fdecec; }
+.btn-act.is-on svg { fill: currentColor; }
+@media (max-width: 720px) { .job-row .side .date { margin-right: 0; } .job-row-main { padding-bottom: 58px; } }
