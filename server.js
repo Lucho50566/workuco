@@ -3307,6 +3307,15 @@ function removeUpload(file) {
   try { fs.unlinkSync(path.join(UP_DIR, path.basename(file))); } catch (_) { /* ya no está */ }
 }
 
+/* Nombre del archivo para el navegador. Un encabezado HTTP sólo admite caracteres simples: el nombre real va
+   codificado (filename*, RFC 5987) y hay un respaldo sin tildes. Así "CV Joaquín Muñoz.pdf" — incluso con la
+   tilde separada como la guardan los iPhone — no rompe la descarga. */
+function contentDisposition(name) {
+  const full = String(name || 'archivo').normalize('NFC').replace(/[\r\n"\\]/g, '').trim() || 'archivo';
+  const ascii = full.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7e]/g, '_');
+  return `inline; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(full)}`;
+}
+
 function serveFile(res, file, mime, cache = false, downloadName = '') {
   if (!fs.existsSync(file)) return send(res, 404, { error: 'Archivo no encontrado' });
   const ext = path.extname(file).toLowerCase();
@@ -3318,7 +3327,7 @@ function serveFile(res, file, mime, cache = false, downloadName = '') {
     'Cache-Control': cache ? 'public, max-age=86400' : 'private, no-store',
     'X-Content-Type-Options': 'nosniff',
   };
-  if (downloadName) headers['Content-Disposition'] = `inline; filename="${String(downloadName).replace(/"/g, '')}"`;
+  if (downloadName) headers['Content-Disposition'] = contentDisposition(downloadName);
   res.writeHead(200, headers);
   fs.createReadStream(file).pipe(res);
 }
