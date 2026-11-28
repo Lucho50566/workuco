@@ -32,6 +32,7 @@ const servicesLib = require('./lib/services');
 const mp = require('./lib/mp');
 const cvpro = require('./lib/cvpro');
 const { createMailer, emailHtml, emailText } = require('./lib/mail');
+const pushLib = require('./lib/push');
 const DEMO = process.env.WORKUCO_DEMO === '1';
 
 const ROOT = __dirname;
@@ -409,6 +410,26 @@ const MAILER = createMailer({
   replyTo: legal.legalInfo().email,
   fakeFile: process.env.WORKUCO_MAIL_FAKE === '1' ? path.join(DATA, 'outbox.jsonl') : '',
 });
+/* ---------- notificaciones en el celular (Web Push) ---------- */
+const PUSHER = pushLib.createPusher({
+  vapid: pushLib.loadVapid({ file: path.join(DATA, 'vapid.json'), publicKey: process.env.WORKUCO_VAPID_PUBLIC, privateKey: process.env.WORKUCO_VAPID_PRIVATE }),
+  subject: `mailto:${(process.env.WORKUCO_GMAIL_FROM || 'contacto.workuco@gmail.com').trim()}`,
+  fakeFile: process.env.WORKUCO_PUSH_FAKE === '1' ? path.join(DATA, 'push-outbox.jsonl') : '',
+});
+/* manda el aviso a todos los celulares de una cuenta; borra los que ya no existen. Nunca hace fallar nada. */
+function pushTo(type, id, { title, body = '', url = '/' }) {
+  let subs = [];
+  try { subs = store.pushSubs(type, id); } catch (e) { console.warn('Push:', e.message); return; }
+  const msg = { title: String(title || 'WorkUco').slice(0, 120), body: String(body || '').slice(0, 300), url: /^\/(?!\/)/.test(url || '') ? url : '/' };
+  for (const sub of subs) {
+    PUSHER.send(sub, msg).then((r) => { if (r.gone) { try { store.deletePushSub(sub.endpoint); } catch (_) {} } }).catch(() => {});
+  }
+}
+/* cosas nuevas para revisar en el admin: le llegan al celular del dueño de WorkUco */
+function notifyAdmin(title, body = '', link = '/admin') {
+  pushTo('admin', 'admin', { title, body, url: link });
+}
+
 /* Los links de los mails salen SIEMPRE de PUBLIC_URL, nunca del Host del pedido
    (si no, alguien podría pedir un "recuperar contraseña" que apunte a otro sitio). */
 const mailOrigin = () => PUBLIC_URL || `http://localhost:${PORT}`;
@@ -520,10 +541,7 @@ function mailNotice(type, id, data) {
   const kindType = (MAIL_KIND[type] || {})[data.kind];
   if (kindType && mailPrefsOf(type, row)[kindType] === false) return;
   const settings = type === 'candidate' ? '/mi-perfil' : '/panel#empresa';
-  /* el asunto puede verse en la pantalla bloqueada: sin el nombre de quien se postuló */
-  const msg = data.kind === 'postulacion'
-    ? { title: `Nueva postulación para "${data.body}"`, body: 'Entrá a tu panel para ver el perfil, el mensaje y el CV.' }
-    : { title: data.title, body: data.body || '' };
+  const msg = lockScreenText(data);
   sendMail(row.email, {
     title: msg.title, body: msg.body,
     cta: data.link ? { label: 'Ver en WorkUco', url: `${mailOrigin()}${data.link}` } : null,
@@ -531,9 +549,17 @@ function mailNotice(type, id, data) {
   }).catch(() => {});
 }
 
+/* el asunto del mail y la notificación del celular se ven en la pantalla bloqueada: sin el nombre de quien se postuló */
+function lockScreenText(data) {
+  return data.kind === 'postulacion'
+    ? { title: `Nueva postulación para "${data.body}"`, body: 'Entrá a tu panel para ver el perfil, el mensaje y el CV.' }
+    : { title: data.title, body: data.body || '' };
+}
+
 function tryNotify(type, id, data) {
   try { store.notify(type, id, data); } catch (e) { console.warn('Notificación:', e.message); }
   try { mailNotice(type, id, data); } catch (e) { console.warn('Aviso por mail:', e.message); }
+  try { const m = lockScreenText(data); pushTo(type, id, { title: m.title, body: m.body, url: data.link || '/' }); } catch (e) { console.warn('Aviso al celular:', e.message); }
 }
 
 /* ---------- cobro de destacados (Mercado Pago) ---------- */
@@ -1122,6 +1148,7 @@ async function handlePlacesApi(req, res, p, method, q, me) {
       if (!v.ok) return send(res, 400, { error: 'Revisá los datos de la ficha', fields: v.errors });
       const ph = placePhotos(null, b);
       const pl = store.insertPlace({ ...v.data, photoFiles: ph.files, status: 'pending', ownerType: o[0], ownerId: o[1] });
+      notifyAdmin('Ficha nueva para revisar en la Guía', pl.name, '/admin');
       return send(res, 201, { place: placeDetail(pl, { owner: true }), message: 'Tu ficha quedó en revisión. Te avisamos cuando esté publicada.' });
     }
     const mine = p.match(/^\/api\/my\/places\/([a-z0-9]+)$/);
@@ -1141,6 +1168,7 @@ async function handlePlacesApi(req, res, p, method, q, me) {
       /* nombre, sección o rubro nuevos (o una ficha rechazada que se corrige) vuelven a revisión */
       const review = v.data.name !== cur.name || v.data.section !== cur.section || v.data.category !== cur.category || cur.status === 'rejected';
       const pl = review ? store.setPlaceStatus(cur.id, 'pending') : store.place(cur.id);
+      if (review) notifyAdmin('Ficha de la Guía con cambios para revisar', pl.name, '/admin');
       return send(res, 200, { place: placeDetail(pl, { owner: true }), message: review ? 'Los cambios quedaron en revisión.' : 'Cambios publicados.' });
     }
     return send(res, 405, { error: 'Método no permitido' });
@@ -1244,6 +1272,7 @@ async function handlePlacesApi(req, res, p, method, q, me) {
           const c = store.insertCompany({ id: uid('c'), name, email, phone, website: '', description: '', password: hashPassword(password), verified: 0, plan: 'free', createdAt: now(), locality: pl.localities[0] || '' });
           store.acceptTerms('companies', c.id, legal.TERMS_VERSION);
           o = ['company', c.id];
+          notifyAdmin('Empresa nueva en WorkUco', `${c.name} (reclamó su ficha de la Guía)`, '/admin');
         }
         setSession(res, o[0], req, o[0] === 'candidate' ? { candidateId: o[1] } : { companyId: o[1] });
       }
@@ -1329,6 +1358,7 @@ async function handleVecinosApi(req, res, p, method, q, me) {
     const v = vecinosLib.validateRequest(b);
     if (v.errors) return send(res, 400, { error: 'Revisá los datos del pedido', fields: v.errors });
     const r = store.insertRequest(myId, v.value);
+    notifyAdmin('Pedido de vecinos para revisar', `${r.title}${r.locality ? ` · ${r.locality}` : ''}`, '/admin');
     return send(res, 201, { request: ownRequest(r) });
   }
   if (p === '/api/vecinos/mios' && method === 'GET') {
@@ -1649,6 +1679,7 @@ async function handleApi(req, res, url) {
     });
     store.acceptTerms('companies', c.id, legal.TERMS_VERSION);
     setSession(res, 'company', req, { companyId: c.id });
+    notifyAdmin('Empresa nueva en WorkUco', c.name, '/admin');
     return send(res, 201, { company: publicCompany(c, { privateView: true }) });
   }
 
@@ -2045,6 +2076,7 @@ async function handleApi(req, res, url) {
     const j = store.insertJob({
       id: uid('j'), companyId: me.company.id, ...v.data, flyerFiles, status: 'pending', featured: 0, createdAt: now(),
     });
+    notifyAdmin('Aviso nuevo para aprobar', `${j.title} · ${me.company.name}`, '/admin');
     return send(res, 201, { job: j, warnings: legal.discriminationHints(j.title, j.description, j.requirements, j.responsibilities) });
   }
 
@@ -2085,6 +2117,7 @@ async function handleApi(req, res, url) {
     if (!v.ok) return send(res, 400, { error: 'Revisá los datos', fields: v.errors });
     const flyerFiles = [...new Set(keep), ...added.map((f) => saveImage(f, 'flyer'))];
     const updated = store.updateJob(j.id, { ...v.data, flyerFiles, status: 'pending', rejectReason: null, publishedAt: null });
+    notifyAdmin('Aviso editado para volver a aprobar', `${updated.title} · ${me.company.name}`, '/admin');
     return send(res, 200, { job: updated, message: 'Los cambios quedaron pendientes de aprobación', warnings: legal.discriminationHints(updated.title, updated.description, updated.requirements, updated.responsibilities) });
   }
 
@@ -2320,6 +2353,7 @@ async function handleApi(req, res, url) {
     if (!j || j.companyId !== me.company.id) return send(res, 404, { error: 'Oferta no encontrada' });
     if (method === 'POST' && j.featured) return send(res, 400, { error: 'Este aviso ya está destacado' });
     if (method === 'POST' && j.status !== 'approved') return send(res, 400, { error: 'Sólo se pueden destacar avisos publicados' });
+    if (method === 'POST' && !j.featureRequested) notifyAdmin('Piden destacar un aviso', `${j.title} · ${me.company.name}`, '/admin');
     return send(res, 200, { job: store.setFeatureRequest(j.id, method === 'POST') });
   }
 
@@ -2332,6 +2366,7 @@ async function handleApi(req, res, url) {
       ...j, id: uid('j'), title: `${j.title} (copia)`, status: 'pending', featured: 0,
       createdAt: now(), publishedAt: null,
     });
+    notifyAdmin('Aviso nuevo para aprobar', `${copy.title} · ${me.company.name}`, '/admin');
     return send(res, 201, { job: copy });
   }
 
@@ -2680,6 +2715,33 @@ async function handleApi(req, res, url) {
     return send(res, 200, { invitations });
   }
 
+  /* ---------- notificaciones en el celular: activar, desactivar y ver si está activo ---------- */
+  if (p.startsWith('/api/push/')) {
+    const owner = !me ? null : me.role === 'admin' ? ['admin', 'admin'] : me.role === 'company' ? ['company', me.company.id] : me.role === 'candidate' ? ['candidate', me.candidate.id] : null;
+    if (p === '/api/push/key' && method === 'GET') return send(res, 200, { publicKey: PUSHER.publicKey });
+    if (!owner) return send(res, 401, { error: 'Ingresá con tu cuenta para activar los avisos' });
+    if (p === '/api/push/status' && method === 'POST') {
+      const b = await readBody(req, 4096);
+      return send(res, 200, { on: !!b.endpoint && store.hasPushSub(owner[0], owner[1], String(b.endpoint)) });
+    }
+    if (p === '/api/push/subscribe' && method === 'POST') {
+      const b = await readBody(req, 8192);
+      const sub = pushLib.cleanSubscription(b.subscription);
+      if (!sub) return send(res, 400, { error: 'Este navegador no mandó una suscripción válida' });
+      store.addPushSub(owner[0], owner[1], sub);
+      PUSHER.send(sub, { title: 'Listo: los avisos llegan a este celular',
+        body: owner[0] === 'admin' ? 'Te vamos a avisar cuando haya algo para revisar.' : 'Te avisamos de lo importante de tu cuenta.',
+        url: owner[0] === 'admin' ? '/admin' : owner[0] === 'company' ? '/panel' : '/mi-perfil' }).catch(() => {});
+      return send(res, 200, { ok: true });
+    }
+    if (p === '/api/push/unsubscribe' && method === 'POST') {
+      const b = await readBody(req, 4096);
+      if (b.endpoint) store.deletePushSub(String(b.endpoint), owner[0], owner[1]);
+      return send(res, 200, { ok: true });
+    }
+    return send(res, 404, { error: 'No encontrado' });
+  }
+
   /* ---------- notificaciones (personas y empresas) ---------- */
   if (p === '/api/notifications' || p === '/api/notifications/read') {
     const who = me && me.role === 'candidate' ? ['candidate', me.candidate.id]
@@ -2957,6 +3019,7 @@ async function handleApi(req, res, url) {
       body: `Avisos: ${avisos}\nFecha: ${fecha} (hora argentina)${motivo}\n\nLo ves en Admin → Importar.`,
       cta: { label: 'Ver en el admin', url: `${mailOrigin()}/admin#importar` },
     }).catch(() => {});
+    notifyAdmin(r.action === 'aceptada' ? `${r.name} aceptó su aviso` : `${r.name} borró su aviso`, `Avisos: ${avisos}`, '/admin#importar');
   };
   const claimM = p.match(/^\/api\/claim\/([^/]+)(\/accept|\/delete)?$/);
   if (claimM) {

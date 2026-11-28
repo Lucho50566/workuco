@@ -1817,6 +1817,75 @@ async function initPrefs(root) {
   $('#pref-gigs', root).addEventListener('change', (e) => save({ gigs: e.target.checked }));
 }
 
+/* ---------- avisos en el celular (Web Push) ----------
+   Una cajita [data-push-box] con el botón para activarlos o desactivarlos en ESTE celular o navegador.
+   En iPhone sólo funcionan con WorkUco agregado a la pantalla de inicio (lo explica). */
+const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && window.isSecureContext;
+const pushIsIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const pushStandalone = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+function pushKey(b64) {
+  const s = (b64 + '='.repeat((4 - (b64.length % 4)) % 4)).replace(/-/g, '+').replace(/_/g, '/');
+  return Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+}
+async function pushReg() {
+  const reg = (await navigator.serviceWorker.getRegistration('/')) || (await navigator.serviceWorker.register('/sw.js'));
+  return navigator.serviceWorker.ready.then(() => reg);
+}
+function pushBoxHtml(forAdmin) {
+  return `<div class="push-box" data-push-box data-push-admin="${forAdmin ? '1' : ''}">
+    <div class="push-box-text"><strong>${icon('bell', 18)} Avisos en este celular</strong>
+      <span class="soft-text" data-push-msg>${forAdmin ? 'Te avisa al celular cuando hay algo nuevo para revisar.' : 'Te llegan al celular las mismas cosas importantes que a la campanita.'}</span></div>
+    <button class="btn btn-primary btn-sm" type="button" data-push-btn hidden></button>
+  </div>`;
+}
+async function setupPushBox(box) {
+  if (!box || box.dataset.pushReady) return;
+  box.dataset.pushReady = '1';
+  const btn = $('[data-push-btn]', box); const msg = $('[data-push-msg]', box);
+  const say = (t) => { msg.textContent = t; };
+  if (!pushSupported()) {
+    say(pushIsIOS() && !pushStandalone()
+      ? 'En iPhone: tocá Compartir → "Agregar a inicio", abrí WorkUco desde ese ícono y activalos ahí.'
+      : 'Este navegador no permite avisos en el celular. Probá desde Chrome o con WorkUco instalado como app.');
+    return;
+  }
+  let sub = null;
+  const paint = (on) => {
+    btn.hidden = false; btn.disabled = false;
+    btn.className = on ? 'btn btn-outline btn-sm' : 'btn btn-primary btn-sm';
+    btn.textContent = on ? 'Desactivar' : 'Activar avisos';
+    if (on) say('Activos: te llegan a este celular.');
+    else if (Notification.permission === 'denied') { say('Bloqueaste los avisos para WorkUco. Activalos en la configuración del navegador (permisos del sitio → Notificaciones) y volvé a tocar.'); }
+  };
+  try {
+    const reg = await pushReg();
+    sub = await reg.pushManager.getSubscription();
+    let on = false;
+    if (sub && Notification.permission === 'granted') on = (await api('/api/push/status', { method: 'POST', body: { endpoint: sub.endpoint } })).on;
+    paint(on);
+  } catch (_) { paint(false); }
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try {
+      const reg = await pushReg();
+      sub = await reg.pushManager.getSubscription();
+      if (btn.textContent === 'Desactivar') {
+        if (sub) { await api('/api/push/unsubscribe', { method: 'POST', body: { endpoint: sub.endpoint } }); await sub.unsubscribe().catch(() => {}); }
+        say('Listo: ya no te llegan avisos a este celular.'); paint(false); return;
+      }
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') { paint(false); if (perm === 'default') say('Para activarlos, tocá "Permitir" cuando el celular pregunte.'); return; }
+      if (!sub) {
+        const { publicKey } = await api('/api/push/key');
+        sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: pushKey(publicKey) });
+      }
+      await api('/api/push/subscribe', { method: 'POST', body: { subscription: sub.toJSON() } });
+      paint(true); toast('Avisos activados: te mandamos uno de prueba', 'ok');
+    } catch (err) { paint(false); toast(err && err.message ? err.message : 'No se pudieron activar los avisos', 'err'); }
+  });
+}
+document.addEventListener('DOMContentLoaded', () => { $$('[data-push-box]').forEach(setupPushBox); });
+
 /* "Tus datos": descargar una copia (derecho de acceso) y darse de baja (supresión). Va en el
    perfil, en el panel de empresa y en /baja. La baja pide la contraseña y borra todo en el momento. */
 function accountDataHtml(role) {
@@ -1829,6 +1898,7 @@ function accountDataHtml(role) {
       <legend>Qué avisos te llegan por mail <small>(la campanita de la página recibe todo)</small></legend>
       ${MAIL_LABELS[role].map(([k, label]) => `<label class="check-row"><input type="checkbox" data-mail-type="${k}" ${((acc.prefs || {}).mail || {})[k] === false ? '' : 'checked'}><span>${label}</span></label>`).join('')}
     </fieldset>
+    ${pushBoxHtml(false)}
     <div class="account-data-actions">
       <button class="btn btn-outline btn-sm" type="button" data-pass-open aria-expanded="false" aria-controls="pass-form">${icon('lock', 16)} Cambiar contraseña</button>
       <a class="btn btn-outline btn-sm" href="/api/account/export" download>${icon('file', 16)} Descargar mis datos</a>
@@ -1851,6 +1921,7 @@ function accountDataHtml(role) {
 function setupAccountData(root) {
   const box = $('[data-account-data]', root);
   if (!box) return;
+  setupPushBox($('[data-push-box]', box));
   /* avisos por mail */
   $$('[data-mail-type]', box).forEach((cb) => cb.addEventListener('change', async () => {
     try {

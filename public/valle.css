@@ -1362,3 +1362,9 @@ select.input.input-sm, select.input-sm { padding-right: 32px; background-positio
 /* Mi perfil: botones de la foto (cambiar / quitar) */
 .photo-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 #photo-remove[data-armed="1"] { color: #b3261e; border-color: #f1c3c0; background: #fdecec; }
+
+/* avisos en el celular (Mi perfil, panel de empresa y admin) */
+.push-box { display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap; margin: 14px 0; padding: 12px 14px; border-radius: 14px; background: var(--surface-2, rgba(200,245,96,.12)); border: 1px solid var(--line, rgba(0,0,0,.08)); }
+.push-box-text { display: grid; gap: 2px; flex: 1 1 240px; min-width: 0; }
+.push-box-text strong { display: inline-flex; align-items: center; gap: 6px; }
+.push-box [data-push-btn] { flex: none; }
