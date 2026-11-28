@@ -116,6 +116,13 @@ async function testApi() {
     check('queda registrado como vencido', venc && venc.action === 'vencida' && venc.jobs.length === 1, JSON.stringify(venc));
     const aviso = sql((db) => db.prepare("SELECT COUNT(*) AS n FROM notifications WHERE recipient_id='udemo01' AND title LIKE '%cerró%'").get().n);
     check('la persona que se postuló recibe el aviso', aviso === 1, String(aviso));
+    check('la cuenta de la empresa que no reclamó también se borra', sql((db) => db.prepare('SELECT COUNT(*) AS n FROM companies WHERE id=?').get(viejo.job.companyId).n) === 0);
+    /* una importada sin reclamar que se quedó sin avisos por otro lado (se lo cerraron o borraron) */
+    sql((db) => { db.prepare('DELETE FROM jobs WHERE id=?').run(nuevo.job.id); db.prepare('UPDATE companies SET created_at=? WHERE id=?').run(Date.now() - 2 * DAY, nuevo.job.companyId); });
+    const sw2 = await admin.post('/api/admin/import/sweep');
+    check('una importada sin reclamar que se quedó sin avisos se borra', sw2.data.companies === 1 && sql((db) => db.prepare('SELECT COUNT(*) AS n FROM companies WHERE id=?').get(nuevo.job.companyId).n) === 0, JSON.stringify(sw2.data));
+    check('la reclamada no se toca', sql((db) => db.prepare('SELECT COUNT(*) AS n FROM companies WHERE id=?').get(reclamado.job.companyId).n) === 1);
+    check('las demás importadas con avisos siguen', (await admin.get('/api/admin/import')).data.companies.some((c) => c.name === 'Resto Pronto'));
     check('un segundo barrido no hace nada', (await admin.post('/api/admin/import/sweep')).data.deleted === 0);
     check('sin sesión de admin no se puede barrer', (await client().post('/api/admin/import/sweep')).status === 401);
   } catch (e) { fail++; console.error('ERROR:', e); } finally { child.kill(); await sleep(300); fs.rmSync(DATA, { recursive: true, force: true }); }

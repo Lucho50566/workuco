@@ -485,7 +485,14 @@ function importRows(origin) {
     };
   });
 }
-/* Borra los avisos importados que nadie reclamó en el plazo; avisa a quienes se postularon y lo deja registrado. */
+/* borra la empresa con todo lo suyo, también sus archivos (logo, fotos, flyers) del disco */
+function deleteCompanyAndFiles(id) {
+  const files = store.companyFiles(id);
+  store.deleteCompanyCascade(id);
+  files.forEach(removeUpload);
+}
+/* Borra los avisos importados que nadie reclamó en el plazo; avisa a quienes se postularon y lo deja registrado.
+   Una empresa importada que nunca reclamó su cuenta se borra entera cuando se queda sin avisos. */
 function sweepImported() {
   const expired = store.importJobsExpired(Date.now() - importTtlDays() * 86400000);
   const byCompany = new Map();
@@ -498,15 +505,27 @@ function sweepImported() {
     const applicants = store.applicantsOf(companyId).filter((a) => ids.has(a.jobId));
     store.recordImportResponse({ company: c, action: 'vencida', jobTitles: jobs.map((j) => j.title) });
     const total = store.one('SELECT COUNT(*) AS n FROM jobs WHERE company_id=?', companyId).n;
-    if (total <= jobs.length) store.deleteCompanyCascade(companyId);
-    else for (const j of jobs) store.removeJob(j.id);
+    if (total <= jobs.length) deleteCompanyAndFiles(companyId);
+    else {
+      for (const j of jobs) {
+        const r = store.one('SELECT flyer_file, flyers FROM jobs WHERE id=?', j.id);
+        store.removeJob(j.id);
+        if (r) [r.flyer_file, ...jparse(r.flyers, [])].filter((f) => f && !/^https?:|^\//.test(f)).forEach(removeUpload);
+      }
+    }
     deleted += jobs.length;
     for (const a of applicants) {
       tryNotify('candidate', a.candidateId, { kind: 'etapa', title: `La búsqueda "${a.jobTitle}" cerró`, body: 'Hay más búsquedas en WorkUco para vos.', link: '/buscar' });
     }
   }
+  /* empresas importadas sin reclamar que ya no tienen ningún aviso (se los borraron o cerraron por otro lado):
+     la cuenta no sirve para nada y se borra (con un día de margen, por si se está cargando) */
+  const orphans = store.all(`SELECT id FROM companies c WHERE claimed=0 AND created_at<?
+    AND NOT EXISTS (SELECT 1 FROM jobs j WHERE j.company_id=c.id)`, Date.now() - 86400000);
+  for (const o of orphans) deleteCompanyAndFiles(o.id);
   if (deleted) console.log(`Avisos importados vencidos borrados: ${deleted}`);
-  return { deleted };
+  if (orphans.length) console.log(`Cuentas importadas sin reclamar y sin avisos borradas: ${orphans.length}`);
+  return { deleted, companies: orphans.length };
 }
 
 function importEmailOf(companyId) {
@@ -3077,7 +3096,7 @@ async function handleApi(req, res, url) {
     if (impCo && method === 'DELETE' && !impCo[2]) {
       const c = store.company(impCo[1]);
       if (!c || !c.imported) return send(res, 404, { error: 'Ficha importada no encontrada' });
-      store.deleteCompanyCascade(c.id);
+      deleteCompanyAndFiles(c.id);
       return send(res, 200, { ok: true });
     }
     return send(res, 404, { error: 'API no encontrada' });
@@ -3151,7 +3170,7 @@ async function handleApi(req, res, url) {
       const applicants = store.applicantsOf(c.id);
       store.addBlock('phone', c.phone_norm || normPhone(c.phone), c.name);
       store.addBlock('name', c.name_norm || normName(c.name), c.name);
-      store.deleteCompanyCascade(c.id);
+      deleteCompanyAndFiles(c.id);
       for (const a of applicants) {
         tryNotify('candidate', a.candidateId, { kind: 'etapa', title: `El aviso "${a.jobTitle}" fue retirado por la empresa`, body: 'Hay más búsquedas en WorkUco para vos.', link: '/buscar' });
       }
