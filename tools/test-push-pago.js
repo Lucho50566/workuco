@@ -75,6 +75,7 @@ const mpServer = http.createServer((req, res) => {
       mp.prefs.push({ id, body: JSON.parse(raw || '{}') });
       return json(201, { id, init_point: `https://mp.test/checkout?pref=${id}` });
     }
+    if (req.method === 'GET' && req.url === '/users/me') return json(200, { id: 123456789, nickname: 'WORKUCO.TEST', email: 'cuenta@prueba.test', first_name: 'Dueño', last_name: 'Prueba', site_id: 'MLA' });
     const m = req.url.match(/^\/v1\/payments\/(\w+)$/);
     if (req.method === 'GET' && m) { const p = mp.payments.get(m[1]); return p ? json(200, p) : json(404, {}); }
     json(404, {});
@@ -146,6 +147,25 @@ async function main() {
     await sleep(400);
     check('sin nadie a quien mandarlo, al admin le llega "devolver el pago"', pushes().some((m) => m.endpoint === adminSub.endpoint && /Devolver un pago/.test(m.message.title)));
     check('y el aviso no queda gastado', (await emp.get(`/api/company/jobs/${job2.id}/push`)).data.sentAt === null);
+
+    console.log('— Cuenta conectada y pago de prueba —');
+    const acc = (await admin.get('/api/admin/payments/account')).data;
+    check('el admin ve a qué cuenta de Mercado Pago entra la plata', acc.connected && acc.account && acc.account.nickname === 'WORKUCO.TEST' && acc.account.email === 'cuenta@prueba.test' && acc.account.id === 123456789, JSON.stringify(acc));
+    check('la clave nunca aparece', !JSON.stringify(acc).includes('APP_USR'));
+    check('una empresa no la ve', (await emp.get('/api/admin/payments/account')).status === 401);
+    const totals0 = (await admin.get('/api/admin/payments')).data.totals;
+    const t = await admin.post('/api/admin/payments/test');
+    const lastPref = mp.prefs[mp.prefs.length - 1].body;
+    check('el pago de prueba abre Mercado Pago por $ 100 y vuelve al admin', t.status === 200 && /mp\.test/.test(t.data.url) && lastPref.items[0].unit_price === 100 && /\/admin\?pago=ok/.test(lastPref.back_urls.success), JSON.stringify(t.data));
+    check('una empresa no puede crear pagos de prueba', (await emp.post('/api/admin/payments/test')).status === 401);
+    mp.payments.set('903', { id: 903, status: 'approved', external_reference: lastPref.external_reference, currency_id: 'ARS', transaction_amount: 100 });
+    await pub.hook('/api/mp/webhook?type=payment&data.id=903', { type: 'payment', data: { id: '903' } }, '903');
+    await sleep(400);
+    check('al aprobarse, al celular del admin le llega "Llegó el pago de prueba"', pushes().some((m) => m.endpoint === adminSub.endpoint && /Llegó el pago de prueba/.test(m.message.title)));
+    const acc2 = (await admin.get('/api/admin/payments/account')).data;
+    check('queda registrado el último pago de prueba aprobado', acc2.lastTest && acc2.lastTest.status === 'approved' && acc2.lastTest.mpPaymentId === '903', JSON.stringify(acc2.lastTest));
+    const totals1 = (await admin.get('/api/admin/payments')).data.totals;
+    check('el pago de prueba no cuenta en lo cobrado', totals1.approved === totals0.approved && totals1.count === totals0.count, JSON.stringify([totals0, totals1]));
   } catch (e) {
     fail++; console.error('ERROR en las pruebas:', e);
   } finally {

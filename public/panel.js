@@ -1288,6 +1288,11 @@
     if (!user || user.role !== 'admin') return;
     /* /admin#importar (el link del mail) abre directo la pestaña Importar */
     if (location.hash === '#importar') { const t = $('.tab[data-tab="import"]'); if (t) setTimeout(() => t.click(), 0); }
+    /* /admin#pagos (el aviso del pago de prueba) o la vuelta de Mercado Pago (?pago=…) abren Pagos */
+    const pagoBack = new URLSearchParams(location.search).get('pago');
+    if (location.hash === '#pagos' || pagoBack) { const t = $('.tab[data-tab="payments"]'); if (t) setTimeout(() => t.click(), 0); }
+    if (pagoBack === 'error') toast('El pago de prueba no se completó.', 'err');
+    else if (pagoBack) toast('Volviste de Mercado Pago: cuando el pago se apruebe te llega un aviso al celular.', 'ok');
 
     /* Personas: filtros */
     W.loadMeta().then((m) => {
@@ -1376,6 +1381,39 @@
     rejected: ['badge-red', 'Rechazado'], cancelled: ['', 'Cancelado'], refunded: ['', 'Devuelto'], charged_back: ['badge-red', 'Contracargo'],
     monto_incorrecto: ['badge-red', 'Monto incorrecto'], error: ['badge-red', 'Error al abrir'],
   };
+  /* a qué cuenta de Mercado Pago entra la plata, y el pago de prueba */
+  async function mpAccount() {
+    const box = $('#mp-account');
+    if (!box) return;
+    let a;
+    try { a = await api('/api/admin/payments/account'); } catch (err) { box.innerHTML = `<p class="muted">${esc(err.message)}</p>`; return; }
+    const acc = a.account;
+    const last = a.lastTest;
+    const lastTxt = !last ? '' : last.status === 'approved'
+      ? `<p class="mp-last ok">${icon('check', 14)} Último pago de prueba: <strong>aprobado</strong> el ${fmtDate(last.paidAt || last.createdAt)}${last.mpPaymentId ? ` (N° ${esc(last.mpPaymentId)})` : ''}. El cobro funciona.</p>`
+      : `<p class="mp-last">Último pago de prueba: ${esc((PAY_STATUS[last.status] || ['', last.status])[1])} · ${fmtDate(last.createdAt)}</p>`;
+    box.innerHTML = `<h3 class="pay-h">${icon('lock', 16)} Cuenta conectada</h3>
+      ${!a.connected ? '<p class="muted">Mercado Pago no está conectado.</p>'
+        : acc ? `<dl class="mp-acc">
+            <div><dt>Titular</dt><dd>${esc(acc.name || '—')}</dd></div>
+            <div><dt>Usuario</dt><dd>${esc(acc.nickname || '—')}</dd></div>
+            <div><dt>Mail</dt><dd>${esc(acc.email || '—')}</dd></div>
+            <div><dt>N° de cuenta</dt><dd>${esc(String(acc.id))}</dd></div>
+          </dl>
+          <p class="cell-sub">Es la cuenta a la que entra la plata de los destacados, el CV Pro, el Pack Cosecha y "Avisar al celular". Si no es la tuya, cambiá la clave <code>WORKUCO_MP_TOKEN</code> en el servidor.</p>`
+          : `<p class="muted">${esc(a.error || 'No pudimos consultar la cuenta.')}</p>`}
+      ${a.connected ? `<div class="mp-test">
+          <button class="btn btn-outline btn-sm" type="button" id="mp-test-btn">${icon('money', 14)} Hacer un pago de prueba de $ 100</button>
+          <p class="cell-sub">Pagalo con otra cuenta de Mercado Pago o con una tarjeta sin iniciar sesión: Mercado Pago no te deja pagarte a vos mismo. Los $ 100 te llegan a esta cuenta (menos la comisión) y te avisamos al celular cuando se aprueba. No cuenta en lo cobrado.</p>
+        </div>` : ''}
+      ${lastTxt}`;
+    const btn = $('#mp-test-btn', box);
+    if (btn) btn.addEventListener('click', async () => {
+      btn.disabled = true; btn.textContent = 'Abriendo Mercado Pago…';
+      try { const r = await api('/api/admin/payments/test', { method: 'POST', body: {} }); location.href = r.url; }
+      catch (err) { toast(err.message, 'err'); btn.disabled = false; btn.textContent = 'Hacer un pago de prueba de $ 100'; }
+    });
+  }
   async function adminPayments() {
     const box = $('#admin-payments');
     let d;
@@ -1391,6 +1429,7 @@
         <p>Mercado Pago: ${d.mp.connected ? '<span class="badge badge-green">Conectado</span>' : '<span class="badge badge-amber">Sin conectar</span>'}
           · Firma de los avisos: ${d.mp.webhookSecret ? '<span class="badge badge-green">Verificada</span>' : '<span class="badge badge-amber">Sin clave secreta</span> (recomendado: <code>WORKUCO_MP_WEBHOOK_SECRET</code>)'}</p>
       </div>
+      <div class="mp-account" id="mp-account"><p class="muted">Consultando la cuenta de Mercado Pago…</p></div>
       <form id="pay-form" class="pay-form">
         <label class="switch-row"><input type="checkbox" id="pay-charge" ${d.settings.charge ? 'checked' : ''}><span class="switch" aria-hidden="true"></span>
           <span><strong>Cobrar los destacados</strong><small>Apagado: las empresas sólo "piden" el destacado y vos lo activás a mano (como en el lanzamiento).</small></span></label>
@@ -1419,12 +1458,13 @@
       ${d.payments.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Fecha</th><th>Qué</th><th>Quién</th><th>Monto</th><th>Estado</th><th>N° de Mercado Pago</th></tr></thead><tbody>
         ${d.payments.map((x) => { const st = PAY_STATUS[x.status] || ['', x.status]; return `<tr>
           <td class="cell-sub">${fmtDate(x.paidAt || x.createdAt)}</td>
-          <td>${x.kind === 'cv' ? '<span class="badge">CV Pro</span>' : x.kind === 'cosecha' ? `<span class="badge">Pack Cosecha ${x.days} días</span>` : `<span class="badge">Destacado ${x.days} días</span><div class="cell-sub">${esc(x.jobTitle || '')}</div>`}</td>
+          <td>${x.kind === 'prueba' ? '<span class="badge">Pago de prueba</span>' : x.kind === 'push' ? `<span class="badge">Avisar al celular</span><div class="cell-sub">${esc(x.jobTitle || '')}</div>` : x.kind === 'cv' ? '<span class="badge">CV Pro</span>' : x.kind === 'cosecha' ? `<span class="badge">Pack Cosecha ${x.days} días</span>` : `<span class="badge">Destacado ${x.days} días</span><div class="cell-sub">${esc(x.jobTitle || '')}</div>`}</td>
           <td><div class="cell-title">${esc(x.companyName || (x.kind === 'cv' ? 'Cuenta borrada' : ''))}</div></td>
           <td>${money(x.amount)}</td>
           <td><span class="badge ${st[0]}">${esc(st[1])}</span></td>
           <td class="cell-sub">${esc(x.mpPaymentId || '—')}</td></tr>`; }).join('')}
       </tbody></table></div>` : '<div class="list-empty">Todavía no hay pagos.</div>'}`;
+    mpAccount();
     $('#pay-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const prices = {};

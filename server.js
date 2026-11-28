@@ -636,6 +636,10 @@ function sendJobPush(j, { paid = false } = {}) {
   return ids.length;
 }
 
+/* cuenta de Mercado Pago conectada (se guarda 10 minutos) y monto del pago de prueba */
+let mpAccountCache = null;
+const MP_TEST_AMOUNT = 100;
+
 /* ---------- CV Pro ---------- */
 const CV_PRICE_DEFAULT = 5000;
 const CV_MAX_VERSIONS = 3; // antes de pagar (la primera incluida)
@@ -729,6 +733,8 @@ async function settlePayment(mpPaymentId, { companyId = null, kind = null } = {}
       /* approvePayment devuelve true sólo la primera vez: lo que sigue pasa una sola vez por pago */
       if (row.kind === 'cosecha') {
         activateCosechaFor(row.company_id, row.days || COSECHA_DAYS, `Pago aprobado por $ ${row.amount.toLocaleString('es-AR')}. Tus avisos de cosecha salen arriba y podés invitar hasta ${COSECHA_INVITES} personas por día.`);
+      } else if (row.kind === 'prueba') {
+        notifyAdmin('Llegó el pago de prueba', `$ ${row.amount.toLocaleString('es-AR')} aprobado en Mercado Pago (pago ${p.id}). El cobro funciona de punta a punta.`, '/admin#pagos');
       } else if (row.kind === 'push') {
         const j = store.job(row.job_id);
         const n = j && j.status === 'approved' ? sendJobPush(j, { paid: true }) : 0;
@@ -3461,6 +3467,36 @@ async function handleApi(req, res, url) {
         amount: x.amount, status: x.status, mpPaymentId: x.mp_payment_id || '', createdAt: x.created_at, paidAt: x.paid_at,
       })),
     });
+  }
+  /* a qué cuenta de Mercado Pago entra la plata (se consulta con la clave cargada) y el último pago de prueba */
+  if (p === '/api/admin/payments/account' && method === 'GET') {
+    if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
+    const last = store.one("SELECT status, amount, created_at, paid_at, mp_payment_id FROM payments WHERE kind='prueba' ORDER BY created_at DESC LIMIT 1");
+    const lastTest = last ? { status: last.status, amount: last.amount, createdAt: last.created_at, paidAt: last.paid_at, mpPaymentId: last.mp_payment_id || '' } : null;
+    if (!mp.connected()) return send(res, 200, { connected: false, account: null, lastTest });
+    try {
+      if (!mpAccountCache || Date.now() - mpAccountCache.at > 10 * 60000) mpAccountCache = { at: Date.now(), account: await mp.getAccount() };
+      return send(res, 200, { connected: true, account: mpAccountCache.account, lastTest });
+    } catch (e) {
+      console.warn('Mercado Pago (cuenta):', e.message);
+      return send(res, 200, { connected: true, account: null, error: e.status === 401 ? 'Mercado Pago rechazó la clave: revisá WORKUCO_MP_TOKEN.' : 'No pudimos consultar la cuenta ahora. Probá en un rato.', lastTest });
+    }
+  }
+  /* pago de prueba: recorre todo el camino de un cobro real (link, pago, aviso y aprobación) */
+  if (p === '/api/admin/payments/test' && method === 'POST') {
+    if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
+    if (!mp.connected()) return send(res, 400, { error: 'Primero cargá la clave de Mercado Pago en el servidor' });
+    if (!mp.isPublicHttps(PUBLIC_URL)) return send(res, 400, { error: 'El pago de prueba necesita la dirección pública con https (PUBLIC_URL)' });
+    const row = store.insertPayment({ companyId: 'admin', jobTitle: 'Pago de prueba', amount: MP_TEST_AMOUNT, kind: 'prueba' });
+    try {
+      const pref = await mp.createPreference({ reference: row.id, title: 'Pago de prueba WorkUco', amount: MP_TEST_AMOUNT, publicUrl: PUBLIC_URL, returnPath: '/admin' });
+      store.setPaymentPreference(row.id, pref.id);
+      return send(res, 200, { url: pref.url, amount: MP_TEST_AMOUNT });
+    } catch (e) {
+      console.warn('Mercado Pago:', e.message);
+      store.setPaymentStatus(row.id, 'error');
+      return send(res, 502, { error: 'No pudimos abrir Mercado Pago. Probá de nuevo en un rato.' });
+    }
   }
   if (p === '/api/admin/payments/settings' && method === 'PUT') {
     if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
