@@ -618,8 +618,11 @@ function cvSettings() {
 /* ---------- Pack Cosecha ---------- */
 const COSECHA_DAYS = 30;
 const COSECHA_INVITES = 100; // invitaciones por día con el pack
+/* precio sugerido: 30 días, hasta 5 avisos de cosecha destacados, 100 invitaciones por día y sello (unos $ 1.500 por día).
+   El admin lo cambia en Pagos; la venta se prende aparte ("Vender Pack Cosecha"). */
+const COSECHA_PRICE_DEFAULT = 45000;
 function cosechaConfig() {
-  const price = Number(store.adminMeta('price_cosecha')) || 0;
+  const price = Number(store.adminMeta('price_cosecha')) || COSECHA_PRICE_DEFAULT;
   const sell = store.adminMeta('sell_cosecha') === '1';
   return { price, sell, enabled: sell && price > 0 && mp.connected() && mp.isPublicHttps(PUBLIC_URL) };
 }

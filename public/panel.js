@@ -1406,7 +1406,7 @@
           <label class="switch-row"><input type="checkbox" id="pay-sellcosecha" ${d.settings.sellCosecha ? 'checked' : ''}><span class="switch" aria-hidden="true"></span>
             <span><strong>Vender Pack Cosecha</strong><small>30 días: hasta 5 avisos de cosecha destacados, 100 invitaciones por día y sello "Cosecha". Apagado: las empresas lo piden y vos lo activás en Empresas.</small></span></label>
           <label class="field"><span>Precio del Pack Cosecha</span>
-            <span class="pay-input"><span>$</span><input class="input" type="number" min="0" step="100" inputmode="numeric" id="pay-cosechaprice" value="${d.settings.cosechaPrice || ''}" placeholder="Sin vender"></span></label>
+            <span class="pay-input"><span>$</span><input class="input" type="number" min="0" step="100" inputmode="numeric" id="pay-cosechaprice" value="${d.settings.cosechaPrice || 45000}"></span></label>
         </div>
         <div class="pay-cv">
           <p><strong>Avisar al celular</strong><br><small>La empresa manda su aviso, una vez, al celular de la gente de la zona que activó los avisos de empleo. Gratis durante el lanzamiento; después se cobra junto con los destacados.</small></p>
