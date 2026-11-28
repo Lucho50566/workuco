@@ -141,6 +141,24 @@ async function main() {
     check('un precio inválido se rechaza', (await fetch(`${BASE}/api/admin/payments/settings`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Cookie: admin.cookie() }, body: JSON.stringify({ pushPrice: 50 }) })).status === 400);
     check('la empresa ve el precio nuevo', (await emp.get(`/api/company/jobs/${job2.id}/push`)).data.price === 4200);
 
+    console.log('— Pagos que se vienen —');
+    const bl = await admin.get('/api/admin/bills');
+    check('trae el servidor y el dominio, todavía sin fecha', bl.status === 200 && bl.data.bills.map((x) => x.id).join() === 'cloud,dominio' && bl.data.bills.every((x) => x.next === null));
+    check('una empresa no los ve', (await emp.get('/api/admin/bills')).status === 401);
+    const plus = (d) => new Date(Date.now() - 3 * 3600e3 + d * 86400000).toISOString().slice(0, 10);
+    const putBill = async (id, next) => (await fetch(`${BASE}/api/admin/bills/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Cookie: admin.cookie() }, body: JSON.stringify({ next }) }));
+    check('una fecha inválida se rechaza', (await putBill('cloud', '2026-02-30')).status === 400);
+    check('se guarda la fecha del próximo pago', (await putBill('cloud', plus(5))).status === 200);
+    await wait(150);
+    check('a 5 días, al celular del admin le llega el aviso', to(adminSub.endpoint).some((m) => /En 5 días vence: Cloud Server/.test(m.title)));
+    await putBill('cloud', plus(5));
+    await wait(150);
+    check('el mismo aviso no se repite', to(adminSub.endpoint).filter((m) => /En 5 días vence: Cloud Server/.test(m.title)).length === 1);
+    const paid = await admin.post('/api/admin/bills/cloud/paid');
+    const cloud = paid.data.bills.find((x) => x.id === 'cloud');
+    check('"Ya lo pagué" pasa al mes siguiente', paid.status === 200 && cloud.days >= 28 && cloud.days <= 36, JSON.stringify(cloud));
+    check('sin fecha no se puede marcar pagado', (await admin.post('/api/admin/bills/dominio/paid')).status === 400);
+
     console.log('— Desactivar y borrar —');
     await ana.post('/api/push/unsubscribe', { endpoint: anaSub.endpoint });
     check('al desactivar, el estado dice que no', (await ana.post('/api/push/status', { endpoint: anaSub.endpoint })).data.on === false);

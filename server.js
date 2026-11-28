@@ -33,6 +33,7 @@ const mp = require('./lib/mp');
 const cvpro = require('./lib/cvpro');
 const { createMailer, emailHtml, emailText } = require('./lib/mail');
 const pushLib = require('./lib/push');
+const bills = require('./lib/bills');
 const DEMO = process.env.WORKUCO_DEMO === '1';
 
 const ROOT = __dirname;
@@ -428,6 +429,16 @@ function pushTo(type, id, { title, body = '', url = '/' }) {
 /* cosas nuevas para revisar en el admin: le llegan al celular del dueño de WorkUco */
 function notifyAdmin(title, body = '', link = '/admin') {
   pushTo('admin', 'admin', { title, body, url: link });
+}
+
+/* ---------- pagos que se vienen (servidor, dominio): avisos al celular del admin ---------- */
+const billsList = () => bills.normalize(jparse(store.adminMeta('bills'), []));
+const saveBills = (list) => store.setAdminMeta('bills', JSON.stringify(list));
+function checkBills() {
+  const { notices, list } = bills.due(billsList(), bills.todayAR());
+  if (!notices.length) return;
+  saveBills(list);
+  for (const n of notices) notifyAdmin(n.title, n.body, '/admin');
 }
 
 /* Los links de los mails salen SIEMPRE de PUBLIC_URL, nunca del Host del pedido
@@ -3369,6 +3380,30 @@ async function handleApi(req, res, url) {
     counts.total = counts.jobs + counts.places + counts.companies + counts.featureRequests + counts.importResponses + counts.expiringSoon + counts.opportunities + counts.requests;
     return send(res, 200, { jobs: ib.jobs, places, companies, featureRequests: ib.featureRequests, importResponses: ib.importResponses, expiringSoon, opportunities, requests, counts, seenAt: ib.seenAt });
   }
+  /* pagos que se vienen: fecha del próximo pago y "ya lo pagué" (pasa al mes o al año siguiente) */
+  const billM = p.match(/^\/api\/admin\/bills(?:\/([a-z0-9-]{1,40})(\/paid)?)?$/);
+  if (billM) {
+    if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
+    const today = bills.todayAR();
+    if (!billM[1] && method === 'GET') return send(res, 200, { bills: bills.view(billsList(), today) });
+    const list = billsList();
+    const b = list.find((x) => x.id === billM[1]);
+    if (!b) return send(res, 404, { error: 'No encontrado' });
+    if (!billM[2] && method === 'PUT') {
+      const body = await readBody(req, 4096);
+      if (!bills.validDate(body.next)) return send(res, 400, { error: 'Elegí una fecha válida' });
+      b.next = body.next;
+    } else if (billM[2] && method === 'POST') {
+      if (!b.next) return send(res, 400, { error: 'Primero cargá la fecha del próximo pago' });
+      /* si se pagó con atraso de varios períodos, salta hasta la próxima fecha que viene */
+      let next = bills.advance(b.next, b.period);
+      while (bills.daysUntil(next, today) < 0) next = bills.advance(next, b.period);
+      b.next = next;
+    } else return send(res, 405, { error: 'Método no permitido' });
+    saveBills(list);
+    try { checkBills(); } catch (_) {}
+    return send(res, 200, { bills: bills.view(list, today) });
+  }
   if (p === '/api/admin/inbox/seen' && method === 'POST') {
     if (!me || me.role !== 'admin') return send(res, 401, { error: 'No autorizado' });
     store.setAdminMeta('inbox_seen_at', now());
@@ -3742,6 +3777,9 @@ if (process.env.WORKUCO_DEMO === '1') {
 /* avisos importados vencidos: se revisan al arrancar y cada hora */
 setTimeout(() => { try { sweepImported(); } catch (e) { console.warn('Barrido de importados:', e.message); } }, 15000).unref();
 setInterval(() => { try { sweepImported(); } catch (e) { console.warn('Barrido de importados:', e.message); } }, 3600000).unref();
+/* pagos que se vienen: se revisan al arrancar y cada hora (cada aviso sale una sola vez) */
+setTimeout(() => { try { checkBills(); } catch (e) { console.warn('Recordatorio de pagos:', e.message); } }, 20000).unref();
+setInterval(() => { try { checkBills(); } catch (e) { console.warn('Recordatorio de pagos:', e.message); } }, 3600000).unref();
 
 server.listen(PORT, HOST, () => {
   backfillThumbs();

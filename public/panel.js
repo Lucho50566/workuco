@@ -1475,7 +1475,39 @@
       if ($('#s-candidates')) $('#s-candidates').textContent = stats.candidates;
     } catch (_) {}
   }
+  /* pagos que se vienen (servidor, dominio): fecha, cuánto falta y "Ya lo pagué" */
+  async function adminBills() {
+    const box = $('#admin-bills');
+    if (!box) return;
+    let d;
+    try { d = await api('/api/admin/bills'); } catch (_) { box.hidden = true; return; }
+    const when = (b) => (b.days == null ? '<span class="badge badge-amber">Falta la fecha</span>'
+      : b.days < 0 ? `<span class="badge badge-red">Vencido hace ${-b.days} día${b.days === -1 ? '' : 's'}</span>`
+        : b.days === 0 ? '<span class="badge badge-red">Vence hoy</span>'
+          : b.days <= 5 ? `<span class="badge badge-amber">Vence en ${b.days} día${b.days === 1 ? '' : 's'}</span>`
+            : `<span class="badge">En ${b.days} días</span>`);
+    box.innerHTML = `<h3 class="bills-h">${icon('money', 16)} Pagos que se vienen</h3>
+      <p class="sub" style="margin:0 0 8px">Te avisa al celular 5 días antes, 2 días antes y el mismo día.</p>
+      ${d.bills.map((b) => `<div class="bill-row">
+        <div class="bill-name"><strong>${esc(b.name)}</strong><small>${b.period === 'anio' ? 'Una vez por año' : 'Todos los meses'}${b.where ? ` · ${esc(b.where)}` : ''}</small></div>
+        <div class="bill-when">${when(b)}</div>
+        <label class="bill-date"><span class="sr-only">Próximo pago de ${esc(b.name)}</span><input class="input input-sm" type="date" value="${esc(b.next || '')}" data-bill-date="${esc(b.id)}"></label>
+        ${b.next ? `<button class="btn btn-outline btn-sm" type="button" data-bill-paid="${esc(b.id)}">Ya lo pagué</button>` : ''}
+      </div>`).join('')}`;
+    $$('[data-bill-date]', box).forEach((inp) => inp.addEventListener('change', async () => {
+      if (!inp.value) return;
+      try { await api(`/api/admin/bills/${inp.dataset.billDate}`, { method: 'PUT', body: { next: inp.value } }); toast('Fecha guardada: te avisamos antes', 'ok'); adminBills(); }
+      catch (err) { toast(err.message, 'err'); }
+    }));
+    $$('[data-bill-paid]', box).forEach((btn) => btn.addEventListener('click', async () => {
+      if (!btn.dataset.armed) { btn.dataset.armed = '1'; btn.textContent = 'Tocá de nuevo para confirmar'; setTimeout(() => { if (btn.isConnected) { delete btn.dataset.armed; btn.textContent = 'Ya lo pagué'; } }, 4000); return; }
+      btn.disabled = true;
+      try { const r = await api(`/api/admin/bills/${btn.dataset.billPaid}/paid`, { method: 'POST', body: {} }); const b = r.bills.find((x) => x.id === btn.dataset.billPaid); toast(`Listo: el próximo pago es el ${b.next.split('-').reverse().join('/')}`, 'ok'); adminBills(); }
+      catch (err) { btn.disabled = false; toast(err.message, 'err'); }
+    }));
+  }
   async function adminInbox() {
+    adminBills();
     const box = $('#admin-inbox');
     if (!box) return;
     let d;

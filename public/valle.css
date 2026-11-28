@@ -1371,3 +1371,11 @@ select.input.input-sm, select.input-sm { padding-right: 32px; background-positio
 .push-box .push-jobs-row { flex: 1 1 100%; margin: 2px 0 0; }
 .push-nudge { grid-template-columns: 52px 1fr; }
 .push-nudge-icon { width: 52px; height: 52px; border-radius: 14px; background: var(--lime); color: var(--night); display: grid; place-items: center; }
+
+/* admin: pagos que se vienen */
+.bills { margin: 4px 0 14px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); }
+.bills-h { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; font-size: 16px; }
+.bill-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.bill-name { display: grid; flex: 1 1 220px; min-width: 0; }
+.bill-name small { color: var(--muted); }
+.bill-date input { min-width: 150px; }
