@@ -1131,7 +1131,7 @@ table.data .cell-sub { color: var(--muted); font-size: 12.3px; }
 .install-banner-actions .btn { flex: 1; min-height: 42px; font-size: 14px; }
 .install-banner-go { background: var(--lime); color: var(--night); }
 .install-banner-go:hover { background: var(--lime-2); }
-.install-banner-later { border-color: rgba(245, 241, 230, .25); color: var(--cream); }
+.install-banner-later { background: transparent; border: 1px solid rgba(245, 241, 230, .25); border-color: rgba(245, 241, 230, .25); color: var(--cream); }
 .install-banner-later:hover { background: rgba(245, 241, 230, .08); }
 @media (prefers-reduced-motion: reduce) { .install-banner { transition: none; } }
 

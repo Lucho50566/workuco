@@ -530,7 +530,7 @@ function prefsOf(role, row) {
   if (role !== 'candidate') return { mail };
   return {
     localities: jparse(row.pref_localities, []), types: jparse(row.pref_types, []),
-    modalities: jparse(row.pref_modalities, []), gigs: row.pref_gigs !== 0, mail,
+    modalities: jparse(row.pref_modalities, []), gigs: row.pref_gigs !== 0, mail, pushJobs: row.push_jobs === 1,
   };
 }
 
@@ -574,6 +574,36 @@ function payConfig() {
   /* Mercado Pago avisa y vuelve por https: sin una dirección pública https no se cobra */
   const enabled = mp.connected() && charge && mp.isPublicHttps(PUBLIC_URL) && Object.keys(prices).length > 0;
   return { charge, prices, enabled };
+}
+
+/* ---------- extra "Avisar al celular": el aviso le llega al celular a la gente de su zona ---------- */
+const PUSH_JOB_PRICE_DEFAULT = 3500;
+function pushJobConfig() {
+  const price = Number(store.adminMeta('price_push')) || PUSH_JOB_PRICE_DEFAULT;
+  /* en lanzamiento es gratis; después se cobra cuando está prendido el cobro de destacados y Mercado Pago anda */
+  const paid = !LAUNCH_FREE && store.adminMeta('charge_featured') === '1' && mp.connected() && mp.isPublicHttps(PUBLIC_URL) && price > 0;
+  return { price, free: LAUNCH_FREE, paid, offered: LAUNCH_FREE || paid };
+}
+function pushJobState(j) {
+  const cfg = pushJobConfig();
+  const aud = j.status === 'approved' ? store.pushJobsAudience(j) : { all: [], ready: [] };
+  return { offered: cfg.offered, free: cfg.free, price: cfg.price, reach: aud.ready.length, sentAt: j.pushSentAt, sentCount: j.pushSentCount,
+    canSend: cfg.offered && j.status === 'approved' && !j.pushSentAt && aud.ready.length > 0 };
+}
+/* manda el aviso a la gente (una sola vez por aviso: claimJobPush lo garantiza).
+   Si es pago y mientras se aprobaba la gente de la zona ya recibió otro aviso hoy, sale igual a quienes lo pidieron:
+   lo que se pagó tiene que llegar. Sin nadie a quien mandarlo no se consume el envío (devuelve 0). */
+function sendJobPush(j, { paid = false } = {}) {
+  const aud = store.pushJobsAudience(j);
+  const ids = aud.ready.length ? aud.ready : paid ? aud.all : [];
+  if (!ids.length || !store.claimJobPush(j.id)) return 0;
+  const company = store.company(j.companyId);
+  for (const id of ids) {
+    pushTo('candidate', id, { title: `Empleo nuevo en ${j.locality}: ${j.title}`, body: `${company ? company.name : 'Una empresa'} busca personal. Tocá para ver el aviso.`, url: `/oferta/${j.id}` });
+  }
+  store.finishJobPush(j.id, ids);
+  tryNotify('company', j.companyId, { kind: 'oferta', title: `Tu aviso le llegó al celular a ${ids.length} persona${ids.length === 1 ? '' : 's'}`, body: j.title, link: '/panel#ofertas' });
+  return ids.length;
 }
 
 /* ---------- CV Pro ---------- */
@@ -666,6 +696,14 @@ async function settlePayment(mpPaymentId, { companyId = null, kind = null } = {}
       /* approvePayment devuelve true sólo la primera vez: lo que sigue pasa una sola vez por pago */
       if (row.kind === 'cosecha') {
         activateCosechaFor(row.company_id, row.days || COSECHA_DAYS, `Pago aprobado por $ ${row.amount.toLocaleString('es-AR')}. Tus avisos de cosecha salen arriba y podés invitar hasta ${COSECHA_INVITES} personas por día.`);
+      } else if (row.kind === 'push') {
+        const j = store.job(row.job_id);
+        const n = j && j.status === 'approved' ? sendJobPush(j, { paid: true }) : 0;
+        /* pagó y no salió (el aviso se cerró o ya no queda nadie en la zona): se avisa para devolver el pago */
+        if (!n) {
+          tryNotify('company', row.company_id, { kind: 'oferta', title: 'No pudimos mandar tu aviso al celular', body: `${row.job_title} — te devolvemos los $ ${row.amount.toLocaleString('es-AR')}. Escribinos si tenés dudas.`, link: '/panel#ofertas' });
+          notifyAdmin('Devolver un pago de "Avisar al celular"', `${row.job_title} · $ ${row.amount.toLocaleString('es-AR')} · no había a quién mandarlo`, '/admin');
+        }
       } else if (row.kind === 'cv') {
         if (row.ref_id && store.payCvOrder(row.ref_id, p.id)) {
           tryNotify('candidate', row.company_id, {
@@ -1965,6 +2003,7 @@ async function handleApi(req, res, url) {
         localities: pick(b.localities, LOCALITIES), types: pick(b.types, TYPES), modalities: pick(b.modalities, MODALITIES),
         gigs: typeof b.gigs === 'boolean' ? b.gigs : undefined,
       });
+      if (typeof b.pushJobs === 'boolean') store.setPushJobs(id, b.pushJobs);
     }
     const row = me.role === 'candidate' ? store.candidate(id) : store.company(id);
     return send(res, 200, { ok: true, prefs: prefsOf(me.role, row), mailNotices: !row.mail_opt_out });
@@ -2309,7 +2348,7 @@ async function handleApi(req, res, url) {
     const id = String(b.paymentId || '');
     if (!/^\d{1,20}$/.test(id)) return send(res, 400, { error: 'Número de pago inválido' });
     let row;
-    try { row = await settlePayment(id, { companyId: me.company.id, kind: ['destacado', 'cosecha'] }); } catch (e) {
+    try { row = await settlePayment(id, { companyId: me.company.id, kind: ['destacado', 'cosecha', 'push'] }); } catch (e) {
       if (e.status === 404) return send(res, 404, { error: 'No encontramos ese pago' });
       console.warn('Mercado Pago:', e.message);
       return send(res, 502, { error: 'No pudimos consultar el pago. Si se aprobó, el destacado se activa solo en unos minutos.' });
@@ -2337,6 +2376,30 @@ async function handleApi(req, res, url) {
     const row = store.insertPayment({ companyId: me.company.id, jobTitle: 'Pack Cosecha', days: COSECHA_DAYS, amount: cfg.price, kind: 'cosecha' });
     try {
       const pref = await mp.createPreference({ reference: row.id, title: `Pack Cosecha WorkUco (${COSECHA_DAYS} días)`, amount: cfg.price, publicUrl: PUBLIC_URL, returnPath: '/panel' });
+      store.setPaymentPreference(row.id, pref.id);
+      return send(res, 200, { url: pref.url, reference: row.id });
+    } catch (e) {
+      console.warn('Mercado Pago:', e.message);
+      store.setPaymentStatus(row.id, 'error');
+      return send(res, 502, { error: 'No pudimos abrir Mercado Pago. Probá de nuevo en un rato.' });
+    }
+  }
+
+  const compJobPush = p.match(/^\/api\/company\/jobs\/([a-z0-9]+)\/push$/);
+  if (compJobPush && (method === 'GET' || method === 'POST')) {
+    if (!me || me.role !== 'company') return send(res, 401, { error: 'Iniciá sesión como empresa' });
+    const j = store.job(compJobPush[1]);
+    if (!j || j.companyId !== me.company.id) return send(res, 404, { error: 'Oferta no encontrada' });
+    const st = pushJobState(j);
+    if (method === 'GET') return send(res, 200, st);
+    if (!st.offered) return send(res, 400, { error: 'Esta opción todavía no está disponible' });
+    if (j.status !== 'approved') return send(res, 400, { error: 'Sólo se pueden mandar avisos publicados' });
+    if (j.pushSentAt) return send(res, 400, { error: 'Este aviso ya se mandó al celular de la gente' });
+    if (!st.reach) return send(res, 400, { error: 'Por ahora no hay personas de esta zona con los avisos activados' });
+    if (st.free) { const n = sendJobPush(j); return send(res, 200, { sent: n, state: pushJobState(store.job(j.id)) }); }
+    const row = store.insertPayment({ companyId: me.company.id, jobId: j.id, jobTitle: j.title, amount: st.price, kind: 'push' });
+    try {
+      const pref = await mp.createPreference({ reference: row.id, title: `Avisar al celular: ${j.title}`.slice(0, 120), amount: st.price, publicUrl: PUBLIC_URL, returnPath: '/panel#ofertas' });
       store.setPaymentPreference(row.id, pref.id);
       return send(res, 200, { url: pref.url, reference: row.id });
     } catch (e) {
@@ -3333,7 +3396,7 @@ async function handleApi(req, res, url) {
     const cfg = payConfig();
     return send(res, 200, {
       mp: { connected: mp.connected(), publicUrl: mp.isPublicHttps(PUBLIC_URL), webhookSecret: mp.hasWebhookSecret() },
-      settings: { charge: cfg.charge, prices: cfg.prices, ...cvSettings(), cosechaPrice: cosechaConfig().price, sellCosecha: cosechaConfig().sell }, enabled: cfg.enabled, featuredDays: FEATURED_DAYS,
+      settings: { charge: cfg.charge, prices: cfg.prices, ...cvSettings(), cosechaPrice: cosechaConfig().price, sellCosecha: cosechaConfig().sell, pushPrice: pushJobConfig().price }, enabled: cfg.enabled, featuredDays: FEATURED_DAYS,
       cvPro: { ai: cvProAi(), canPay: cvProConfig().canPay },
       totals: store.paymentTotals(),
       payments: store.allPayments().map((x) => ({
@@ -3365,8 +3428,10 @@ async function handleApi(req, res, url) {
     if ('cosechaPrice' in b && !(Number(b.cosechaPrice) === 0 || okPrice(Number(b.cosechaPrice)))) return send(res, 400, { error: 'El precio del Pack Cosecha tiene que ser un número entero de pesos (mínimo $ 100)' });
     if ('cosechaPrice' in b) store.setAdminMeta('price_cosecha', Number(b.cosechaPrice));
     if ('sellCosecha' in b) store.setAdminMeta('sell_cosecha', b.sellCosecha ? '1' : '0');
+    if ('pushPrice' in b && !okPrice(Number(b.pushPrice))) return send(res, 400, { error: 'El precio de "Avisar al celular" tiene que ser un número entero de pesos (mínimo $ 100)' });
+    if ('pushPrice' in b) store.setAdminMeta('price_push', Number(b.pushPrice));
     const cfg = payConfig();
-    return send(res, 200, { settings: { charge: cfg.charge, prices: cfg.prices, ...cvSettings(), cosechaPrice: cosechaConfig().price, sellCosecha: cosechaConfig().sell }, enabled: cfg.enabled });
+    return send(res, 200, { settings: { charge: cfg.charge, prices: cfg.prices, ...cvSettings(), cosechaPrice: cosechaConfig().price, sellCosecha: cosechaConfig().sell, pushPrice: pushJobConfig().price }, enabled: cfg.enabled });
   }
 
   if (p === '/api/admin/search' && method === 'GET') {

@@ -1368,3 +1368,6 @@ select.input.input-sm, select.input-sm { padding-right: 32px; background-positio
 .push-box-text { display: grid; gap: 2px; flex: 1 1 240px; min-width: 0; }
 .push-box-text strong { display: inline-flex; align-items: center; gap: 6px; }
 .push-box [data-push-btn] { flex: none; }
+.push-box .push-jobs-row { flex: 1 1 100%; margin: 2px 0 0; }
+.push-nudge { grid-template-columns: 52px 1fr; }
+.push-nudge-icon { width: 52px; height: 52px; border-radius: 14px; background: var(--lime); color: var(--night); display: grid; place-items: center; }

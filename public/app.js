@@ -1831,16 +1831,57 @@ async function pushReg() {
   const reg = (await navigator.serviceWorker.getRegistration('/')) || (await navigator.serviceWorker.register('/sw.js'));
   return navigator.serviceWorker.ready.then(() => reg);
 }
-function pushBoxHtml(forAdmin) {
-  return `<div class="push-box" data-push-box data-push-admin="${forAdmin ? '1' : ''}">
+/* activa los avisos en este celular (pide permiso, se suscribe y lo guarda en la cuenta). Devuelve 'ok' | 'denied' | 'default' */
+async function pushActivate() {
+  const perm = await Notification.requestPermission();
+  if (perm !== 'granted') return perm;
+  const reg = await pushReg();
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) {
+    const { publicKey } = await api('/api/push/key');
+    sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: pushKey(publicKey) });
+  }
+  await api('/api/push/subscribe', { method: 'POST', body: { subscription: sub.toJSON() } });
+  return 'ok';
+}
+/* ¿este celular ya recibe avisos de esta cuenta? */
+async function pushIsOn() {
+  if (!pushSupported() || Notification.permission !== 'granted') return false;
+  try {
+    const sub = await (await pushReg()).pushManager.getSubscription();
+    return !!sub && (await api('/api/push/status', { method: 'POST', body: { endpoint: sub.endpoint } })).on;
+  } catch (_) { return false; }
+}
+async function setPushJobs(on) {
+  const r = await api('/api/account/prefs', { method: 'PATCH', body: { pushJobs: on } });
+  if (state.user && state.user.candidate) state.user.candidate.prefs = r.prefs;
+  return r;
+}
+function pushBoxHtml(role) {
+  const acc = (state.user && state.user.candidate) || {};
+  const jobs = role === 'candidate' ? `<label class="check-row push-jobs-row"><input type="checkbox" data-push-jobs ${(acc.prefs || {}).pushJobs ? 'checked' : ''}><span>Avisarme también de <strong>empleos nuevos para mí</strong> (de mi zona y de lo que busco, como mucho uno por día)</span></label>` : '';
+  return `<div class="push-box" data-push-box data-push-admin="${role === 'admin' ? '1' : ''}">
     <div class="push-box-text"><strong>${icon('bell', 18)} Avisos en este celular</strong>
-      <span class="soft-text" data-push-msg>${forAdmin ? 'Te avisa al celular cuando hay algo nuevo para revisar.' : 'Te llegan al celular las mismas cosas importantes que a la campanita.'}</span></div>
+      <span class="soft-text" data-push-msg>${role === 'admin' ? 'Te avisa al celular cuando hay algo nuevo para revisar.' : 'Te llegan al celular las mismas cosas importantes que a la campanita.'}</span></div>
     <button class="btn btn-primary btn-sm" type="button" data-push-btn hidden></button>
+    ${jobs}
   </div>`;
 }
 async function setupPushBox(box) {
   if (!box || box.dataset.pushReady) return;
   box.dataset.pushReady = '1';
+  const jobsCb = $('[data-push-jobs]', box);
+  if (jobsCb) jobsCb.addEventListener('change', async () => {
+    try {
+      if (jobsCb.checked && !(await pushIsOn())) {
+        const r = pushSupported() ? await pushActivate() : 'unsupported';
+        if (r !== 'ok') { jobsCb.checked = false; toast('Primero activá los avisos en este celular', 'err'); return; }
+        $('[data-push-btn]', box).textContent = 'Desactivar'; $('[data-push-btn]', box).className = 'btn btn-outline btn-sm';
+      }
+      await setPushJobs(jobsCb.checked);
+      toast(jobsCb.checked ? 'Te vamos a avisar de los empleos nuevos para vos' : 'Listo: ya no te avisamos de empleos nuevos', 'ok');
+    } catch (err) { jobsCb.checked = !jobsCb.checked; toast(err.message, 'err'); }
+  });
   const btn = $('[data-push-btn]', box); const msg = $('[data-push-msg]', box);
   const say = (t) => { msg.textContent = t; };
   if (!pushSupported()) {
@@ -1873,18 +1914,60 @@ async function setupPushBox(box) {
         if (sub) { await api('/api/push/unsubscribe', { method: 'POST', body: { endpoint: sub.endpoint } }); await sub.unsubscribe().catch(() => {}); }
         say('Listo: ya no te llegan avisos a este celular.'); paint(false); return;
       }
-      const perm = await Notification.requestPermission();
-      if (perm !== 'granted') { paint(false); if (perm === 'default') say('Para activarlos, tocá "Permitir" cuando el celular pregunte.'); return; }
-      if (!sub) {
-        const { publicKey } = await api('/api/push/key');
-        sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: pushKey(publicKey) });
-      }
-      await api('/api/push/subscribe', { method: 'POST', body: { subscription: sub.toJSON() } });
+      const r = await pushActivate();
+      if (r !== 'ok') { paint(false); if (r === 'default') say('Para activarlos, tocá "Permitir" cuando el celular pregunte.'); return; }
       paint(true); toast('Avisos activados: te mandamos uno de prueba', 'ok');
     } catch (err) { paint(false); toast(err && err.message ? err.message : 'No se pudieron activar los avisos', 'err'); }
   });
 }
 document.addEventListener('DOMContentLoaded', () => { $$('[data-push-box]').forEach(setupPushBox); });
+
+/* Cartel abajo en las páginas públicas: "te conviene activar los avisos de empleos".
+   A quien no tiene cuenta lo invita a crearla; a una persona con cuenta le activa los avisos ahí mismo.
+   "Ahora no" lo esconde 14 días. No sale a empresas ni al admin, ni si ya los tiene activos o los bloqueó. */
+const PUSH_NUDGE_KEY = 'wk-push-nudge-later';
+const PUSH_NUDGE_PAGES = ['home', 'search', 'job', 'vecinos', 'gigs', 'cosecha', 'guide'];
+async function pushNudge(page) {
+  if (!PUSH_NUDGE_PAGES.includes(page)) return;
+  const u = state.user;
+  if (u && u.role !== 'candidate') return;
+  try { if (Number(localStorage.getItem(PUSH_NUDGE_KEY)) > Date.now()) return; } catch (_) {}
+  const iosNeedsHome = pushIsIOS() && !pushStandalone();
+  if (!pushSupported() && !iosNeedsHome) return;
+  if (pushSupported() && Notification.permission === 'denied') return;
+  if (u && (u.candidate.prefs || {}).pushJobs && await pushIsOn()) return;
+  await new Promise((r) => setTimeout(r, 7000));
+  if ($('.install-banner.is-in') || $('.push-nudge')) return; // no se pisa con el cartel de instalar
+  const el = document.createElement('aside');
+  el.className = 'install-banner push-nudge';
+  el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Avisos de empleo en el celular');
+  const text = !u ? 'Creá tu perfil gratis y activá los avisos: te llega al celular cada empleo nuevo de tu zona.'
+    : iosNeedsHome ? 'En iPhone: tocá Compartir → "Agregar a inicio", abrí WorkUco desde ese ícono y activalos en Mi perfil.'
+      : 'Te llega al celular cada empleo nuevo de tu zona y de lo que buscás. Como mucho uno por día.';
+  el.innerHTML = `<span class="push-nudge-icon" aria-hidden="true">${icon('bell', 26)}</span>
+    <div class="install-banner-text"><strong>Enterate primero de los empleos nuevos</strong><span>${text}</span></div>
+    <div class="install-banner-actions">
+      ${!u ? '<a class="btn btn-sm install-banner-go" href="/acceder?rol=empleado&modo=registro&next=/mi-perfil">Crear mi perfil</a>' : iosNeedsHome ? '' : '<button class="btn btn-sm install-banner-go" type="button" data-nudge-go>Activar avisos</button>'}
+      <button class="btn btn-sm install-banner-later" type="button" data-nudge-later>${u && iosNeedsHome ? 'Entendido' : 'Ahora no'}</button>
+    </div>`;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('is-in'));
+  const hide = (days) => {
+    if (days) { try { localStorage.setItem(PUSH_NUDGE_KEY, String(Date.now() + days * 86400000)); } catch (_) {} }
+    el.classList.remove('is-in'); setTimeout(() => el.remove(), 400);
+  };
+  $('[data-nudge-later]', el).addEventListener('click', () => hide(14));
+  const go = $('[data-nudge-go]', el);
+  if (go) go.addEventListener('click', async () => {
+    go.disabled = true; go.textContent = 'Activando…';
+    try {
+      const r = await pushActivate();
+      if (r !== 'ok') { hide(r === 'denied' ? 0 : 3); if (r === 'denied') toast('Bloqueaste los avisos. Podés activarlos desde la configuración del navegador.', 'err'); return; }
+      await setPushJobs(true);
+      hide(0); toast('¡Listo! Te avisamos al celular de los empleos nuevos para vos', 'ok');
+    } catch (err) { go.disabled = false; go.textContent = 'Activar avisos'; toast(err && err.message ? err.message : 'No se pudieron activar los avisos', 'err'); }
+  });
+}
 
 /* "Tus datos": descargar una copia (derecho de acceso) y darse de baja (supresión). Va en el
    perfil, en el panel de empresa y en /baja. La baja pide la contraseña y borra todo en el momento. */
@@ -1898,7 +1981,7 @@ function accountDataHtml(role) {
       <legend>Qué avisos te llegan por mail <small>(la campanita de la página recibe todo)</small></legend>
       ${MAIL_LABELS[role].map(([k, label]) => `<label class="check-row"><input type="checkbox" data-mail-type="${k}" ${((acc.prefs || {}).mail || {})[k] === false ? '' : 'checked'}><span>${label}</span></label>`).join('')}
     </fieldset>
-    ${pushBoxHtml(false)}
+    ${pushBoxHtml(role)}
     <div class="account-data-actions">
       <button class="btn btn-outline btn-sm" type="button" data-pass-open aria-expanded="false" aria-controls="pass-form">${icon('lock', 16)} Cambiar contraseña</button>
       <a class="btn btn-outline btn-sm" href="/api/account/export" download>${icon('file', 16)} Descargar mis datos</a>
@@ -2671,6 +2754,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadMe();
   } catch (_) {}
   resolveReady();
+  pushNudge(page).catch(() => {});
   if (new URLSearchParams(location.search).get('baja') === '1') toast('Tu cuenta y tus datos se borraron', 'ok');
   /* admin: botón "Gestionar" en cada oferta y ficha de las páginas públicas */
   if (state.user && state.user.role === 'admin') {

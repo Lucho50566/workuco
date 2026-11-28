@@ -270,6 +270,7 @@
                 ? `<p class="feat-note">${icon('clock', 14)} Pediste destacarlo: te avisamos cuando esté. <button class="link-btn" type="button" data-feat-cancel="${j.id}">Cancelar pedido</button></p>`
                 : `<p class="feat-note"><button class="btn btn-outline btn-sm" type="button" data-feat-req="${j.id}">${icon('star', 14)} Pedir destacado</button> <span>Sale primero en Buscar y en Wik Works${meta.launchFree ? '. <strong>Gratis durante el lanzamiento.</strong>' : '.'}</span></p>`) : ''}
             ${j.status === 'rejected' && j.rejectReason ? `<p class="reject-note">${esc(j.rejectReason)}</p>` : ''}
+            ${j.status === 'approved' || j.pushSentAt ? `<div class="push-offer" data-push-offer="${j.id}"></div>` : ''}
             <div class="perf" data-perf-box="${j.id}" hidden></div>
             <div class="offer-actions">
               ${j.status === 'approved' || j.status === 'closed' ? `<button class="btn btn-outline btn-sm" type="button" data-perf="${j.id}" aria-expanded="false">${icon('chart', 14)} Rendimiento</button>` : ''}
@@ -282,6 +283,30 @@
           </div>
         </article>`;
       }).join('') : `<div class="empty"><h3>No hay publicaciones acá</h3><p>Probá con otro filtro o creá una búsqueda nueva.</p><a class="btn btn-primary" href="/publicar" style="margin-top:14px">Publicar empleo</a></div>`;
+
+      /* extra "Avisar al celular": le llega el aviso al celular a la gente de la zona que lo pidió */
+      $$('[data-push-offer]').forEach(async (box) => {
+        const id = box.dataset.pushOffer;
+        const job = data.jobs.find((x) => x.id === id) || {};
+        let st;
+        try { st = await api(`/api/company/jobs/${id}/push`); } catch (_) { box.remove(); return; }
+        if (st.sentAt) { box.innerHTML = `<p class="feat-note is-on">${icon('bell', 14)} Le llegó al celular a <strong>${st.sentCount}</strong> persona${st.sentCount === 1 ? '' : 's'} el ${fmtDate(st.sentAt)}.</p>`; return; }
+        if (!st.offered) { box.remove(); return; }
+        if (!st.reach) { box.innerHTML = `<p class="feat-note muted">${icon('bell', 14)} Avisar al celular: todavía no hay personas de ${esc(job.locality || 'esta zona')} con los avisos de empleo activados. Apenas haya, vas a poder mandarlo.</p>`; return; }
+        box.innerHTML = `<div class="feat-buy"><span>${icon('bell', 14)} <strong>Avisar al celular:</strong> le llega a <strong>${st.reach}</strong> persona${st.reach === 1 ? '' : 's'} de ${esc(job.locality || 'tu zona')} que busca${st.reach === 1 ? '' : 'n'} trabajo y activ${st.reach === 1 ? 'ó' : 'aron'} los avisos.</span>
+          <div class="feat-opts"><button class="btn btn-primary btn-sm" type="button" data-push-send>${st.free ? 'Mandar · gratis' : `Mandar · $ ${Number(st.price).toLocaleString('es-AR')}`}</button></div>
+          <small>${st.free ? 'Gratis durante el lanzamiento.' : 'Pagás con Mercado Pago y sale solo.'} Se manda una vez por aviso.</small></div>`;
+        const btn = $('[data-push-send]', box);
+        btn.addEventListener('click', async () => {
+          if (!btn.dataset.armed) { btn.dataset.armed = '1'; btn.textContent = 'Tocá de nuevo para confirmar'; setTimeout(() => { if (btn.isConnected && !btn.disabled) { delete btn.dataset.armed; btn.textContent = st.free ? 'Mandar · gratis' : `Mandar · $ ${Number(st.price).toLocaleString('es-AR')}`; } }, 4000); return; }
+          btn.disabled = true; btn.textContent = st.free ? 'Mandando…' : 'Abriendo Mercado Pago…';
+          try {
+            const r = await api(`/api/company/jobs/${id}/push`, { method: 'POST' });
+            if (r.url) { location.href = r.url; return; }
+            toast(`Listo: el aviso le llegó al celular a ${r.sent} persona${r.sent === 1 ? '' : 's'}`, 'ok'); load();
+          } catch (err) { toast(err.message, 'err'); btn.disabled = false; delete btn.dataset.armed; btn.textContent = 'Mandar'; }
+        });
+      });
 
       /* rendimiento de cada aviso: se carga al abrirlo */
       $$('[data-perf]').forEach((b) => b.addEventListener('click', async () => {
@@ -919,7 +944,9 @@
       else if (/^\d{1,20}$/.test(pid)) {
         try {
           const r = await api('/api/company/payments/confirm', { method: 'POST', body: { paymentId: pid } });
-          if (r.kind === 'cosecha') {
+          if (r.kind === 'push') {
+            toast(r.status === 'approved' ? '¡Listo! Tu aviso ya le llegó al celular a la gente de tu zona.' : 'Tu pago está en proceso: el aviso se manda solo cuando se apruebe.', 'ok');
+          } else if (r.kind === 'cosecha') {
             toast(r.status === 'approved' ? '¡Listo! Tu Pack Cosecha está activo.' : 'Tu pago está en proceso: el Pack Cosecha se activa solo cuando se apruebe.', 'ok');
             showTab('overview');
           } else toast(r.status === 'approved' ? `¡Listo! Tu aviso quedó destacado por ${r.days} días.` : 'Tu pago está en proceso: el aviso se destaca solo cuando se apruebe.', 'ok');
@@ -1381,6 +1408,11 @@
           <label class="field"><span>Precio del Pack Cosecha</span>
             <span class="pay-input"><span>$</span><input class="input" type="number" min="0" step="100" inputmode="numeric" id="pay-cosechaprice" value="${d.settings.cosechaPrice || ''}" placeholder="Sin vender"></span></label>
         </div>
+        <div class="pay-cv">
+          <p><strong>Avisar al celular</strong><br><small>La empresa manda su aviso, una vez, al celular de la gente de la zona que activó los avisos de empleo. Gratis durante el lanzamiento; después se cobra junto con los destacados.</small></p>
+          <label class="field"><span>Precio por envío</span>
+            <span class="pay-input"><span>$</span><input class="input" type="number" min="100" step="100" inputmode="numeric" id="pay-pushprice" value="${d.settings.pushPrice || 3500}"></span></label>
+        </div>
         <button class="btn btn-primary" type="submit">Guardar</button>
       </form>
       <h3 class="pay-h">Cobrado: ${money(d.totals.approved)} <small>(${d.totals.count} pago${d.totals.count === 1 ? '' : 's'} aprobado${d.totals.count === 1 ? '' : 's'})</small></h3>
@@ -1401,6 +1433,7 @@
         await api('/api/admin/payments/settings', { method: 'PUT', body: {
           charge: $('#pay-charge').checked, prices, sellCv: $('#pay-sellcv').checked, cvPrice: Number($('#pay-cvprice').value) || 0,
           sellCosecha: $('#pay-sellcosecha').checked, cosechaPrice: Number($('#pay-cosechaprice').value) || 0,
+          pushPrice: Number($('#pay-pushprice').value) || 0,
         } });
         toast('Guardado', 'ok');
         adminPayments();

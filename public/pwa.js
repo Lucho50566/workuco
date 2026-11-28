@@ -103,6 +103,7 @@
   let banner = null;
   function showBanner() {
     if (banner || standalone() || store.get(DONE_KEY) === '1') return;
+    if (document.querySelector('.push-nudge')) return; // ya está el cartel de avisos de empleo: no se pisan
     store.set(SESSION_KEY, '1', true);
     banner = document.createElement('div');
     banner.className = 'install-banner';

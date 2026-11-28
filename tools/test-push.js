@@ -37,7 +37,7 @@ function client() {
     try { data = JSON.parse(text); } catch (_) {}
     return { status: res.status, data: data || {}, text };
   }
-  return { get: (p) => req(p), post: (p, b = {}) => req(p, { method: 'POST', body: b }), patch: (p, b) => req(p, { method: 'PATCH', body: b }) };
+  return { get: (p) => req(p), post: (p, b = {}) => req(p, { method: 'POST', body: b }), patch: (p, b) => req(p, { method: 'PATCH', body: b }), cookie: () => cookie };
 }
 async function waitServer() {
   for (let i = 0; i < 60; i++) {
@@ -113,6 +113,33 @@ async function main() {
     check('a la empresa le llega la postulación nueva', !!post);
     check('sin el nombre de quien se postuló (se ve en la pantalla bloqueada)', post && !/Ana/.test(post.title + post.body), JSON.stringify(post));
     check('los avisos sólo llevan links internos', pushes().every((m) => /^\/(?!\/)/.test(m.message.url)));
+
+    console.log('— Extra "Avisar al celular" —');
+    const caro = client();
+    await caro.post('/api/auth/register', { role: 'candidate', name: 'Caro Push', email: 'caro@test.workuco', phone: '2622 408408', password: 'clave12345', acceptTerms: true });
+    const caroSub = fakeSub('caro');
+    await caro.post('/api/push/subscribe', { subscription: caroSub });
+    await caro.patch('/api/account/prefs', { localities: ['San Carlos'], pushJobs: true });
+    const sinOk = await emp.get(`/api/company/jobs/${job.id}/push`);
+    check('sin nadie de la zona que lo pidió, el alcance es 0 y no se puede mandar', sinOk.data.reach === 0 && sinOk.data.canSend === false, JSON.stringify(sinOk.data));
+    const pr = await ana.patch('/api/account/prefs', { localities: ['Tunuyán'], pushJobs: true });
+    check('la persona elige recibir avisos de empleos nuevos', pr.data.prefs && pr.data.prefs.pushJobs === true);
+    const st = (await emp.get(`/api/company/jobs/${job.id}/push`)).data;
+    check('la empresa ve el alcance real (sólo Tunuyán, sólo quien lo pidió)', st.reach === 1 && st.free === true && st.canSend === true, JSON.stringify(st));
+    const sent = await emp.post(`/api/company/jobs/${job.id}/push`);
+    await wait(150);
+    check('en lanzamiento se manda gratis y enseguida', sent.status === 200 && sent.data.sent === 1, JSON.stringify(sent.data));
+    check('a la persona de la zona le llega el aviso con link a la oferta', to(anaSub.endpoint).some((m) => /Empleo nuevo en Tunuyán/.test(m.title) && m.url === `/oferta/${job.id}`));
+    check('a la de otra zona no le llega', !to(caroSub.endpoint).some((m) => /Empleo nuevo/.test(m.title)));
+    check('la empresa recibe a cuántas personas les llegó', to(empSub.endpoint).some((m) => /le llegó al celular a 1 persona/.test(m.title)));
+    check('se manda una sola vez por aviso', (await emp.post(`/api/company/jobs/${job.id}/push`)).status === 400);
+    const job2 = (await emp.post('/api/company/jobs', { title: 'Encargado de riego', description: 'Manejo de riego por goteo y mantenimiento general de la finca, turno mañana.', locality: 'Tunuyán', category: 'Agricultura', type: 'Tiempo completo', modality: 'Presencial', contactEmail: 'finca@test.workuco' })).data.job;
+    await admin.patch(`/api/admin/jobs/${job2.id}`, { status: 'approved' });
+    check('como mucho uno por día por persona', (await emp.get(`/api/company/jobs/${job2.id}/push`)).data.reach === 0);
+    const put = await (await fetch(`${BASE}/api/admin/payments/settings`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Cookie: admin.cookie() }, body: JSON.stringify({ pushPrice: 4200 }) })).json();
+    check('el admin cambia el precio', put.settings && put.settings.pushPrice === 4200, JSON.stringify(put));
+    check('un precio inválido se rechaza', (await fetch(`${BASE}/api/admin/payments/settings`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Cookie: admin.cookie() }, body: JSON.stringify({ pushPrice: 50 }) })).status === 400);
+    check('la empresa ve el precio nuevo', (await emp.get(`/api/company/jobs/${job2.id}/push`)).data.price === 4200);
 
     console.log('— Desactivar y borrar —');
     await ana.post('/api/push/unsubscribe', { endpoint: anaSub.endpoint });
